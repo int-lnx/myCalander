@@ -16,9 +16,18 @@ import 'screens/project_form_screen.dart';
 import 'screens/task_form_screen.dart';
 import 'screens/all_timeline_screen.dart';
 import 'screens/day_note_dialog.dart';
+import 'screens/app_drawer.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+  } catch (e) {
+    debugPrint('Failed to clear SharedPreferences on startup: $e');
+  }
   try {
     const firebaseOptions = FirebaseOptions(
       apiKey: 'AIzaSyAALVX3X_i3MDD6HAd63whTtW9mNDnFG8c',
@@ -372,58 +381,129 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
+    final isWide = MediaQuery.of(context).size.width > 900;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: _buildDateIndicator(appState),
-        actions: [
-          IconButton(
-            icon: Icon(appState.isDarkMode ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () => appState.toggleDarkMode(),
+    Widget currentScreen;
+    switch (_currentIndex) {
+      case 0:
+        currentScreen = Column(
+          children: [
+            _buildViewTypeSelectorBar(context, appState),
+            const Expanded(child: CalendarScreen()),
+          ],
+        );
+        break;
+      case 1:
+        currentScreen = const TasksScreen();
+        break;
+      case 2:
+        currentScreen = const TrackingScreen();
+        break;
+      case 3:
+        currentScreen = const AllTimelineScreen();
+        break;
+      case 4:
+        currentScreen = const SettingsScreen();
+        break;
+      default:
+        currentScreen = Column(
+          children: [
+            _buildViewTypeSelectorBar(context, appState),
+            const Expanded(child: CalendarScreen()),
+          ],
+        );
+    }
+
+    if (isWide) {
+      return Scaffold(
+        body: Row(
+          children: [
+            SizedBox(
+              width: 280,
+              child: AppDrawer(
+                isSidebar: true,
+                currentIndex: _currentIndex,
+                onIndexChanged: (index) {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: Scaffold(
+                appBar: _currentIndex == 0 ? AppBar(
+                  title: _buildDateIndicator(appState),
+                  actions: [
+                    IconButton(
+                      icon: Icon(appState.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+                      onPressed: () => appState.toggleDarkMode(),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.person),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        );
+                      },
+                    ),
+                  ],
+                ) : null,
+                body: currentScreen,
+                floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
+                  onPressed: () => _showAddSelection(context, appState),
+                  child: const Icon(Icons.add),
+                ) : null,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Scaffold(
+        appBar: AppBar(
+          title: _currentIndex == 0 ? _buildDateIndicator(appState) : Text(
+            _currentIndex == 1
+                ? 'Görevler'
+                : _currentIndex == 2
+                    ? 'Projeler'
+                    : _currentIndex == 3
+                        ? 'Analiz'
+                        : 'Ayarlar',
           ),
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfileScreen()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildViewTypeSelectorBar(context, appState),
-          Expanded(
-            child: _currentIndex == 0
-                ? const CalendarScreen()
-                : const TasksScreen(),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Takvim',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.task_alt),
-            label: 'Görevler',
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddSelection(context, appState),
-        child: const Icon(Icons.add),
-      ),
-    );
+          actions: [
+            IconButton(
+              icon: Icon(appState.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+              onPressed: () => appState.toggleDarkMode(),
+            ),
+            IconButton(
+              icon: const Icon(Icons.person),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                );
+              },
+            ),
+          ],
+        ),
+        drawer: AppDrawer(
+          isSidebar: false,
+          currentIndex: _currentIndex,
+          onIndexChanged: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+        ),
+        body: currentScreen,
+        floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
+          onPressed: () => _showAddSelection(context, appState),
+          child: const Icon(Icons.add),
+        ) : null,
+      );
+    }
   }
 }
