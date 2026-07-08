@@ -44,7 +44,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '1.45';
+  static const String appVersion = '1.55';
   List<String> _deletedTaskIds = [];
   List<String> _deletedEventIds = [];
   List<String> _deletedDayNoteIds = [];
@@ -423,6 +423,7 @@ class AppState extends ChangeNotifier {
       if (oldJson != newJson) {
         _tasks = newTasks;
         _cleanDuplicateTasks();
+        _syncTaskTagsAndSubTags();
         await _saveTasks();
         notifyListeners();
       }
@@ -698,6 +699,7 @@ class AppState extends ChangeNotifier {
 
     // Kategori renk haritalarını yükle
     await _loadTagColors(prefs);
+    _syncTaskTagsAndSubTags();
 
     final paintedJson = prefs.getString('paintedDays');
     if (paintedJson != null) {
@@ -798,6 +800,45 @@ class AppState extends ChangeNotifier {
       }
       _saveTasks();
     }
+  }
+
+  void _syncTaskTagsAndSubTags() {
+    bool changed = false;
+    for (var task in _tasks) {
+      if (task.tag.isNotEmpty) {
+        if (!_taskTags.contains(task.tag)) {
+          _taskTags.add(task.tag);
+          changed = true;
+        }
+        if (task.subTag != null && task.subTag!.trim().isNotEmpty) {
+          final subList = _taskSubTags.putIfAbsent(task.tag, () => []);
+          if (!subList.contains(task.subTag)) {
+            subList.add(task.subTag!);
+            changed = true;
+          }
+        }
+      }
+    }
+
+    // Ensure all subTags in the map are selected in memory
+    _taskSubTags.forEach((tag, list) {
+      for (var sub in list) {
+        final key = '$tag:$sub';
+        if (!_selectedTaskSubTags.contains(key)) {
+          _selectedTaskSubTags.add(key);
+        }
+      }
+    });
+
+    if (changed) {
+      _saveTaskTagsAndSubTagsToPrefs();
+    }
+  }
+
+  Future<void> _saveTaskTagsAndSubTagsToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('taskTags', _taskTags);
+    await prefs.setString('taskSubTags', json.encode(_taskSubTags));
   }
 
   void _cleanDuplicateEvents() {
@@ -1696,6 +1737,7 @@ class AppState extends ChangeNotifier {
     _deletedTaskIds.remove(task.id);
     _saveDeletedIds();
     _tasks.add(task);
+    _syncTaskTagsAndSubTags();
     NotificationService.scheduleTaskNotifications(task);
     notifyListeners();
     _saveTasks();
@@ -1708,6 +1750,7 @@ class AppState extends ChangeNotifier {
     final index = _tasks.indexWhere((t) => t.id == task.id);
     if (index != -1) {
       _tasks[index] = task;
+      _syncTaskTagsAndSubTags();
       NotificationService.scheduleTaskNotifications(task);
       notifyListeners();
       _saveTasks();
@@ -2190,6 +2233,8 @@ class AppState extends ChangeNotifier {
         if (_autoSync) {
           await syncDataWithFirebase();
         }
+      } else {
+        throw Exception('Giriş başarısız oldu veya iptal edildi.');
       }
     } catch (e) {
       debugPrint('Error logging in with Google: $e');
@@ -2756,6 +2801,7 @@ class AppState extends ChangeNotifier {
       }
 
       _cleanDuplicateTasks();
+      _syncTaskTagsAndSubTags();
       _cleanDuplicateEvents();
 
       await _saveEvents();

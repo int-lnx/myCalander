@@ -281,16 +281,58 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   ...appState.taskTags.map((tag) {
                     final isChecked = appState.selectedTaskTags.contains(tag);
-                    return CheckboxListTile(
-                      value: isChecked,
-                      title: Text(tag, style: const TextStyle(fontSize: 13)),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      dense: true,
-                      visualDensity: VisualDensity.compact,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      onChanged: (val) {
-                        appState.toggleTaskTag(tag);
-                      },
+                    final subTags = appState.taskSubTags[tag] ?? [];
+                    final isExpanded = _expandedCategories['task_$tag'] ?? false;
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CheckboxListTile(
+                          value: isChecked,
+                          title: Text(tag, style: const TextStyle(fontSize: 13)),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          onChanged: (val) {
+                            appState.toggleTaskTag(tag);
+                          },
+                          secondary: subTags.isNotEmpty
+                              ? IconButton(
+                                  icon: Icon(
+                                    isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () {
+                                    setState(() {
+                                      _expandedCategories['task_$tag'] = !isExpanded;
+                                    });
+                                  },
+                                )
+                              : null,
+                        ),
+                        if (isExpanded && subTags.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 32.0),
+                            child: Column(
+                              children: subTags.map((sub) {
+                                final isSubChecked = appState.selectedTaskSubTags.contains('$tag:$sub');
+                                return CheckboxListTile(
+                                  value: isSubChecked,
+                                  title: Text(sub, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  controlAffinity: ListTileControlAffinity.leading,
+                                  dense: true,
+                                  visualDensity: VisualDensity.compact,
+                                  onChanged: (val) {
+                                    appState.toggleTaskSubTag(tag, sub);
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                      ],
                     );
                   }),
                   const Divider(),

@@ -20,6 +20,7 @@ class ProjectDetailsScreen extends StatefulWidget {
 
 class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  String _selectedGorevStatus = 'Yapılacak';
 
   @override
   void initState() {
@@ -344,69 +345,249 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
     );
   }
 
-  Widget _buildGorevHavuzu(BuildContext context, AppState appState) {
-    // Show Kanban list grouped by status
-    final plans = appState.topicPlans.where((p) => p.projectId == widget.project.id).toList();
+  void _openPlanForm(BuildContext context, AppState appState, {TopicPlan? existingPlan}) async {
+    var topics = appState.topics.where((t) => t.projectId == widget.project.id).toList();
+    if (topics.isEmpty) {
+      final newTopic = Topic(
+        id: '${widget.project.id}_genel',
+        projectId: widget.project.id,
+        name: 'Genel',
+      );
+      appState.addTopic(newTopic);
+      topics = [newTopic];
+    }
 
-    return DefaultTabController(
-      length: 5,
-      child: Column(
-        children: [
-          TabBar(
-            isScrollable: true,
-            tabs: const [
-              Tab(text: 'Yapılacak'),
-              Tab(text: 'Yapılıyor'),
-              Tab(text: 'Yapılanlar'),
-              Tab(text: 'Bekleyenler'),
-              Tab(text: 'Başlanmadı'),
-            ],
-            labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildPlanList(plans.where((p) => p.status == 'Yapılacak').toList(), appState),
-                _buildPlanList(plans.where((p) => p.status == 'Yapılıyor').toList(), appState),
-                _buildPlanList(plans.where((p) => p.status == 'Yapılanlar').toList(), appState),
-                _buildPlanList(plans.where((p) => p.status == 'Bekleyenler').toList(), appState),
-                _buildPlanList(plans.where((p) => p.status == 'Başlanmadı').toList(), appState),
-              ],
-            ),
-          ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlanFormScreen(
+          topic: existingPlan != null
+              ? (topics.firstWhere((t) => t.id == existingPlan.topicId, orElse: () => topics.first))
+              : topics.first,
+          plan: existingPlan,
+          projectId: widget.project.id,
+        ),
       ),
     );
   }
 
-  Widget _buildPlanList(List<TopicPlan> list, AppState appState) {
-    if (list.isEmpty) {
-      return const Center(child: Text('Bu sütunda adım bulunmuyor.'));
-    }
-    return ListView.builder(
-      itemCount: list.length,
-      padding: const EdgeInsets.all(8),
-      itemBuilder: (context, idx) {
-        final plan = list[idx];
-        return Card(
-          child: ListTile(
-            title: Text(plan.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(plan.description.isNotEmpty ? plan.description : 'Açıklama yok'),
-            trailing: PopupMenuButton<String>(
-              onSelected: (status) {
-                appState.updateTopicPlan(plan.copyWith(status: status));
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'Yapılacak', child: Text('Yapılacak')),
-                const PopupMenuItem(value: 'Yapılıyor', child: Text('Yapılıyor')),
-                const PopupMenuItem(value: 'Yapılanlar', child: Text('Yapılanlar')),
-                const PopupMenuItem(value: 'Bekleyenler', child: Text('Bekleyenler')),
-                const PopupMenuItem(value: 'Başlanmadı', child: Text('Başlanmadı')),
-              ],
+  Widget _buildGorevHavuzu(BuildContext context, AppState appState) {
+    final plans = appState.topicPlans.where((p) => p.projectId == widget.project.id).toList();
+    final filteredPlans = plans.where((p) {
+      if (_selectedGorevStatus == 'Tamamlandı') return p.status == 'Yapılanlar';
+      return p.status == _selectedGorevStatus;
+    }).toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title and Add Step Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Görev Yönetimi & Havuzu',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Yeni Adım Ekle', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple.shade50,
+                  foregroundColor: Colors.purple,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed: () => _openPlanForm(context, appState),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Horizontal Pill Filters Row
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['Yapılacak', 'Yapılıyor', 'Bekleyenler', 'Tamamlandı'].map((status) {
+                final count = plans.where((p) {
+                  if (status == 'Tamamlandı') return p.status == 'Yapılanlar';
+                  return p.status == status;
+                }).length;
+
+                final isSelected = _selectedGorevStatus == status;
+
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedGorevStatus = status),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.purple : (appState.isDarkMode ? Colors.grey.shade800 : Colors.grey.shade100),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          status,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : (appState.isDarkMode ? Colors.white70 : Colors.black87),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.white.withOpacity(0.2) : (appState.isDarkMode ? Colors.black26 : Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$count',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected ? Colors.white : (appState.isDarkMode ? Colors.white70 : Colors.black87),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
-        );
-      },
+          const SizedBox(height: 12),
+
+          // Tasks List
+          Expanded(
+            child: filteredPlans.isEmpty
+                ? const Center(child: Text('Bu sütunda adım bulunmuyor.'))
+                : ListView.builder(
+                    itemCount: filteredPlans.length,
+                    itemBuilder: (context, idx) {
+                      final plan = filteredPlans[idx];
+                      final workedHours = plan.dayReports.values.map((r) => r.hoursWorked).fold(0.0, (a, b) => a + b);
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Row(
+                            children: [
+                              // Reorder Handle
+                              const Icon(Icons.reorder, color: Colors.grey, size: 20),
+                              const SizedBox(width: 12),
+
+                              // Content Info
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      plan.title,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Başlangıç: ${plan.startDate.day}/${plan.startDate.month}/${plan.startDate.year} (${plan.status == 'Yapılanlar' ? 'Tamamlandı' : plan.status})',
+                                      style: const TextStyle(color: Colors.purple, fontSize: 11, fontWeight: FontWeight.w500),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Süre: ${workedHours.toStringAsFixed(1)} / ${plan.targetHours.toStringAsFixed(1)} sa',
+                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Dropdown & Action Buttons
+                              Row(
+                                children: [
+                                  // Status Dropdown
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: plan.status,
+                                        icon: const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                                        style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 11),
+                                        items: ['Yapılacak', 'Yapılıyor', 'Bekleyenler', 'Yapılanlar'].map((st) {
+                                          return DropdownMenuItem(
+                                            value: st,
+                                            child: Text(st == 'Yapılanlar' ? 'Tamamlandı' : st),
+                                          );
+                                        }).toList(),
+                                        onChanged: (newVal) {
+                                          if (newVal != null) {
+                                            appState.updateTopicPlan(plan.copyWith(status: newVal));
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+
+                                  // Place in time plan button
+                                  IconButton(
+                                    icon: const Icon(Icons.calendar_today, color: Colors.blueGrey, size: 18),
+                                    tooltip: 'Zaman Planına Yerleştir',
+                                    onPressed: () {
+                                      _tabController.animateTo(1);
+                                    },
+                                  ),
+
+                                  // Edit Button
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+                                    onPressed: () => _openPlanForm(context, appState, existingPlan: plan),
+                                  ),
+
+                                  // Delete Button
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                                    onPressed: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Görevi Sil?'),
+                                          content: const Text('Bu görevi silmek istediğinize emin misiniz?'),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                              onPressed: () {
+                                                appState.deleteTopicPlan(plan.id);
+                                                Navigator.pop(ctx);
+                                              },
+                                              child: const Text('Sil', style: TextStyle(color: Colors.white)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
