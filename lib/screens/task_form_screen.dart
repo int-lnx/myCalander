@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../models/task_item.dart';
@@ -449,7 +449,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                             builder: (context) {
                               final project = appState.projects.firstWhere(
                                 (p) => p.id == _projectId,
-                                orElse: () => Project(id: '', title: ''),
+                                orElse: () => const Project(id: '', title: '', colorValue: 0, evaluationType: 'PERCENTAGE', targetValue: 100.0),
                               );
                               return DropdownButtonFormField<String?>(
                                 initialValue: project.tags.contains(_projectTag)

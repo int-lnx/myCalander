@@ -1,8 +1,9 @@
-﻿class TaskItem {
+class TaskItem {
   final String id;
   final String seriesId;
   final String title;
   final String details;
+  String get description => details;
   final bool isCompleted;
   final DateTime? from;
   final DateTime? to;
