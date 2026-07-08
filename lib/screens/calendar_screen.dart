@@ -19,7 +19,7 @@ import 'event_form_screen.dart';
 import 'task_form_screen.dart';
 import 'project_form_screen.dart';
 import 'all_timeline_screen.dart';
-import 'plan_screen.dart';
+import 'package:my_plan/screens/plan_screen.dart' show PlanScreen;
 
 String? _sanitizeRRule(String? rule, DateTime startDate) {
   if (rule == null || rule.isEmpty) return rule;
@@ -2300,28 +2300,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         Positioned(
                                           top: 4,
                                           right: 4,
-                                          child: Builder(
-                                            builder: (context) {
-                                              final nIdx = appState.dayNotes.indexWhere(
-                                                (n) =>
-                                                    n.date.year == details.date.year &&
-                                                    n.date.month == details.date.month &&
-                                                    n.date.day == details.date.day,
-                                              );
-                                              final rating = nIdx != -1 ? appState.dayNotes[nIdx].rating : null;
-                                              return Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  if (rating != null) ...[
-                                                    Text(
-                                                      rating.toStringAsFixed(0),
-                                                      style: const TextStyle(
-                                                        fontSize: 8,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: Colors.amber,
-                                                      ),
-                                                    ),
-                                                    const Icon(
+                                          child: Icon(
+                                            Icons.note_alt_outlined,
+                                            size: 9,
+                                            color: Colors.orange.shade700,
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 );
@@ -2571,10 +2555,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                               child: Container(
                                                 alignment: Alignment.bottomLeft,
                                                 child: SingleChildScrollView(
-                                                  physics: const NeverScrollableScrollPhysics(),
+                                                  physics:
+                                                      const NeverScrollableScrollPhysics(),
+                                                  reverse: true,
                                                   child: Column(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
                                                     children: [
                                                       ...itemWidgets,
                                                       const SizedBox(height: 2),
@@ -3727,7 +3716,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 final eval = dailyEval!;
                                 final proj = linkedProject!;
                                 final successPercent = proj
-                                    .calculateSuccessPercentage(eval.score);
+                                    .calculateSingleSuccessPercentage(eval.score);
                                 final grossStr = formatDuration(
                                   eval.durationHours,
                                 );
@@ -4372,12 +4361,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (isDelete) {
         if (item is Event) {
           final deleted = item;
-          appState.deleteEventSeries(item.seriesId);
+          if (item.seriesId != null) {
+            appState.deleteEventSeries(item.seriesId!);
+          }
           _showUndoSnackBar('"${deleted.title}" tüm serisi silindi', null);
         }
         if (item is TaskItem) {
           final deleted = item;
-          appState.deleteTaskSeries(item.seriesId);
+          if (item.seriesId != null) {
+            appState.deleteTaskSeries(item.seriesId!);
+          }
           _showUndoSnackBar('"${deleted.title}" tüm serisi silindi', null);
         }
       } else {
