@@ -44,7 +44,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '1.55';
+  static const String appVersion = '1.67';
   List<String> _deletedTaskIds = [];
   List<String> _deletedEventIds = [];
   List<String> _deletedDayNoteIds = [];
@@ -75,6 +75,40 @@ class AppState extends ChangeNotifier {
 
   List<DayNote> _dayNotes = [];
   List<DayNote> get dayNotes => _dayNotes;
+
+  String _quickNote = '';
+  String get quickNote => _quickNote;
+
+  Future<void> updateQuickNote(String note) async {
+    _quickNote = note;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('quickNote', _quickNote);
+    if (_user != null) {
+      try {
+        await _firestoreService.saveQuickNote(_user!.uid, _quickNote);
+      } catch (e) {
+        debugPrint('Firestore save quickNote error: $e');
+      }
+    }
+  }
+
+  List<String> _customTaskOrder = [];
+  List<String> get customTaskOrder => _customTaskOrder;
+
+  Future<void> updateTaskOrder(List<String> newOrder) async {
+    _customTaskOrder = newOrder;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('customTaskOrder', _customTaskOrder);
+    if (_user != null) {
+      try {
+        await _firestoreService.saveTaskOrder(_user!.uid, _customTaskOrder);
+      } catch (e) {
+        debugPrint('Firestore save taskOrder error: $e');
+      }
+    }
+  }
 
   List<Serit> _serits = [];
   List<Serit> get serits => _serits;
@@ -160,8 +194,14 @@ class AppState extends ChangeNotifier {
 
   Future<void> _saveExpandedStates() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('eventTagsExpandedState', json.encode(_eventTagsExpandedState));
-    await prefs.setString('taskTagsExpandedState', json.encode(_taskTagsExpandedState));
+    await prefs.setString(
+      'eventTagsExpandedState',
+      json.encode(_eventTagsExpandedState),
+    );
+    await prefs.setString(
+      'taskTagsExpandedState',
+      json.encode(_taskTagsExpandedState),
+    );
   }
 
   User? get firebaseUser => _user;
@@ -172,17 +212,13 @@ class AppState extends ChangeNotifier {
   // ---- Etkinlik kategorileri ----
   List<String> _eventTags = ['Genel'];
   List<String> _selectedEventTags = ['Genel'];
-  Map<String, List<String>> _eventSubTags = {
-    'Genel': [],
-  };
+  Map<String, List<String>> _eventSubTags = {'Genel': []};
   final List<String> _selectedEventSubTags = [];
 
   // ---- Görev kategorileri ----
   List<String> _taskTags = ['Yapılacaklar'];
   List<String> _selectedTaskTags = ['Yapılacaklar'];
-  Map<String, List<String>> _taskSubTags = {
-    'Yapılacaklar': [],
-  };
+  Map<String, List<String>> _taskSubTags = {'Yapılacaklar': []};
   final List<String> _selectedTaskSubTags = [];
 
   /// [LEGACY COMPAT] Etkinlik taglarını döner — eski kod için.
@@ -248,12 +284,12 @@ class AppState extends ChangeNotifier {
   final Map<String, int> _taskTagColors = {};
 
   static const Map<String, int> _builtInTagColors = {
-    'Genel': 0xFF2196F3,   // blue
-    'İş': 0xFF9C27B0,      // purple
+    'Genel': 0xFF2196F3, // blue
+    'İş': 0xFF9C27B0, // purple
     'Kişisel': 0xFF4CAF50, // green
-    'Eğitim': 0xFFFF9800,  // orange
-    'Sağlık': 0xFFE91E63,  // pink
-    'Finans': 0xFF009688,  // teal
+    'Eğitim': 0xFFFF9800, // orange
+    'Sağlık': 0xFFE91E63, // pink
+    'Finans': 0xFF009688, // teal
   };
 
   int? getEventTagColor(String tag) {
@@ -278,8 +314,25 @@ class AppState extends ChangeNotifier {
 
   Future<void> _saveTagColors() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('eventTagColors', json.encode(_eventTagColors.map((k, v) => MapEntry(k, v))));
-    await prefs.setString('taskTagColors', json.encode(_taskTagColors.map((k, v) => MapEntry(k, v))));
+    await prefs.setString(
+      'eventTagColors',
+      json.encode(_eventTagColors.map((k, v) => MapEntry(k, v))),
+    );
+    await prefs.setString(
+      'taskTagColors',
+      json.encode(_taskTagColors.map((k, v) => MapEntry(k, v))),
+    );
+    if (_user != null) {
+      try {
+        await _firestoreService.saveCategoryColors(
+          _user!.uid,
+          _eventTagColors,
+          _taskTagColors,
+        );
+      } catch (e) {
+        debugPrint('Firestore save tag colors error: $e');
+      }
+    }
   }
 
   Future<void> _loadTagColors(SharedPreferences prefs) async {
@@ -324,7 +377,8 @@ class AppState extends ChangeNotifier {
     final allowedSubTags = _eventSubTags[tag] ?? [];
     if (allowedSubTags.isEmpty) return true;
     if (subTag == null || subTag.trim().isEmpty) return true;
-    return _selectedEventSubTags.contains('$tag:$subTag') || _selectedEventSubTags.contains(subTag);
+    return _selectedEventSubTags.contains('$tag:$subTag') ||
+        _selectedEventSubTags.contains(subTag);
   }
 
   /// Görev için tag + subtag filtresi
@@ -333,7 +387,8 @@ class AppState extends ChangeNotifier {
     final allowedSubTags = _taskSubTags[tag] ?? [];
     if (allowedSubTags.isEmpty) return true;
     if (subTag == null || subTag.trim().isEmpty) return true;
-    return _selectedTaskSubTags.contains('$tag:$subTag') || _selectedTaskSubTags.contains(subTag);
+    return _selectedTaskSubTags.contains('$tag:$subTag') ||
+        _selectedTaskSubTags.contains(subTag);
   }
 
   List<Event> get filteredEvents {
@@ -391,7 +446,10 @@ class AppState extends ChangeNotifier {
     _authSub = _authService.authStateChanges.listen((user) async {
       _user = user;
       if (user != null) {
-        _firestoreUserId = await _firestoreService.getOrCreateSiralId(user.uid, email: user.email);
+        _firestoreUserId = await _firestoreService.getOrCreateSiralId(
+          user.uid,
+          email: user.email,
+        );
         notifyListeners();
         if (_autoSync) {
           await syncDataWithFirebase();
@@ -417,11 +475,22 @@ class AppState extends ChangeNotifier {
   void _startFirestoreListeners(String userId) {
     _cancelFirestoreListeners();
 
-    _tasksSubscription = _firestoreService.getTasks(userId).listen((newTasks) async {
+    _tasksSubscription = _firestoreService.getTasks(userId).listen((
+      newTasks,
+    ) async {
+      // Silinmiş görevleri filtrele; Firestore'da hâlâ duruyorlarsa tekrar sil
+      for (final t in newTasks) {
+        if (_deletedTaskIds.contains(t.id)) {
+          _firestoreDeleteTask(t.id);
+        }
+      }
+      final filtered = newTasks
+          .where((t) => !_deletedTaskIds.contains(t.id))
+          .toList();
       final oldJson = json.encode(_tasks.map((t) => t.toJson()).toList());
-      final newJson = json.encode(newTasks.map((t) => t.toJson()).toList());
+      final newJson = json.encode(filtered.map((t) => t.toJson()).toList());
       if (oldJson != newJson) {
-        _tasks = newTasks;
+        _tasks = filtered;
         _cleanDuplicateTasks();
         _syncTaskTagsAndSubTags();
         await _saveTasks();
@@ -429,28 +498,53 @@ class AppState extends ChangeNotifier {
       }
     });
 
-    _eventsSubscription = _firestoreService.getEvents(userId).listen((newEvents) async {
+    _eventsSubscription = _firestoreService.getEvents(userId).listen((
+      newEvents,
+    ) async {
+      // Silinmiş etkinlikleri filtrele; Firestore'da hâlâ duruyorlarsa tekrar sil
+      for (final e in newEvents) {
+        if (_deletedEventIds.contains(e.id)) {
+          _firestoreDeleteEvent(e.id);
+        }
+      }
+      final filtered = newEvents
+          .where((e) => !_deletedEventIds.contains(e.id))
+          .toList();
       final oldJson = json.encode(_events.map((e) => e.toJson()).toList());
-      final newJson = json.encode(newEvents.map((e) => e.toJson()).toList());
+      final newJson = json.encode(filtered.map((e) => e.toJson()).toList());
       if (oldJson != newJson) {
-        _events = newEvents;
+        _events = filtered;
         _cleanDuplicateEvents();
         await _saveEvents();
         notifyListeners();
       }
     });
 
-    _projectsSubscription = _firestoreService.getProjects(userId).listen((newProjects) async {
+    _projectsSubscription = _firestoreService.getProjects(userId).listen((
+      newProjects,
+    ) async {
+      // Silinmiş projeleri Firestore'dan gelen listeden filtrele
+      final filtered = newProjects
+          .where((p) => !_deletedProjectIds.contains(p.id))
+          .toList();
+      // Firestore'da hâlâ duran silinmiş projeleri tekrar sil
+      for (final p in newProjects) {
+        if (_deletedProjectIds.contains(p.id)) {
+          _firestoreDeleteProject(p.id);
+        }
+      }
       final oldJson = json.encode(_projects.map((p) => p.toJson()).toList());
-      final newJson = json.encode(newProjects.map((p) => p.toJson()).toList());
+      final newJson = json.encode(filtered.map((p) => p.toJson()).toList());
       if (oldJson != newJson) {
-        _projects = newProjects;
+        _projects = filtered;
         await _saveProjects();
         notifyListeners();
       }
     });
 
-    _evaluationsSubscription = _firestoreService.getEvaluations(userId).listen((newEvals) async {
+    _evaluationsSubscription = _firestoreService.getEvaluations(userId).listen((
+      newEvals,
+    ) async {
       final oldJson = json.encode(_evaluations.map((e) => e.toJson()).toList());
       final newJson = json.encode(newEvals.map((e) => e.toJson()).toList());
       if (oldJson != newJson) {
@@ -460,17 +554,31 @@ class AppState extends ChangeNotifier {
       }
     });
 
-    _dayNotesSubscription = _firestoreService.getDayNotes(userId).listen((newNotes) async {
+    _dayNotesSubscription = _firestoreService.getDayNotes(userId).listen((
+      newNotes,
+    ) async {
+      // Silinmiş notları Firestore'dan gelen listeden filtrele
+      final filtered = newNotes
+          .where((n) => !_deletedDayNoteIds.contains(n.id))
+          .toList();
+      // Firestore'da hâlâ duran silinmiş notları tekrar sil
+      for (final n in newNotes) {
+        if (_deletedDayNoteIds.contains(n.id)) {
+          _firestoreDeleteDayNote(n.id);
+        }
+      }
       final oldJson = json.encode(_dayNotes.map((n) => n.toJson()).toList());
-      final newJson = json.encode(newNotes.map((n) => n.toJson()).toList());
+      final newJson = json.encode(filtered.map((n) => n.toJson()).toList());
       if (oldJson != newJson) {
-        _dayNotes = newNotes;
+        _dayNotes = filtered;
         await _saveDayNotes();
         notifyListeners();
       }
     });
 
-    _seritsSubscription = _firestoreService.getSerits(userId).listen((newSerits) async {
+    _seritsSubscription = _firestoreService.getSerits(userId).listen((
+      newSerits,
+    ) async {
       final oldJson = json.encode(_serits.map((s) => s.toJson()).toList());
       final newJson = json.encode(newSerits.map((s) => s.toJson()).toList());
       if (oldJson != newJson) {
@@ -480,7 +588,9 @@ class AppState extends ChangeNotifier {
       }
     });
 
-    _topicsSubscription = _firestoreService.getTopics(userId).listen((newTopics) async {
+    _topicsSubscription = _firestoreService.getTopics(userId).listen((
+      newTopics,
+    ) async {
       final oldJson = json.encode(_topics.map((t) => t.toJson()).toList());
       final newJson = json.encode(newTopics.map((t) => t.toJson()).toList());
       if (oldJson != newJson) {
@@ -490,7 +600,9 @@ class AppState extends ChangeNotifier {
       }
     });
 
-    _topicPlansSubscription = _firestoreService.getTopicPlans(userId).listen((newPlans) async {
+    _topicPlansSubscription = _firestoreService.getTopicPlans(userId).listen((
+      newPlans,
+    ) async {
       final oldJson = json.encode(_topicPlans.map((p) => p.toJson()).toList());
       final newJson = json.encode(newPlans.map((p) => p.toJson()).toList());
       if (oldJson != newJson) {
@@ -571,6 +683,8 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    _quickNote = prefs.getString('quickNote') ?? '';
+    _customTaskOrder = prefs.getStringList('customTaskOrder') ?? [];
     _firstDayOfWeek = prefs.getInt('firstDayOfWeek') ?? 1;
     _selectedProjectIds =
         prefs.getStringList('selectedProjectIds') ??
@@ -713,7 +827,8 @@ class AppState extends ChangeNotifier {
       }
     }
 
-    final seritsJson = prefs.getStringList('serits') ?? prefs.getStringList('macros') ?? [];
+    final seritsJson =
+        prefs.getStringList('serits') ?? prefs.getStringList('macros') ?? [];
     _serits = [];
     for (final m in seritsJson) {
       try {
@@ -759,7 +874,8 @@ class AppState extends ChangeNotifier {
       if (t.isCompleted) {
         if (t.from != null) {
           final dateKey = "${t.from!.year}-${t.from!.month}-${t.from!.day}";
-          final uniqueKey = "${t.title.trim()}_${t.details.trim()}_${t.tag}_$dateKey";
+          final uniqueKey =
+              "${t.title.trim()}_${t.details.trim()}_${t.tag}_$dateKey";
           if (uniqueCompletedTasks.containsKey(uniqueKey)) {
             duplicatesToRemove.add(t);
           } else {
@@ -767,10 +883,14 @@ class AppState extends ChangeNotifier {
           }
         }
       } else {
-        final hasRecurrence = t.recurrenceRule != null && t.recurrenceRule!.isNotEmpty;
-        final fromKey = (t.from != null && !hasRecurrence) ? "${t.from!.year}-${t.from!.month}-${t.from!.day}" : "no_date";
+        final hasRecurrence =
+            t.recurrenceRule != null && t.recurrenceRule!.isNotEmpty;
+        final fromKey = (t.from != null && !hasRecurrence)
+            ? "${t.from!.year}-${t.from!.month}-${t.from!.day}"
+            : "no_date";
         final ruleKey = t.recurrenceRule ?? "no_rule";
-        final uniqueKey = "${t.title.trim()}_${t.details.trim()}_${t.tag}_${fromKey}_$ruleKey";
+        final uniqueKey =
+            "${t.title.trim()}_${t.details.trim()}_${t.tag}_${fromKey}_$ruleKey";
         if (uniqueActiveTasks.containsKey(uniqueKey)) {
           duplicatesToRemove.add(t);
         } else {
@@ -780,10 +900,14 @@ class AppState extends ChangeNotifier {
     }
 
     // Force cleanup the specifically bugged task if it exists
-    final buggedTasks = _tasks.where((t) => 
-      t.id == '9b30376b-41ba-4cb7-900b-6bf8086b829d' || 
-      t.title.trim() == 'Change the bed sheets and let the bed air out.'
-    ).toList();
+    final buggedTasks = _tasks
+        .where(
+          (t) =>
+              t.id == '9b30376b-41ba-4cb7-900b-6bf8086b829d' ||
+              t.title.trim() ==
+                  'Change the bed sheets and let the bed air out.',
+        )
+        .toList();
     if (buggedTasks.isNotEmpty) {
       for (var t in buggedTasks) {
         _tasks.removeWhere((item) => item.id == t.id);
@@ -846,10 +970,14 @@ class AppState extends ChangeNotifier {
     final List<Event> duplicatesToRemove = [];
 
     for (var e in _events) {
-      final hasRecurrence = e.recurrenceRule != null && e.recurrenceRule!.isNotEmpty;
-      final fromKey = !hasRecurrence ? "${e.from.year}-${e.from.month}-${e.from.day}" : "no_date";
+      final hasRecurrence =
+          e.recurrenceRule != null && e.recurrenceRule!.isNotEmpty;
+      final fromKey = !hasRecurrence
+          ? "${e.from.year}-${e.from.month}-${e.from.day}"
+          : "no_date";
       final ruleKey = e.recurrenceRule ?? "no_rule";
-      final uniqueKey = "${e.title.trim()}_${e.description.trim()}_${e.tag}_${fromKey}_$ruleKey";
+      final uniqueKey =
+          "${e.title.trim()}_${e.description.trim()}_${e.tag}_${fromKey}_$ruleKey";
       if (uniqueEvents.containsKey(uniqueKey)) {
         duplicatesToRemove.add(e);
       } else {
@@ -858,302 +986,15 @@ class AppState extends ChangeNotifier {
     }
 
     if (duplicatesToRemove.isNotEmpty) {
-      debugPrint('Cleaning up ${duplicatesToRemove.length} duplicate events...');
+      debugPrint(
+        'Cleaning up ${duplicatesToRemove.length} duplicate events...',
+      );
       for (var e in duplicatesToRemove) {
         _events.removeWhere((item) => item.id == e.id);
         _firestoreDeleteEvent(e.id);
       }
       _saveEvents();
     }
-  }
-
-  void _addMockProject() {
-    _projects.clear();
-    _evaluations.removeWhere(
-      (e) =>
-          e.projectId.startsWith('mock_') || e.projectId == 'mock_project_id',
-    );
-
-    final now = DateTime.now();
-    final startDate = now.subtract(const Duration(days: 30));
-    final uuid = const Uuid();
-    final random = Random();
-
-    final mockProjects = [
-      Project(
-        id: 'mock_1',
-        title: 'Kilo Vermek',
-        description: 'Düzenli spor ve diyet takibi',
-        colorValue: 0xFF009688,
-        tag: 'Kişisel',
-        evaluationType: 'PERCENTAGE',
-        targetValue: 100.0,
-      ),
-      Project(
-        id: 'mock_2',
-        title: 'Kitap Okuma',
-        description: 'Her gün en az 20 sayfa kitap okuma',
-        colorValue: 0xFFFF9800,
-        tag: 'Eğitim',
-        evaluationType: 'NUMERIC',
-        targetValue: 30.0,
-      ),
-      Project(
-        id: 'mock_3',
-        title: 'Flutter Öğrenme',
-        description: 'Yeni widget\'lar ve state management çalışmaları',
-        colorValue: 0xFF2196F3,
-        tag: 'Eğitim',
-        evaluationType: 'PERCENTAGE',
-        targetValue: 100.0,
-      ),
-      Project(
-        id: 'mock_4',
-        title: 'İngilizce Çalışma',
-        description: 'Kelime ezberi ve konuşma pratiği',
-        colorValue: 0xFF9C27B0,
-        tag: 'Eğitim',
-        evaluationType: 'NUMERIC',
-        targetValue: 45.0,
-      ),
-      Project(
-        id: 'mock_5',
-        title: 'Düzenli Uyku',
-        description: 'Günde en az 8 saat uyku düzeni',
-        colorValue: 0xFF673AB7,
-        tag: 'Kişisel',
-        evaluationType: 'PERCENTAGE',
-        targetValue: 100.0,
-      ),
-      Project(
-        id: 'mock_6',
-        title: 'Finans Yönetimi',
-        description: 'Günlük gelir-gider ve tasarruf kontrolü',
-        colorValue: 0xFF4CAF50,
-        tag: 'İş',
-        evaluationType: 'PERCENTAGE',
-        targetValue: 100.0,
-      ),
-    ];
-
-    _projects.addAll(mockProjects);
-
-    final notes = [
-      'Çok verimli bir gündü.',
-      'Biraz zorlandım ama hedefi tamamladım.',
-      'Yorgun olduğum için ucu ucuna yetişti.',
-      'Harika bir ilerleme kaydettim!',
-      'Planlanan sürenin biraz altında kaldım.',
-      'Motivasyonum yüksekti, keyifle tamamladım.',
-      'Konsantre olmakta biraz güçlük çektim.',
-    ];
-
-    for (var project in mockProjects) {
-      for (int i = 0; i < 30; i++) {
-        final date = startDate.add(Duration(days: i));
-        if (date.isBefore(now)) {
-          if (random.nextDouble() < 0.20) {
-            continue;
-          }
-
-          final isSkipped = random.nextDouble() < 0.15;
-          double score = 0;
-          double duration = 0.5 + random.nextInt(4);
-          String? note;
-
-          if (!isSkipped) {
-            if (project.evaluationType == 'PERCENTAGE') {
-              score = (50 + random.nextInt(51)).toDouble();
-            } else {
-              score = (10 + random.nextInt(31)).toDouble();
-            }
-            if (random.nextDouble() < 0.60) {
-              note = notes[random.nextInt(notes.length)];
-            }
-          }
-
-          _evaluations.add(
-            ProjectEvaluation(
-              id: uuid.v4(),
-              projectId: project.id,
-              sessionDate: DateTime(date.year, date.month, date.day),
-              score: score,
-              isSkipped: isSkipped,
-              durationHours: isSkipped ? 0.0 : duration,
-              note: note,
-            ),
-          );
-        }
-      }
-    }
-
-    _saveProjects();
-    _saveEvaluations();
-  }
-
-  void _addMockEvents() {
-    final now = DateTime.now();
-    final uuid = const Uuid();
-    DateTime nextMonday = now.add(
-      Duration(days: (DateTime.monday - now.weekday + 7) % 7),
-    );
-
-    // Haftalık Ekip Toplantısı (Her Pazartesi)
-    _events.add(
-      Event(
-        id: uuid.v4(),
-        title: 'Haftalık Ekip Toplantısı',
-        from: DateTime(
-          nextMonday.year,
-          nextMonday.month,
-          nextMonday.day,
-          10,
-          0,
-        ),
-        to: DateTime(nextMonday.year, nextMonday.month, nextMonday.day, 11, 30),
-        colorValue: 0xFFF44336,
-        tag: 'İş',
-        importance: 2,
-        recurrenceRule: 'FREQ=WEEKLY;BYDAY=MO',
-      ),
-    );
-
-    // Odak Çalışması (Her gün)
-    _events.add(
-      Event(
-        id: uuid.v4(),
-        title: 'Odak Çalışması',
-        from: DateTime(now.year, now.month, now.day, 14, 0),
-        to: DateTime(now.year, now.month, now.day, 16, 0),
-        colorValue: 0xFF2196F3,
-        tag: 'İş',
-        importance: 1,
-        recurrenceRule: 'FREQ=DAILY',
-      ),
-    );
-
-    _saveEvents();
-  }
-
-  void _addMockTasks() {
-    final now = DateTime.now();
-    final uuid = const Uuid();
-    DateTime nextMonday = now.add(
-      Duration(days: (DateTime.monday - now.weekday + 7) % 7),
-    );
-
-    // Aylık Faturalar (Her Ayın 1'inde tekrar eder)
-    _tasks.add(
-      TaskItem(
-        id: uuid.v4(),
-        title: 'Faturaları Öde',
-        isCompleted: false,
-        isAllDay: true,
-        from: DateTime(now.year, now.month, 1),
-        to: DateTime(now.year, now.month, 1),
-        colorValue: 0xFFF44336,
-        tag: 'Kişisel',
-        importance: 2,
-        recurrenceRule: 'FREQ=MONTHLY',
-      ),
-    );
-
-    // Spora Git (Pzt, Çar, Cuma)
-    _tasks.add(
-      TaskItem(
-        id: uuid.v4(),
-        title: 'Spora Git',
-        isCompleted: false,
-        from: DateTime(
-          nextMonday.year,
-          nextMonday.month,
-          nextMonday.day,
-          19,
-          0,
-        ),
-        to: DateTime(nextMonday.year, nextMonday.month, nextMonday.day, 20, 30),
-        colorValue: 0xFF4CAF50,
-        tag: 'Kişisel',
-        importance: 1,
-        projectId: 'mock_project_id',
-        recurrenceRule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
-      ),
-    );
-
-    // Ana Görev (Alt görevleri test etmek için)
-    final String parentTaskId = uuid.v4();
-    _tasks.add(
-      TaskItem(
-        id: parentTaskId,
-        title: 'Mobil Uygulama Geliştirme',
-        isCompleted: false,
-        from: now,
-        to: now.add(const Duration(hours: 4)),
-        colorValue: 0xFF2196F3,
-        tag: 'İş',
-        subTag: 'Yazılım',
-        importance: 2,
-      ),
-    );
-
-    // Alt Görev 1
-    _tasks.add(
-      TaskItem(
-        id: uuid.v4(),
-        title: 'Arayüz Tasarımı (UI)',
-        isCompleted: true,
-        superTaskId: parentTaskId,
-        colorValue: 0xFF2196F3,
-        tag: 'İş',
-        subTag: 'Yazılım',
-        importance: 1,
-      ),
-    );
-
-    // Alt Görev 2
-    _tasks.add(
-      TaskItem(
-        id: uuid.v4(),
-        title: 'Veritabanı Entegrasyonu',
-        isCompleted: false,
-        superTaskId: parentTaskId,
-        colorValue: 0xFF2196F3,
-        tag: 'İş',
-        subTag: 'Yazılım',
-        importance: 2,
-      ),
-    );
-
-    // Alt Görev 3
-    final String subTaskId3 = uuid.v4();
-    _tasks.add(
-      TaskItem(
-        id: subTaskId3,
-        title: 'Hata Ayıklama (Debugging)',
-        isCompleted: false,
-        superTaskId: parentTaskId,
-        colorValue: 0xFF2196F3,
-        tag: 'İş',
-        subTag: 'Yazılım',
-        importance: 1,
-      ),
-    );
-
-    // Alt Görevin Alt Görevi (Hiyerarşi Testi)
-    _tasks.add(
-      TaskItem(
-        id: uuid.v4(),
-        title: 'Crashlytics Raporlarını İncele',
-        isCompleted: false,
-        superTaskId: subTaskId3,
-        colorValue: 0xFF2196F3,
-        tag: 'İş',
-        subTag: 'Yazılım',
-        importance: 0,
-      ),
-    );
-
-    _saveTasks();
   }
 
   Future<void> _saveEvents() async {
@@ -1290,7 +1131,10 @@ class AppState extends ChangeNotifier {
             DateTime occurrenceEnd = occurrenceStart.add(duration);
 
             final clone = parentEvent.copyWith(
-              id: IdGenerator.generate('${parentEvent.title}_istisna_tekrar', date: occurrenceStart),
+              id: IdGenerator.generate(
+                '${parentEvent.title}_istisna_tekrar',
+                date: occurrenceStart,
+              ),
               from: occurrenceStart,
               to: occurrenceEnd,
               clearRecurrenceRule: true,
@@ -1429,7 +1273,10 @@ class AppState extends ChangeNotifier {
                 newIsTrackingEnabled ?? parentEvent.isTrackingEnabled;
 
             final clone = Event(
-              id: IdGenerator.generate('${finalTitle}_istisna_tekrar', date: cloneFrom),
+              id: IdGenerator.generate(
+                '${finalTitle}_istisna_tekrar',
+                date: cloneFrom,
+              ),
               title: finalTitle,
               description: finalDescription,
               from: cloneFrom,
@@ -1892,7 +1739,9 @@ class AppState extends ChangeNotifier {
   }
 
   void deleteCompletedTasksInSeries(String seriesId) {
-    final toRemove = _tasks.where((t) => t.seriesId == seriesId && t.isCompleted).toList();
+    final toRemove = _tasks
+        .where((t) => t.seriesId == seriesId && t.isCompleted)
+        .toList();
     for (final t in toRemove) {
       _tasks.remove(t);
       if (!_deletedTaskIds.contains(t.id)) {
@@ -2040,7 +1889,7 @@ class AppState extends ChangeNotifier {
           e.projectId == evaluation.projectId &&
           e.sessionDate == evaluation.sessionDate,
     );
-    
+
     String? oldStepId;
     if (index != -1) {
       oldStepId = _evaluations[index].stepId;
@@ -2064,15 +1913,20 @@ class AppState extends ChangeNotifier {
     }
 
     // Synchronize daily reports of associated Steps
-    final dayKey = '${evaluation.sessionDate.year}-${evaluation.sessionDate.month.toString().padLeft(2, '0')}-${evaluation.sessionDate.day.toString().padLeft(2, '0')}';
-    
+    final dayKey =
+        '${evaluation.sessionDate.year}-${evaluation.sessionDate.month.toString().padLeft(2, '0')}-${evaluation.sessionDate.day.toString().padLeft(2, '0')}';
+
     // If step changed, remove report from old step
     if (oldStepId != null && oldStepId != evaluation.stepId) {
       final oldStepIdx = _topicPlans.indexWhere((p) => p.id == oldStepId);
       if (oldStepIdx != -1) {
-        final Map<String, PlanDayReport> updatedReports = Map.from(_topicPlans[oldStepIdx].dayReports);
+        final Map<String, PlanDayReport> updatedReports = Map.from(
+          _topicPlans[oldStepIdx].dayReports,
+        );
         updatedReports.remove(dayKey);
-        final updatedPlan = _topicPlans[oldStepIdx].copyWith(dayReports: updatedReports);
+        final updatedPlan = _topicPlans[oldStepIdx].copyWith(
+          dayReports: updatedReports,
+        );
         _topicPlans[oldStepIdx] = updatedPlan;
         _firestoreSaveTopicPlan(updatedPlan);
       }
@@ -2082,13 +1936,17 @@ class AppState extends ChangeNotifier {
     if (evaluation.stepId != null) {
       final stepIdx = _topicPlans.indexWhere((p) => p.id == evaluation.stepId);
       if (stepIdx != -1) {
-        final Map<String, PlanDayReport> updatedReports = Map.from(_topicPlans[stepIdx].dayReports);
+        final Map<String, PlanDayReport> updatedReports = Map.from(
+          _topicPlans[stepIdx].dayReports,
+        );
         updatedReports[dayKey] = PlanDayReport(
           offset: evaluation.isSkipped ? 1 : 0,
           note: evaluation.note ?? '',
           performancePercent: evaluation.performancePercent ?? evaluation.score,
         );
-        final updatedPlan = _topicPlans[stepIdx].copyWith(dayReports: updatedReports);
+        final updatedPlan = _topicPlans[stepIdx].copyWith(
+          dayReports: updatedReports,
+        );
         _topicPlans[stepIdx] = updatedPlan;
         _firestoreSaveTopicPlan(updatedPlan);
       }
@@ -2125,7 +1983,11 @@ class AppState extends ChangeNotifier {
     }
 
     final newNote = DayNote(
-      id: idx != -1 ? _dayNotes[idx].id : IdGenerator.generate('gunluknot_${normalizedDate.year}${normalizedDate.month.toString().padLeft(2, "0")}${normalizedDate.day.toString().padLeft(2, "0")}'),
+      id: idx != -1
+          ? _dayNotes[idx].id
+          : IdGenerator.generate(
+              'gunluknot_${normalizedDate.year}${normalizedDate.month.toString().padLeft(2, "0")}${normalizedDate.day.toString().padLeft(2, "0")}',
+            ),
       date: normalizedDate,
       note: noteText,
     );
@@ -2170,12 +2032,19 @@ class AppState extends ChangeNotifier {
     if (idx != -1) {
       final evaluation = _evaluations[idx];
       if (evaluation.stepId != null) {
-        final stepIdx = _topicPlans.indexWhere((p) => p.id == evaluation.stepId);
+        final stepIdx = _topicPlans.indexWhere(
+          (p) => p.id == evaluation.stepId,
+        );
         if (stepIdx != -1) {
-          final dayKey = '${evaluation.sessionDate.year}-${evaluation.sessionDate.month.toString().padLeft(2, '0')}-${evaluation.sessionDate.day.toString().padLeft(2, '0')}';
-          final Map<String, PlanDayReport> updatedReports = Map.from(_topicPlans[stepIdx].dayReports);
+          final dayKey =
+              '${evaluation.sessionDate.year}-${evaluation.sessionDate.month.toString().padLeft(2, '0')}-${evaluation.sessionDate.day.toString().padLeft(2, '0')}';
+          final Map<String, PlanDayReport> updatedReports = Map.from(
+            _topicPlans[stepIdx].dayReports,
+          );
           updatedReports.remove(dayKey);
-          final updatedPlan = _topicPlans[stepIdx].copyWith(dayReports: updatedReports);
+          final updatedPlan = _topicPlans[stepIdx].copyWith(
+            dayReports: updatedReports,
+          );
           _topicPlans[stepIdx] = updatedPlan;
           _firestoreSaveTopicPlan(updatedPlan);
         }
@@ -2312,7 +2181,7 @@ class AppState extends ChangeNotifier {
             'day_notes',
             'settings',
             'topics',
-            'topicPlans'
+            'topicPlans',
           ];
 
           for (final col in collections) {
@@ -2364,7 +2233,7 @@ class AppState extends ChangeNotifier {
           'day_notes',
           'settings',
           'topics',
-          'topicPlans'
+          'topicPlans',
         ];
 
         for (final col in collections) {
@@ -2383,7 +2252,9 @@ class AppState extends ChangeNotifier {
               await batch.commit().timeout(const Duration(seconds: 5));
             }
           } catch (e) {
-            debugPrint('Error deleting collection $col during account delete: $e');
+            debugPrint(
+              'Error deleting collection $col during account delete: $e',
+            );
           }
         }
 
@@ -2430,11 +2301,12 @@ class AppState extends ChangeNotifier {
     }
   }
 
-
-
   Future<void> syncDataWithFirebase() async {
     if (_user == null) return;
-    _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid, email: _user!.email);
+    _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+      _user!.uid,
+      email: _user!.email,
+    );
     if (_firestoreUserId == null) return;
 
     if (_isSyncing) return;
@@ -2750,6 +2622,108 @@ class AppState extends ChangeNotifier {
         await _firestoreService.savePaintedDays(userId, _paintedDays);
       }
 
+      // Sync Quick Note
+      try {
+        final remoteQuickNoteData = await _firestoreService.getQuickNote(
+          userId,
+        );
+        if (remoteQuickNoteData != null &&
+            remoteQuickNoteData['note'] != null) {
+          final String remoteNote = remoteQuickNoteData['note'].toString();
+          if (remoteNote.isNotEmpty && _quickNote.isEmpty) {
+            _quickNote = remoteNote;
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('quickNote', _quickNote);
+          } else if (_quickNote.isNotEmpty) {
+            await _firestoreService.saveQuickNote(userId, _quickNote);
+          }
+        } else if (_quickNote.isNotEmpty) {
+          await _firestoreService.saveQuickNote(userId, _quickNote);
+        }
+      } catch (e) {
+        debugPrint('Sync quickNote error: $e');
+      }
+
+      // Sync Category Colors
+      try {
+        final remoteColorsData = await _firestoreService.getCategoryColors(
+          userId,
+        );
+        if (remoteColorsData != null) {
+          final Map<String, dynamic>? remoteEventColors =
+              remoteColorsData['eventTagColors'] as Map<String, dynamic>?;
+          final Map<String, dynamic>? remoteTaskColors =
+              remoteColorsData['taskTagColors'] as Map<String, dynamic>?;
+
+          final prefs = await SharedPreferences.getInstance();
+          bool updated = false;
+
+          if (remoteEventColors != null) {
+            remoteEventColors.forEach((key, value) {
+              if (value is int && !_eventTagColors.containsKey(key)) {
+                _eventTagColors[key] = value;
+                updated = true;
+              }
+            });
+          }
+          if (remoteTaskColors != null) {
+            remoteTaskColors.forEach((key, value) {
+              if (value is int && !_taskTagColors.containsKey(key)) {
+                _taskTagColors[key] = value;
+                updated = true;
+              }
+            });
+          }
+
+          if (updated) {
+            await prefs.setString(
+              'eventTagColors',
+              json.encode(_eventTagColors),
+            );
+            await prefs.setString('taskTagColors', json.encode(_taskTagColors));
+            notifyListeners();
+          } else {
+            await _firestoreService.saveCategoryColors(
+              userId,
+              _eventTagColors,
+              _taskTagColors,
+            );
+          }
+        } else {
+          await _firestoreService.saveCategoryColors(
+            userId,
+            _eventTagColors,
+            _taskTagColors,
+          );
+        }
+      } catch (e) {
+        debugPrint('Sync category colors error: $e');
+      }
+
+      // Sync Task Order
+      try {
+        final remoteOrderData = await _firestoreService.getTaskOrder(userId);
+        if (remoteOrderData != null && remoteOrderData['order'] != null) {
+          final List<dynamic> remoteList =
+              remoteOrderData['order'] as List<dynamic>;
+          final List<String> remoteOrder = remoteList
+              .map((e) => e.toString())
+              .toList();
+          if (remoteOrder.isNotEmpty && _customTaskOrder.isEmpty) {
+            _customTaskOrder = remoteOrder;
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setStringList('customTaskOrder', _customTaskOrder);
+            notifyListeners();
+          } else if (_customTaskOrder.isNotEmpty) {
+            await _firestoreService.saveTaskOrder(userId, _customTaskOrder);
+          }
+        } else if (_customTaskOrder.isNotEmpty) {
+          await _firestoreService.saveTaskOrder(userId, _customTaskOrder);
+        }
+      } catch (e) {
+        debugPrint('Sync taskOrder error: $e');
+      }
+
       // Sync Topics
       final remoteTopicsJson = await getDocs('topics');
       final List<Topic> remoteTopics = remoteTopicsJson
@@ -2771,7 +2745,9 @@ class AppState extends ChangeNotifier {
       if (remotePlansJson.isEmpty) {
         final legacyPlansJson = await getDocs('topic_plans');
         if (legacyPlansJson.isNotEmpty) {
-          debugPrint('Migrating ${legacyPlansJson.length} plans from legacy topic_plans to steps...');
+          debugPrint(
+            'Migrating ${legacyPlansJson.length} plans from legacy topic_plans to steps...',
+          );
           for (var planJson in legacyPlansJson) {
             final plan = TopicPlan.fromJson(planJson);
             await _firestoreService.saveTopicPlan(userId, plan);
@@ -2779,7 +2755,7 @@ class AppState extends ChangeNotifier {
           remotePlansJson = await getDocs('steps');
         }
       }
-      
+
       final List<TopicPlan> remoteTopicPlans = remotePlansJson
           .map((j) => TopicPlan.fromJson(j))
           .toList();
@@ -2855,7 +2831,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreSaveEvent(Event event) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.saveEvent(_firestoreUserId!, event);
       } catch (e) {
         debugPrint('Firestore save event error: $e');
@@ -2866,7 +2844,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreDeleteEvent(String id) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.deleteEvent(_firestoreUserId!, id);
       } catch (e) {
         debugPrint('Firestore delete event error: $e');
@@ -2877,7 +2857,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreSaveTask(TaskItem task) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.saveTask(_firestoreUserId!, task);
       } catch (e) {
         debugPrint('Firestore save task error: $e');
@@ -2888,7 +2870,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreDeleteTask(String id) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.deleteTask(_firestoreUserId!, id);
       } catch (e) {
         debugPrint('Firestore delete task error: $e');
@@ -2899,7 +2883,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreSaveProject(Project project) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.saveProject(_firestoreUserId!, project);
       } catch (e) {
         debugPrint('Firestore save project error: $e');
@@ -2910,7 +2896,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreDeleteProject(String id) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.deleteProject(_firestoreUserId!, id);
       } catch (e) {
         debugPrint('Firestore delete project error: $e');
@@ -2921,7 +2909,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreSaveTopic(Topic topic) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.saveTopic(_firestoreUserId!, topic);
       } catch (e) {
         debugPrint('Firestore save topic error: $e');
@@ -2932,7 +2922,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreDeleteTopic(String id) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.deleteTopic(_firestoreUserId!, id);
       } catch (e) {
         debugPrint('Firestore delete topic error: $e');
@@ -2943,7 +2935,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreSaveTopicPlan(TopicPlan plan) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.saveTopicPlan(_firestoreUserId!, plan);
       } catch (e) {
         debugPrint('Firestore save topic plan error: $e');
@@ -2954,7 +2948,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreDeleteTopicPlan(String id) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.deleteTopicPlan(_firestoreUserId!, id);
       } catch (e) {
         debugPrint('Firestore delete topic plan error: $e');
@@ -2965,7 +2961,9 @@ class AppState extends ChangeNotifier {
   Future<void> _firestoreSaveEvaluation(ProjectEvaluation evaluation) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.saveEvaluation(_firestoreUserId!, evaluation);
       } catch (e) {
         debugPrint('Firestore save evaluation error: $e');
@@ -2979,7 +2977,9 @@ class AppState extends ChangeNotifier {
   ) async {
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.deleteEvaluation(
           _firestoreUserId!,
           projectId,
@@ -3154,7 +3154,9 @@ class AppState extends ChangeNotifier {
 
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.saveEventCategories(
           _firestoreUserId!,
           _eventTags,
@@ -3496,8 +3498,13 @@ class AppState extends ChangeNotifier {
     await prefs.setString('paintedDays', json.encode(_paintedDays));
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
-        await _firestoreService.savePaintedDays(_firestoreUserId!, _paintedDays);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
+        await _firestoreService.savePaintedDays(
+          _firestoreUserId!,
+          _paintedDays,
+        );
       } catch (e) {
         debugPrint('Firestore save paintedDays error: $e');
       }
@@ -3516,7 +3523,9 @@ class AppState extends ChangeNotifier {
     await _saveSerits();
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.saveSerit(_firestoreUserId!, serit);
       } catch (e) {
         debugPrint('Firestore save serit error: $e');
@@ -3540,7 +3549,9 @@ class AppState extends ChangeNotifier {
       await _saveSerits();
       if (_user != null && _autoSync) {
         try {
-          _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+          _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+            _user!.uid,
+          );
           await _firestoreService.saveSerit(_firestoreUserId!, serit);
           if (updateChained && oldSerit.endDate != serit.endDate) {
             for (var m in _serits) {
@@ -3589,7 +3600,9 @@ class AppState extends ChangeNotifier {
         _serits[i] = _serits[i].copyWith(parentSeritId: 'clear_parent');
         if (_user != null && _autoSync) {
           try {
-            _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+            _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+              _user!.uid,
+            );
             await _firestoreService.saveSerit(_firestoreUserId!, _serits[i]);
           } catch (e) {
             debugPrint('Firestore save serit parent link clear error: $e');
@@ -3602,7 +3615,9 @@ class AppState extends ChangeNotifier {
     await _saveSerits();
     if (_user != null && _autoSync) {
       try {
-        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+        );
         await _firestoreService.deleteSerit(_firestoreUserId!, id);
       } catch (e) {
         debugPrint('Firestore delete serit error: $e');
@@ -3765,6 +3780,7 @@ class AppState extends ChangeNotifier {
       await repackColumns(plan.projectId!);
     }
   }
+
   void _runWaitingPlansCatchUp() {
     bool changedGlobal = false;
     for (int i = 0; i < _topicPlans.length; i++) {
@@ -3774,16 +3790,24 @@ class AppState extends ChangeNotifier {
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
         final normalizedStart = DateTime(start.year, start.month, start.day);
-        
-        final updatedReports = Map<String, PlanDayReport>.from(planItem.dayReports);
+
+        final updatedReports = Map<String, PlanDayReport>.from(
+          planItem.dayReports,
+        );
         var current = normalizedStart;
         bool changed = false;
         while (!current.isAfter(today)) {
-          final key = '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
+          final key =
+              '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
           if (!updatedReports.containsKey(key)) {
-            updatedReports[key] = PlanDayReport(offset: 0, hoursWorked: 0, isWaiting: true);
+            updatedReports[key] = PlanDayReport(
+              offset: 0,
+              hoursWorked: 0,
+              isWaiting: true,
+            );
             changed = true;
-          } else if (updatedReports[key]!.hoursWorked == 0 && !updatedReports[key]!.isWaiting) {
+          } else if (updatedReports[key]!.hoursWorked == 0 &&
+              !updatedReports[key]!.isWaiting) {
             updatedReports[key] = PlanDayReport(
               offset: updatedReports[key]!.offset,
               note: updatedReports[key]!.note,
@@ -3807,10 +3831,17 @@ class AppState extends ChangeNotifier {
 
   void updateTopicPlan(TopicPlan plan) async {
     var updatedPlan = plan;
-    final hasHours = updatedPlan.dayReports.values.any((r) => r.hoursWorked > 0);
-    if (hasHours && (updatedPlan.status == 'Yapılacak' || updatedPlan.status == 'Bekleyenler' || updatedPlan.status == 'Başlanmadı')) {
+    final hasHours = updatedPlan.dayReports.values.any(
+      (r) => r.hoursWorked > 0,
+    );
+    if (hasHours &&
+        (updatedPlan.status == 'Yapılacak' ||
+            updatedPlan.status == 'Bekleyenler' ||
+            updatedPlan.status == 'Başlanmadı')) {
       updatedPlan = updatedPlan.copyWith(status: 'Yapılıyor');
-    } else if (!hasHours && (updatedPlan.status == 'Yapılıyor' || updatedPlan.status == 'Yapılanlar')) {
+    } else if (!hasHours &&
+        (updatedPlan.status == 'Yapılıyor' ||
+            updatedPlan.status == 'Yapılanlar')) {
       updatedPlan = updatedPlan.copyWith(status: 'Yapılacak');
     }
 
@@ -3822,14 +3853,22 @@ class AppState extends ChangeNotifier {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final normalizedStart = DateTime(start.year, start.month, start.day);
-      
-      final updatedReports = Map<String, PlanDayReport>.from(updatedPlan.dayReports);
+
+      final updatedReports = Map<String, PlanDayReport>.from(
+        updatedPlan.dayReports,
+      );
       var current = normalizedStart;
       while (!current.isAfter(today)) {
-        final key = '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
+        final key =
+            '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
         if (!updatedReports.containsKey(key)) {
-          updatedReports[key] = PlanDayReport(offset: 0, hoursWorked: 0, isWaiting: true);
-        } else if (updatedReports[key]!.hoursWorked == 0 && !updatedReports[key]!.isWaiting) {
+          updatedReports[key] = PlanDayReport(
+            offset: 0,
+            hoursWorked: 0,
+            isWaiting: true,
+          );
+        } else if (updatedReports[key]!.hoursWorked == 0 &&
+            !updatedReports[key]!.isWaiting) {
           updatedReports[key] = PlanDayReport(
             offset: updatedReports[key]!.offset,
             note: updatedReports[key]!.note,
@@ -3849,7 +3888,12 @@ class AppState extends ChangeNotifier {
     if (updatedPlan.id.startsWith('general_plan_')) {
       final projectId = updatedPlan.projectId;
       final generalEvals = _evaluations
-          .where((e) => e.projectId == projectId && e.sessionDate.year == updatedPlan.year && e.stepId == null)
+          .where(
+            (e) =>
+                e.projectId == projectId &&
+                e.sessionDate.year == updatedPlan.year &&
+                e.stepId == null,
+          )
           .toList();
 
       // Add or update evaluations based on plan.dayReports
@@ -3857,9 +3901,15 @@ class AppState extends ChangeNotifier {
         final dateKey = entry.key;
         final report = entry.value;
         final dateParts = dateKey.split('-');
-        final date = DateTime(int.parse(dateParts[0]), int.parse(dateParts[1]), int.parse(dateParts[2]));
+        final date = DateTime(
+          int.parse(dateParts[0]),
+          int.parse(dateParts[1]),
+          int.parse(dateParts[2]),
+        );
 
-        final existingIdx = _evaluations.indexWhere((e) => e.projectId == projectId && e.sessionDate == date);
+        final existingIdx = _evaluations.indexWhere(
+          (e) => e.projectId == projectId && e.sessionDate == date,
+        );
         if (existingIdx != -1) {
           final old = _evaluations[existingIdx];
           _evaluations[existingIdx] = ProjectEvaluation(
@@ -3897,7 +3947,8 @@ class AppState extends ChangeNotifier {
 
       // Delete evaluations that were removed
       for (var oldEval in generalEvals) {
-        final dayKey = '${oldEval.sessionDate.year}-${oldEval.sessionDate.month.toString().padLeft(2, '0')}-${oldEval.sessionDate.day.toString().padLeft(2, '0')}';
+        final dayKey =
+            '${oldEval.sessionDate.year}-${oldEval.sessionDate.month.toString().padLeft(2, '0')}-${oldEval.sessionDate.day.toString().padLeft(2, '0')}';
         if (!plan.dayReports.containsKey(dayKey)) {
           _evaluations.remove(oldEval);
           _firestoreDeleteEvaluation(projectId!, oldEval.sessionDate);
@@ -3949,7 +4000,9 @@ class AppState extends ChangeNotifier {
       parentChanged = true;
     }
     if (childPlan.actualEndDate.isAfter(parent.actualEndDate)) {
-      final diff = childPlan.actualEndDate.difference(parent.actualEndDate).inDays;
+      final diff = childPlan.actualEndDate
+          .difference(parent.actualEndDate)
+          .inDays;
       newEnd = parent.endDate.add(Duration(days: diff));
       parentChanged = true;
     }
@@ -4007,11 +4060,21 @@ class AppState extends ChangeNotifier {
   }
 
   void deleteTopicPlan(String id) async {
-    final targetPlans = _topicPlans.where((p) => p.id == id || p.parentId == id).toList();
-    final topicIdsToCheck = targetPlans.map((p) => p.topicId).where((tid) => tid.isNotEmpty).toSet();
-    final projectIdsToRepack = targetPlans.map((p) => p.projectId).where((pid) => pid != null).toSet();
+    final targetPlans = _topicPlans
+        .where((p) => p.id == id || p.parentId == id)
+        .toList();
+    final topicIdsToCheck = targetPlans
+        .map((p) => p.topicId)
+        .where((tid) => tid.isNotEmpty)
+        .toSet();
+    final projectIdsToRepack = targetPlans
+        .map((p) => p.projectId)
+        .where((pid) => pid != null)
+        .toSet();
 
-    final toDelete = _topicPlans.where((p) => p.id == id || p.parentId == id).toList();
+    final toDelete = _topicPlans
+        .where((p) => p.id == id || p.parentId == id)
+        .toList();
     for (final p in toDelete) {
       _firestoreDeleteTopicPlan(p.id);
     }
@@ -4042,11 +4105,15 @@ class AppState extends ChangeNotifier {
 
   bool isPlanActiveOnDate(TopicPlan plan, DateTime date) {
     final targetDate = DateTime(date.year, date.month, date.day);
-    final String dateKey = '${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
-    if (plan.dayReports.containsKey(dateKey) && (plan.dayReports[dateKey]?.hoursWorked ?? 0) > 0) {
+    final String dateKey =
+        '${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
+    if (plan.dayReports.containsKey(dateKey) &&
+        (plan.dayReports[dateKey]?.hoursWorked ?? 0) > 0) {
       return true;
     }
-    if (plan.status == 'Yapılacak' || plan.status == 'Bekleyenler' || plan.status == 'Başlanmadı') {
+    if (plan.status == 'Yapılacak' ||
+        plan.status == 'Bekleyenler' ||
+        plan.status == 'Başlanmadı') {
       return false;
     }
 
@@ -4061,9 +4128,15 @@ class AppState extends ChangeNotifier {
         } catch (_) {}
       }
     }
-    
-    final occupationStart = firstEntryDate ?? DateTime(plan.startDate.year, plan.startDate.month, plan.startDate.day);
-    final normalizedStart = DateTime(occupationStart.year, occupationStart.month, occupationStart.day);
+
+    final occupationStart =
+        firstEntryDate ??
+        DateTime(plan.startDate.year, plan.startDate.month, plan.startDate.day);
+    final normalizedStart = DateTime(
+      occupationStart.year,
+      occupationStart.month,
+      occupationStart.day,
+    );
 
     if (targetDate.isBefore(normalizedStart)) {
       return false;
@@ -4071,7 +4144,7 @@ class AppState extends ChangeNotifier {
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
+
     if (plan.status == 'Tamamlandı') {
       DateTime? lastEntryDate;
       for (var entry in plan.dayReports.entries) {
@@ -4084,8 +4157,14 @@ class AppState extends ChangeNotifier {
           } catch (_) {}
         }
       }
-      final occupationEnd = lastEntryDate ?? DateTime(plan.endDate.year, plan.endDate.month, plan.endDate.day);
-      final normalizedEnd = DateTime(occupationEnd.year, occupationEnd.month, occupationEnd.day);
+      final occupationEnd =
+          lastEntryDate ??
+          DateTime(plan.endDate.year, plan.endDate.month, plan.endDate.day);
+      final normalizedEnd = DateTime(
+        occupationEnd.year,
+        occupationEnd.month,
+        occupationEnd.day,
+      );
       return !targetDate.isAfter(normalizedEnd);
     } else {
       return !targetDate.isAfter(today);
@@ -4114,7 +4193,9 @@ class AppState extends ChangeNotifier {
 
     projectPlans.sort((a, b) => getPlanStart(a).compareTo(getPlanStart(b)));
 
-    final projectTopics = _topics.where((t) => t.projectId == projectId).toList();
+    final projectTopics = _topics
+        .where((t) => t.projectId == projectId)
+        .toList();
 
     bool plansOverlap(TopicPlan a, TopicPlan b) {
       final startA = getPlanStart(a);
@@ -4164,7 +4245,8 @@ class AppState extends ChangeNotifier {
 
       for (int i = 0; i <= maxEnd.difference(minStart).inDays; i++) {
         final checkDate = minStart.add(Duration(days: i));
-        if (isPlanActiveOnDate(a, checkDate) && isPlanActiveOnDate(b, checkDate)) {
+        if (isPlanActiveOnDate(a, checkDate) &&
+            isPlanActiveOnDate(b, checkDate)) {
           return true;
         }
       }
@@ -4221,7 +4303,9 @@ class AppState extends ChangeNotifier {
 
     final topicsToDelete = <Topic>[];
     for (final topic in projectTopics) {
-      final hasPlans = _topicPlans.any((p) => p.topicId == topic.id && !p.isInPool);
+      final hasPlans = _topicPlans.any(
+        (p) => p.topicId == topic.id && !p.isInPool,
+      );
       if (!hasPlans) {
         topicsToDelete.add(topic);
       }
@@ -4232,14 +4316,20 @@ class AppState extends ChangeNotifier {
       _firestoreDeleteTopic(t.id);
     }
 
-    final updatedTopics = _topics.where((t) => t.projectId == projectId).toList();
+    final updatedTopics = _topics
+        .where((t) => t.projectId == projectId)
+        .toList();
     for (int i = 0; i < updatedTopics.length; i++) {
       final oldTopic = updatedTopics[i];
       final newName = 'Kolon ${i + 1}';
       if (oldTopic.name != newName) {
         final idx = _topics.indexWhere((t) => t.id == oldTopic.id);
         if (idx != -1) {
-          _topics[idx] = Topic(id: oldTopic.id, name: newName, projectId: oldTopic.projectId);
+          _topics[idx] = Topic(
+            id: oldTopic.id,
+            name: newName,
+            projectId: oldTopic.projectId,
+          );
           _firestoreSaveTopic(_topics[idx]);
         }
       }

@@ -12,7 +12,8 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  String _selectedTab = '<Tüm>';
+  String _selectedTab = 'Tüm Tarihliler';
+  String _sortMode = 'CUSTOM'; // 'CUSTOM' (Benim sıralamam), 'DATE', 'IMPORTANCE'
 
   String _getRelativeDateString(DateTime? date) {
     if (date == null) return '';
@@ -260,9 +261,33 @@ class _TasksScreenState extends State<TasksScreen> {
         (sortedKeys.length == 1 && sortedKeys.first.isNotEmpty);
 
     // Mevcut tab'ın tag değeri
-    final currentTag = selectedTag == '<Tüm>' ? null : selectedTag;
+    final currentTag = (selectedTag == 'Tüm Tarihliler' || selectedTag == 'Tüm Tarihsizler') ? null : selectedTag;
 
     if (!hasSubGroups) {
+      if (_sortMode == 'CUSTOM') {
+        return ReorderableListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: tasks.length,
+          itemBuilder: (ctx, i) {
+            final task = tasks[i];
+            return Container(
+              key: ValueKey(task.id),
+              child: _buildTaskCard(ctx, task, isDark, appState),
+            );
+          },
+          onReorder: (oldIndex, newIndex) {
+            setState(() {
+              if (newIndex > oldIndex) {
+                newIndex -= 1;
+              }
+              final item = tasks.removeAt(oldIndex);
+              tasks.insert(newIndex, item);
+              final newOrderIds = tasks.map((t) => t.id as String).toList();
+              appState.updateTaskOrder(newOrderIds);
+            });
+          },
+        );
+      }
       return ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: tasks.length,
@@ -365,12 +390,41 @@ class _TasksScreenState extends State<TasksScreen> {
 
     // Filter tasks based on selected horizontal tab
     final displayedTasks = tasks.where((t) {
-      if (_selectedTab == '<Tüm>') return true;
+      if (_selectedTab == 'Tüm Tarihliler') return t.from != null;
+      if (_selectedTab == 'Tüm Tarihsizler') return t.from == null;
       return t.tag == _selectedTab;
     }).toList();
 
+    // Sort tasks based on selected sortMode
+    if (_sortMode == 'DATE') {
+      displayedTasks.sort((a, b) {
+        if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+        if (a.from == null && b.from == null) return 0;
+        if (a.from == null) return 1;
+        if (b.from == null) return -1;
+        return a.from!.compareTo(b.from!);
+      });
+    } else if (_sortMode == 'IMPORTANCE') {
+      displayedTasks.sort((a, b) {
+        if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+        return b.importance.compareTo(a.importance);
+      });
+    } else {
+      // CUSTOM order: Benim sıralamam
+      final orderMap = {
+        for (var i = 0; i < appState.customTaskOrder.length; i++)
+          appState.customTaskOrder[i]: i
+      };
+      displayedTasks.sort((a, b) {
+        if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+        final indexA = orderMap[a.id] ?? 999999;
+        final indexB = orderMap[b.id] ?? 999999;
+        return indexA.compareTo(indexB);
+      });
+    }
+
     // Group tags
-    final tabs = ['<Tüm>', ...appState.taskTags];
+    final tabs = ['Tüm Tarihliler', 'Tüm Tarihsizler', ...appState.taskTags];
 
     final now = DateTime.now();
 
@@ -457,6 +511,98 @@ class _TasksScreenState extends State<TasksScreen> {
               );
             },
           ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (val) {
+              if (val == 'SORT_CUSTOM') {
+                setState(() => _sortMode = 'CUSTOM');
+              } else if (val == 'SORT_DATE') {
+                setState(() => _sortMode = 'DATE');
+              } else if (val == 'SORT_IMPORTANCE') {
+                setState(() => _sortMode = 'IMPORTANCE');
+              } else if (val == 'RENAME_LIST') {
+                _showRenameListDialog(context, appState, _selectedTab);
+              } else if (val == 'DELETE_LIST') {
+                _showDeleteListDialog(context, appState, _selectedTab);
+              } else if (val == 'DELETE_COMPLETED') {
+                _deleteCompletedTasks(context, appState, displayedTasks);
+              }
+            },
+            itemBuilder: (context) {
+              final isAllTab = _selectedTab == 'Tüm Tarihliler' || _selectedTab == 'Tüm Tarihsizler';
+              return [
+                PopupMenuItem(
+                  enabled: false,
+                  child: Text(
+                    'Sıralama ölçütü',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'SORT_CUSTOM',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check,
+                        color: _sortMode == 'CUSTOM' ? Colors.blue : Colors.transparent,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Benim sıralamam'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'SORT_DATE',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check,
+                        color: _sortMode == 'DATE' ? Colors.blue : Colors.transparent,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Tarih'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'SORT_IMPORTANCE',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check,
+                        color: _sortMode == 'IMPORTANCE' ? Colors.blue : Colors.transparent,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Önem seviyesi'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                if (!isAllTab) ...[
+                  const PopupMenuItem(
+                    value: 'RENAME_LIST',
+                    child: Text('Listeyi yeniden adlandır'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'DELETE_LIST',
+                    child: Text('Listeyi sil'),
+                  ),
+                  const PopupMenuDivider(),
+                ],
+                const PopupMenuItem(
+                  value: 'DELETE_COMPLETED',
+                  child: Text('Tamamlanan tüm görevleri sil'),
+                ),
+              ];
+            },
+          ),
         ],
       ),
       body: Column(
@@ -473,13 +619,18 @@ class _TasksScreenState extends State<TasksScreen> {
               itemBuilder: (context, index) {
                 final tab = tabs[index];
                 final isSelected = tab == _selectedTab;
+                final count = tasks.where((t) {
+                  if (tab == 'Tüm Tarihliler') return t.from != null;
+                  if (tab == 'Tüm Tarihsizler') return t.from == null;
+                  return t.tag == tab;
+                }).length;
                 return GestureDetector(
                   onTap: () {
                     setState(() {
                       _selectedTab = tab;
                     });
                   },
-                  onLongPress: tab == '<Tüm>'
+                  onLongPress: (tab == 'Tüm Tarihliler' || tab == 'Tüm Tarihsizler')
                       ? null
                       : () {
                           Navigator.push(
@@ -509,7 +660,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        tab,
+                        '$tab ($count)',
                         style: TextStyle(
                           color: isSelected
                               ? Colors.white
@@ -556,6 +707,101 @@ class _TasksScreenState extends State<TasksScreen> {
         },
         child: const Icon(Icons.add),
       ),
+    );
+  }
+
+  void _showRenameListDialog(BuildContext context, AppState appState, String oldName) {
+    final textCtrl = TextEditingController(text: oldName);
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Listeyi Yeniden Adlandır'),
+          content: TextField(
+            controller: textCtrl,
+            decoration: const InputDecoration(labelText: 'Yeni Liste Adı'),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = textCtrl.text.trim();
+                if (newName.isNotEmpty && newName != oldName) {
+                  appState.renameTaskCategory(oldName, newName);
+                  setState(() {
+                    _selectedTab = newName;
+                  });
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteListDialog(BuildContext context, AppState appState, String categoryName) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Listeyi Sil'),
+          content: Text('"$categoryName" listesini ve bu listedeki tüm görevleri silmek istediğinize emin misiniz?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                appState.deleteTaskCategory(categoryName);
+                setState(() {
+                  _selectedTab = 'Tüm Tarihliler';
+                });
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Sil', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _deleteCompletedTasks(BuildContext context, AppState appState, List displayedTasks) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Tamamlanan Görevleri Sil'),
+          content: const Text('Bu listedeki tamamlanmış tüm görevleri kalıcı olarak silmek istiyor musunuz?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                for (var t in displayedTasks) {
+                  if (t.isCompleted) {
+                    appState.deleteTask(t.id);
+                  }
+                }
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Sil', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
     );
   }
 }

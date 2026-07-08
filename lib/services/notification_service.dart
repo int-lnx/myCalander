@@ -3,7 +3,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:syncfusion_flutter_calendar/calendar.dart';
 import '../models/event.dart';
 import '../models/task_item.dart';
 import '../utils/recurrence_helper.dart';
@@ -22,7 +21,8 @@ class NotificationService {
     try {
       tz.initializeTimeZones();
       try {
-        final String timeZoneName = (await FlutterTimezone.getLocalTimezone()).identifier;
+        final String timeZoneName =
+            (await FlutterTimezone.getLocalTimezone()).identifier;
         tz.setLocalLocation(tz.getLocation(timeZoneName));
       } catch (_) {
         try {
@@ -36,15 +36,14 @@ class NotificationService {
       const DarwinInitializationSettings initializationSettingsDarwin =
           DarwinInitializationSettings();
 
-      const InitializationSettings initializationSettings = InitializationSettings(
-        android: initializationSettingsAndroid,
-        iOS: initializationSettingsDarwin,
-      );
+      const InitializationSettings initializationSettings =
+          InitializationSettings(
+            android: initializationSettingsAndroid,
+            iOS: initializationSettingsDarwin,
+          );
 
-      await _notificationsPlugin.initialize(
-        settings: initializationSettings,
-      );
-      
+      await _notificationsPlugin.initialize(settings: initializationSettings);
+
       if (defaultTargetPlatform == TargetPlatform.android) {
         const AndroidNotificationChannel channel = AndroidNotificationChannel(
           'my_plan_events_channel',
@@ -52,9 +51,11 @@ class NotificationService {
           description: 'Etkinlik hatırlatıcıları için bildirim kanalı.',
           importance: Importance.max,
         );
-        
+
         await _notificationsPlugin
-            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
             ?.createNotificationChannel(channel);
       }
     } catch (e) {
@@ -67,20 +68,22 @@ class NotificationService {
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
         await _notificationsPlugin
-            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
             ?.requestNotificationsPermission();
 
         await _notificationsPlugin
-            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
             ?.requestExactAlarmsPermission();
       } else if (defaultTargetPlatform == TargetPlatform.iOS) {
         await _notificationsPlugin
-            .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
-            ?.requestPermissions(
-              alert: true,
-              badge: true,
-              sound: true,
-            );
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, badge: true, sound: true);
       }
     } catch (e) {
       debugPrint('NotificationService requestPermissions failed: $e');
@@ -97,11 +100,14 @@ class NotificationService {
         sanitized = '$sanitized;BYDAY=${days[weekday - 1]}';
       }
     }
-    if (sanitized.contains('FREQ=MONTHLY') && !sanitized.contains('BYMONTHDAY=') && !sanitized.contains('BYDAY=')) {
+    if (sanitized.contains('FREQ=MONTHLY') &&
+        !sanitized.contains('BYMONTHDAY=') &&
+        !sanitized.contains('BYDAY=')) {
       sanitized = '$sanitized;BYMONTHDAY=${startDate.day}';
     }
     if (sanitized.contains('FREQ=YEARLY') && !sanitized.contains('BYMONTH=')) {
-      sanitized = '$sanitized;BYMONTH=${startDate.month};BYMONTHDAY=${startDate.day}';
+      sanitized =
+          '$sanitized;BYMONTH=${startDate.month};BYMONTHDAY=${startDate.day}';
     }
     return sanitized;
   }
@@ -122,8 +128,14 @@ class NotificationService {
         specificEndDate: end,
       );
       return dates.where((occ) {
-        final isException = event.recurrenceExceptionDates?.any((ex) =>
-            ex.year == occ.year && ex.month == occ.month && ex.day == occ.day) ?? false;
+        final isException =
+            event.recurrenceExceptionDates?.any(
+              (ex) =>
+                  ex.year == occ.year &&
+                  ex.month == occ.month &&
+                  ex.day == occ.day,
+            ) ??
+            false;
         return !isException;
       }).toList();
     } catch (_) {
@@ -144,16 +156,22 @@ class NotificationService {
           continue;
         }
 
-        final int id = event.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
-        final tz.TZDateTime scheduledDate = tz.TZDateTime.from(triggerTime, tz.local);
-
-        const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-          'my_plan_events_channel',
-          'Plan-A Etkinlik Bildirimleri',
-          channelDescription: 'Etkinlik hatırlatıcıları için bildirim kanalı.',
-          importance: Importance.max,
-          priority: Priority.high,
+        final int id =
+            event.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
+        final tz.TZDateTime scheduledDate = tz.TZDateTime.from(
+          triggerTime,
+          tz.local,
         );
+
+        const AndroidNotificationDetails androidDetails =
+            AndroidNotificationDetails(
+              'my_plan_events_channel',
+              'Plan-A Etkinlik Bildirimleri',
+              channelDescription:
+                  'Etkinlik hatırlatıcıları için bildirim kanalı.',
+              importance: Importance.max,
+              priority: Priority.high,
+            );
 
         const NotificationDetails details = NotificationDetails(
           android: androidDetails,
@@ -163,13 +181,13 @@ class NotificationService {
           await _notificationsPlugin.zonedSchedule(
             id: id,
             title: event.title,
-            body: offset == 0 
-                ? 'Etkinlik şimdi başlıyor!' 
-                : (offset >= 1440 
-                    ? 'Etkinliğe ${offset ~/ 1440} gün kaldı.' 
-                    : (offset >= 60 
-                        ? 'Etkinliğe ${offset ~/ 60} saat kaldı.' 
-                        : 'Etkinliğe $offset dakika kaldı.')),
+            body: offset == 0
+                ? 'Etkinlik şimdi başlıyor!'
+                : (offset >= 1440
+                      ? 'Etkinliğe ${offset ~/ 1440} gün kaldı.'
+                      : (offset >= 60
+                            ? 'Etkinliğe ${offset ~/ 60} saat kaldı.'
+                            : 'Etkinliğe $offset dakika kaldı.')),
             scheduledDate: scheduledDate,
             notificationDetails: details,
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -179,13 +197,13 @@ class NotificationService {
             await _notificationsPlugin.zonedSchedule(
               id: id,
               title: event.title,
-              body: offset == 0 
-                  ? 'Etkinlik şimdi başlıyor!' 
-                  : (offset >= 1440 
-                      ? 'Etkinliğe ${offset ~/ 1440} gün kaldı.' 
-                      : (offset >= 60 
-                          ? 'Etkinliğe ${offset ~/ 60} saat kaldı.' 
-                          : 'Etkinliğe $offset dakika kaldı.')),
+              body: offset == 0
+                  ? 'Etkinlik şimdi başlıyor!'
+                  : (offset >= 1440
+                        ? 'Etkinliğe ${offset ~/ 1440} gün kaldı.'
+                        : (offset >= 60
+                              ? 'Etkinliğe ${offset ~/ 60} saat kaldı.'
+                              : 'Etkinliğe $offset dakika kaldı.')),
               scheduledDate: scheduledDate,
               notificationDetails: details,
               androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -199,7 +217,18 @@ class NotificationService {
   static Future<void> cancelEventNotifications(Event event) async {
     final start = DateTime.now().subtract(const Duration(days: 30));
     final end = DateTime.now().add(const Duration(days: 30));
-    final List<int> offsetsToCancel = [0, 5, 10, 15, 30, 60, 120, 1440, 10080, ...event.notificationOffsets];
+    final List<int> offsetsToCancel = [
+      0,
+      5,
+      10,
+      15,
+      30,
+      60,
+      120,
+      1440,
+      10080,
+      ...event.notificationOffsets,
+    ];
 
     try {
       final List<DateTime> occurrences = [];
@@ -219,7 +248,10 @@ class NotificationService {
 
       for (var occ in occurrences) {
         for (var offset in offsetsToCancel) {
-          final int id = event.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
+          final int id =
+              event.id.hashCode ^
+              (occ.millisecondsSinceEpoch ~/ 60000) ^
+              offset;
           await _notificationsPlugin.cancel(id: id);
         }
       }
@@ -243,8 +275,14 @@ class NotificationService {
         specificEndDate: end,
       );
       return dates.where((occ) {
-        final isException = task.recurrenceExceptionDates?.any((ex) =>
-            ex.year == occ.year && ex.month == occ.month && ex.day == occ.day) ?? false;
+        final isException =
+            task.recurrenceExceptionDates?.any(
+              (ex) =>
+                  ex.year == occ.year &&
+                  ex.month == occ.month &&
+                  ex.day == occ.day,
+            ) ??
+            false;
         return !isException;
       }).toList();
     } catch (_) {
@@ -266,16 +304,21 @@ class NotificationService {
           continue;
         }
 
-        final int id = task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
-        final tz.TZDateTime scheduledDate = tz.TZDateTime.from(triggerTime, tz.local);
-
-        const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-          'my_plan_events_channel',
-          'Plan-A Görev Bildirimleri',
-          channelDescription: 'Görev hatırlatıcıları için bildirim kanalı.',
-          importance: Importance.max,
-          priority: Priority.high,
+        final int id =
+            task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
+        final tz.TZDateTime scheduledDate = tz.TZDateTime.from(
+          triggerTime,
+          tz.local,
         );
+
+        const AndroidNotificationDetails androidDetails =
+            AndroidNotificationDetails(
+              'my_plan_events_channel',
+              'Plan-A Görev Bildirimleri',
+              channelDescription: 'Görev hatırlatıcıları için bildirim kanalı.',
+              importance: Importance.max,
+              priority: Priority.high,
+            );
 
         const NotificationDetails details = NotificationDetails(
           android: androidDetails,
@@ -285,13 +328,13 @@ class NotificationService {
           await _notificationsPlugin.zonedSchedule(
             id: id,
             title: task.title,
-            body: offset == 0 
-                ? 'Görev şimdi başlıyor!' 
-                : (offset >= 1440 
-                    ? 'Göreve ${offset ~/ 1440} gün kaldı.' 
-                    : (offset >= 60 
-                        ? 'Göreve ${offset ~/ 60} saat kaldı.' 
-                        : 'Göreve $offset dakika kaldı.')),
+            body: offset == 0
+                ? 'Görev şimdi başlıyor!'
+                : (offset >= 1440
+                      ? 'Göreve ${offset ~/ 1440} gün kaldı.'
+                      : (offset >= 60
+                            ? 'Göreve ${offset ~/ 60} saat kaldı.'
+                            : 'Göreve $offset dakika kaldı.')),
             scheduledDate: scheduledDate,
             notificationDetails: details,
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -301,13 +344,13 @@ class NotificationService {
             await _notificationsPlugin.zonedSchedule(
               id: id,
               title: task.title,
-              body: offset == 0 
-                  ? 'Görev şimdi başlıyor!' 
-                  : (offset >= 1440 
-                      ? 'Göreve ${offset ~/ 1440} gün kaldı.' 
-                      : (offset >= 60 
-                          ? 'Göreve ${offset ~/ 60} saat kaldı.' 
-                          : 'Göreve $offset dakika kaldı.')),
+              body: offset == 0
+                  ? 'Görev şimdi başlıyor!'
+                  : (offset >= 1440
+                        ? 'Göreve ${offset ~/ 1440} gün kaldı.'
+                        : (offset >= 60
+                              ? 'Göreve ${offset ~/ 60} saat kaldı.'
+                              : 'Göreve $offset dakika kaldı.')),
               scheduledDate: scheduledDate,
               notificationDetails: details,
               androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -322,7 +365,18 @@ class NotificationService {
     if (task.from == null) return;
     final start = DateTime.now().subtract(const Duration(days: 30));
     final end = DateTime.now().add(const Duration(days: 30));
-    final List<int> offsetsToCancel = [0, 5, 10, 15, 30, 60, 120, 1440, 10080, ...task.notificationOffsets];
+    final List<int> offsetsToCancel = [
+      0,
+      5,
+      10,
+      15,
+      30,
+      60,
+      120,
+      1440,
+      10080,
+      ...task.notificationOffsets,
+    ];
 
     try {
       final List<DateTime> occurrences = [];
@@ -342,11 +396,11 @@ class NotificationService {
 
       for (var occ in occurrences) {
         for (var offset in offsetsToCancel) {
-          final int id = task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
+          final int id =
+              task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
           await _notificationsPlugin.cancel(id: id);
         }
       }
     } catch (_) {}
   }
 }
-

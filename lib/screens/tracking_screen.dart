@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../models/project.dart';
 import '../models/project_evaluation.dart';
+import '../utils/id_generator.dart';
 import 'project_details_screen.dart';
 
 class TrackingScreen extends StatefulWidget {
@@ -16,20 +17,23 @@ class _TrackingScreenState extends State<TrackingScreen> {
   DateTime _focusedDate = DateTime.now();
   String _timeRange = 'Haftalık'; // 'Günlük', 'Haftalık', 'Aylık'
   String _valueType = 'Yapılan'; // 'Yapılan', 'Yapılacak', 'Toplam'
+  String _matrixDisplayMode = 'PERCENTAGE'; // 'PERCENTAGE', 'BRUT', 'NET', 'NOTE'
 
-  List<DateTime> _getWeekDays(DateTime date) {
-    // Find the Monday of the week containing the date
-    final monday = date.subtract(Duration(days: date.weekday - 1));
-    return List.generate(7, (i) => DateTime(monday.year, monday.month, monday.day).add(Duration(days: i)));
+  List<DateTime> _getMonthDays(DateTime date) {
+    return List.generate(30, (i) => DateTime(date.year, date.month, date.day).subtract(Duration(days: 29 - i)));
   }
 
-  String _formatWeekRange(List<DateTime> days) {
+  String _formatMonthRange(List<DateTime> days) {
     final start = days.first;
     final end = days.last;
     final months = [
       '', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
     ];
-    return '${start.day} - ${end.day} ${months[start.month]} ${start.year}';
+    if (start.month == end.month) {
+      return '${start.day} - ${end.day} ${months[start.month]} ${start.year}';
+    } else {
+      return '${start.day} ${months[start.month]} - ${end.day} ${months[end.month]} ${start.year}';
+    }
   }
 
   @override
@@ -39,9 +43,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final evaluations = appState.evaluations;
     final isDark = appState.isDarkMode;
 
-    // Get current week days (newest to oldest as shown in the screenshot: 7 Tem down to 1 Tem)
-    final weekDays = _getWeekDays(_focusedDate);
-    final displayedDays = weekDays.reversed.toList();
+    // Get current month days (newest to oldest)
+    final monthDays = _getMonthDays(_focusedDate);
+    final displayedDays = monthDays.reversed.toList();
 
     // Group projects by category
     final Map<String, List<Project>> categorizedProjects = {};
@@ -52,13 +56,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
     final categories = categorizedProjects.keys.toList();
 
-    // Calculate total hours in the current week
+    // Calculate total hours in the current month
     double totalWeekHours = 0.0;
     final Map<String, double> projectHours = {};
 
     for (var p in projects) {
       double projSum = 0.0;
-      for (var day in weekDays) {
+      for (var day in monthDays) {
         final ev = _getEvalForDay(evaluations, p.id, day);
         if (ev != null) {
           projSum += ev.durationHours;
@@ -87,19 +91,19 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     icon: const Icon(Icons.arrow_back_ios, size: 16),
                     onPressed: () {
                       setState(() {
-                        _focusedDate = _focusedDate.subtract(const Duration(days: 7));
+                        _focusedDate = _focusedDate.subtract(const Duration(days: 30));
                       });
                     },
                   ),
                   Text(
-                    _formatWeekRange(weekDays),
+                    _formatMonthRange(monthDays),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   IconButton(
                     icon: const Icon(Icons.arrow_forward_ios, size: 16),
                     onPressed: () {
                       setState(() {
-                        _focusedDate = _focusedDate.add(const Duration(days: 7));
+                        _focusedDate = _focusedDate.add(const Duration(days: 30));
                       });
                     },
                   ),
@@ -107,7 +111,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     icon: const Icon(Icons.calendar_month, color: Colors.blue),
                     onPressed: () async {
                       final picked = await showDatePicker(
-                        context: context,
+                         context: context,
                         initialDate: _focusedDate,
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2100),
@@ -246,140 +250,218 @@ class _TrackingScreenState extends State<TrackingScreen> {
               elevation: 2,
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Table(
-                  defaultColumnWidth: const FixedColumnWidth(100),
-                  border: TableBorder.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header Row 1: Categories
-                    TableRow(
-                      decoration: BoxDecoration(color: isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+                    // Unified Category Header Row
+                    Row(
                       children: [
-                        _buildHeaderCell('Kategori'),
-                        ...categories.expand((cat) {
+                        Container(
+                          width: 85,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+                            border: Border(
+                              left: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                              top: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                              bottom: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                              right: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                            ),
+                          ),
+                          child: _buildHeaderCell('Kategori'),
+                        ),
+                        ...categories.map((cat) {
                           final projs = categorizedProjects[cat] ?? [];
-                          return List.generate(projs.length, (i) => i == 0 ? _buildHeaderCell(cat) : const SizedBox());
+                          final totalWidth = 55.0 * projs.length;
+                          return Container(
+                            width: totalWidth,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+                              border: Border(
+                                top: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                                bottom: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                                right: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                              ),
+                            ),
+                            child: _buildHeaderCell(cat),
+                          );
                         }),
                       ],
                     ),
-                    // Header Row 2: Projects / Subcategories
-                    TableRow(
-                      decoration: BoxDecoration(color: isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+                    // Projects Matrix Table
+                    Table(
+                      columnWidths: const {
+                        0: FixedColumnWidth(85),
+                      },
+                      defaultColumnWidth: const FixedColumnWidth(55),
+                      border: TableBorder(
+                        left: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                        right: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                        bottom: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                        horizontalInside: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                        verticalInside: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                      ),
                       children: [
-                        _buildHeaderCell('Proje'),
-                        ...categories.expand((cat) {
-                          final projs = categorizedProjects[cat] ?? [];
-                          return projs.map((p) => _buildProjectHeaderCell(p));
-                        }),
-                      ],
-                    ),
-                    // Net Row
-                    TableRow(
-                      children: [
-                        _buildRowLabel('Net'),
-                        ...categories.expand((cat) {
-                          final projs = categorizedProjects[cat] ?? [];
-                          return projs.map((p) {
-                            double netSum = 0.0;
-                            for (var day in weekDays) {
-                              final ev = _getEvalForDay(evaluations, p.id, day);
-                              if (ev != null) {
-                                netSum += ev.durationHours * (ev.score / 100.0);
-                              }
-                            }
-                            return _buildValueCell('${netSum.toStringAsFixed(1)} sa');
-                          });
-                        }),
-                      ],
-                    ),
-                    // Brüt Row
-                    TableRow(
-                      children: [
-                        _buildRowLabel('Brüt'),
-                        ...categories.expand((cat) {
-                          final projs = categorizedProjects[cat] ?? [];
-                          return projs.map((p) {
-                            double brutSum = 0.0;
-                            for (var day in weekDays) {
-                              final ev = _getEvalForDay(evaluations, p.id, day);
-                              if (ev != null) {
-                                brutSum += ev.durationHours;
-                              }
-                            }
-                            return _buildValueCell('${brutSum.toStringAsFixed(1)} sa');
-                          });
-                        }),
-                      ],
-                    ),
-                    // Toplam Row
-                    TableRow(
-                      children: [
-                        _buildRowLabel('Toplam'),
-                        ...categories.expand((cat) {
-                          final projs = categorizedProjects[cat] ?? [];
-                          return projs.map((p) {
-                            double totalSum = 0.0;
-                            for (var day in weekDays) {
-                              final ev = _getEvalForDay(evaluations, p.id, day);
-                              if (ev != null) {
-                                totalSum += ev.durationHours;
-                              }
-                            }
-                            return _buildValueCell('${totalSum.toStringAsFixed(1)} sa');
-                          });
-                        }),
-                      ],
-                    ),
-                    // Individual Days Rows
-                    ...displayedDays.map((day) {
-                      final months = [
-                        '', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
-                      ];
-                      final dateLabel = '${day.day} ${months[day.month]}';
+                        // Header Row: Projects / Subcategories
+                        TableRow(
+                          decoration: BoxDecoration(color: isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+                          children: [
+                            _buildModeSelectorCell(),
+                            ...categories.expand((cat) {
+                              final projs = categorizedProjects[cat] ?? [];
+                              return projs.map((p) => _buildProjectHeaderCell(p));
+                            }),
+                          ],
+                        ),
+                        // Net Row
+                        TableRow(
+                          children: [
+                            _buildRowLabel('Net'),
+                            ...categories.expand((cat) {
+                              final projs = categorizedProjects[cat] ?? [];
+                              return projs.map((p) {
+                                double netSum = 0.0;
+                                for (var day in monthDays) {
+                                  final ev = _getEvalForDay(evaluations, p.id, day);
+                                  if (ev != null) {
+                                    netSum += ev.durationHours * (ev.score / 100.0);
+                                  }
+                                }
+                                return _buildValueCell(netSum.toStringAsFixed(1));
+                              });
+                            }),
+                          ],
+                        ),
+                        // Brüt Row
+                        TableRow(
+                          children: [
+                            _buildRowLabel('Brüt'),
+                            ...categories.expand((cat) {
+                              final projs = categorizedProjects[cat] ?? [];
+                              return projs.map((p) {
+                                double brutSum = 0.0;
+                                for (var day in monthDays) {
+                                  final ev = _getEvalForDay(evaluations, p.id, day);
+                                  if (ev != null) {
+                                    brutSum += ev.durationHours;
+                                  }
+                                }
+                                return _buildValueCell(brutSum.toStringAsFixed(1));
+                              });
+                            }),
+                          ],
+                        ),
+                        // Toplam Row
+                        TableRow(
+                          children: [
+                            _buildRowLabel('Toplam'),
+                            ...categories.expand((cat) {
+                              final projs = categorizedProjects[cat] ?? [];
+                              return projs.map((p) {
+                                double totalSum = 0.0;
+                                for (var day in monthDays) {
+                                  final ev = _getEvalForDay(evaluations, p.id, day);
+                                  if (ev != null) {
+                                    totalSum += ev.durationHours;
+                                  }
+                                }
+                                return _buildValueCell(totalSum.toStringAsFixed(1));
+                              });
+                            }),
+                          ],
+                        ),
+                        // Individual Days Rows
+                        ...displayedDays.map((day) {
+                          final months = [
+                            '', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
+                          ];
+                          final dateLabel = '${day.day} ${months[day.month]}';
 
-                      return TableRow(
-                        children: [
-                          _buildRowLabel(dateLabel, isBold: true),
-                          ...categories.expand((cat) {
-                            final projs = categorizedProjects[cat] ?? [];
-                            return projs.map((p) {
-                              final ev = _getEvalForDay(evaluations, p.id, day);
-                              if (ev == null) {
-                                return _buildValueCell('-');
-                              }
-                              // Format cell based on evaluation type
-                              String displayVal = '';
-                              if (ev.isSkipped) {
-                                displayVal = 'Pas ${ev.score.toStringAsFixed(0)}';
-                              } else if (p.evaluationType == 'PERCENTAGE') {
-                                displayVal = '%${ev.score.toStringAsFixed(0)}';
-                              } else {
-                                displayVal = ev.score.toStringAsFixed(0);
-                              }
+                          return TableRow(
+                            children: [
+                              _buildRowLabel(dateLabel, isBold: true),
+                              ...categories.expand((cat) {
+                                final projs = categorizedProjects[cat] ?? [];
+                                return projs.map((p) {
+                                  final ev = _getEvalForDay(evaluations, p.id, day);
+                                  if (ev == null) {
+                                    return InkWell(
+                                      onTap: () => _showEvaluationDialog(context, p, day),
+                                      child: _buildValueCell('-'),
+                                    );
+                                  }
+                                  // Format cell based on evaluation type and display mode
+                                  String displayVal = '';
+                                  if (ev.isSkipped) {
+                                    final skipCount = evaluations
+                                        .where((e) => e.projectId == p.id && e.isSkipped && !e.sessionDate.isAfter(day))
+                                        .length;
+                                    displayVal = 'Pas $skipCount';
+                                  } else {
+                                    switch (_matrixDisplayMode) {
+                                      case 'PERCENTAGE':
+                                        if (p.evaluationType == 'PERCENTAGE') {
+                                          displayVal = '%${ev.score.toStringAsFixed(0)}';
+                                        } else {
+                                          displayVal = ev.score.toStringAsFixed(0);
+                                        }
+                                        break;
+                                      case 'BRUT':
+                                        displayVal = ev.durationHours.toStringAsFixed(1);
+                                        break;
+                                      case 'NET':
+                                        final netVal = ev.durationHours * (ev.score / 100.0);
+                                        displayVal = netVal.toStringAsFixed(1);
+                                        break;
+                                      case 'NOTE':
+                                        displayVal = (ev.note != null && ev.note!.isNotEmpty) ? ev.note! : '-';
+                                        break;
+                                    }
+                                  }
 
-                              final cellBgColor = ev.isSkipped
-                                  ? Colors.red.shade50
-                                  : (ev.score >= 90 ? Colors.green.shade50 : Colors.orange.shade50);
+                                  final cellBgColor = ev.isSkipped
+                                      ? Colors.red.shade50
+                                      : (ev.score >= 90 ? Colors.green.shade50 : Colors.orange.shade50);
 
-                              return Container(
-                                color: cellBgColor,
-                                alignment: Alignment.center,
-                                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                child: Text(
-                                  displayVal,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: ev.isSkipped
-                                        ? Colors.red.shade700
-                                        : (ev.score >= 90 ? Colors.green.shade700 : Colors.orange.shade700),
-                                  ),
-                                ),
-                              );
-                            });
-                          }),
-                        ],
-                      );
-                    }),
+                                  final cellWidget = Container(
+                                    color: cellBgColor,
+                                    alignment: Alignment.center,
+                                    padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2.0),
+                                    child: Text(
+                                      displayVal,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: ev.isSkipped
+                                            ? Colors.red.shade700
+                                            : (ev.score >= 90 ? Colors.green.shade700 : Colors.orange.shade700),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  );
+
+                                  final wrappedCell = InkWell(
+                                    onTap: () => _showEvaluationDialog(context, p, day),
+                                    child: cellWidget,
+                                  );
+
+                                  if (ev.note != null && ev.note!.isNotEmpty) {
+                                    return Tooltip(
+                                      message: ev.note!,
+                                      child: wrappedCell,
+                                    );
+                                  }
+                                  return wrappedCell;
+                                });
+                              }),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -414,7 +496,72 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
+  Widget _buildModeSelectorCell() {
+    IconData icon;
+    String tooltip;
+    Color iconColor;
+
+    switch (_matrixDisplayMode) {
+      case 'PERCENTAGE':
+        icon = Icons.percent;
+        tooltip = 'Yüzdesel Başarı';
+        iconColor = Colors.blue;
+        break;
+      case 'BRUT':
+        icon = Icons.hourglass_bottom;
+        tooltip = 'Brüt Saat';
+        iconColor = Colors.orange;
+        break;
+      case 'NET':
+        icon = Icons.hourglass_full;
+        tooltip = 'Net Çalışma Saati';
+        iconColor = Colors.green;
+        break;
+      case 'NOTE':
+        icon = Icons.chat;
+        tooltip = 'Günlük Notlar';
+        iconColor = Colors.purple;
+        break;
+      default:
+        icon = Icons.percent;
+        tooltip = 'Yüzdesel Başarı';
+        iconColor = Colors.blue;
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            if (_matrixDisplayMode == 'PERCENTAGE') {
+              _matrixDisplayMode = 'BRUT';
+            } else if (_matrixDisplayMode == 'BRUT') {
+              _matrixDisplayMode = 'NET';
+            } else if (_matrixDisplayMode == 'NET') {
+              _matrixDisplayMode = 'NOTE';
+            } else {
+              _matrixDisplayMode = 'PERCENTAGE';
+            }
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.all(4.0),
+          alignment: Alignment.center,
+          height: 48,
+          child: Icon(
+            icon,
+            size: 20,
+            color: iconColor,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProjectHeaderCell(Project p) {
+    final appState = Provider.of<AppState>(context, listen: false);
+    final categoryColor = appState.getEventTagColor(p.tag) ?? appState.getTaskTagColor(p.tag) ?? 0xFF9E9E9E;
+
     return InkWell(
       onTap: () {
         Navigator.push(
@@ -426,24 +573,25 @@ class _TrackingScreenState extends State<TrackingScreen> {
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircleAvatar(radius: 4, backgroundColor: Color(p.colorValue)),
-            const SizedBox(width: 4),
-            Expanded(
+            RotatedBox(
+              quarterTurns: 3,
               child: Text(
                 p.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
+                style: TextStyle(
+                  fontWeight: FontWeight.normal,
                   fontSize: 11,
-                  color: Colors.blue,
-                  decoration: TextDecoration.underline,
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                  decoration: TextDecoration.none,
                 ),
                 overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
               ),
             ),
+            const SizedBox(height: 8),
+            CircleAvatar(radius: 4, backgroundColor: Color(categoryColor)),
           ],
         ),
       ),
@@ -473,6 +621,176 @@ class _TrackingScreenState extends State<TrackingScreen> {
         text,
         style: const TextStyle(fontSize: 12),
       ),
+    );
+  }
+
+  void _showEvaluationDialog(BuildContext context, Project project, DateTime date) {
+    final appState = Provider.of<AppState>(context, listen: false);
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    
+    final existingEval = appState.evaluations.firstWhere(
+      (e) => e.projectId == project.id && 
+             e.sessionDate.year == normalizedDate.year &&
+             e.sessionDate.month == normalizedDate.month &&
+             e.sessionDate.day == normalizedDate.day,
+      orElse: () => ProjectEvaluation(
+        id: '',
+        projectId: project.id,
+        sessionDate: normalizedDate,
+        score: 0,
+        isSkipped: false,
+        durationHours: 0,
+      ),
+    );
+
+    final scoreCtrl = TextEditingController(
+      text: existingEval.id.isNotEmpty && !existingEval.isSkipped
+          ? existingEval.score.toStringAsFixed(existingEval.score % 1 == 0 ? 0 : 1)
+          : '',
+    );
+    final hoursCtrl = TextEditingController(
+      text: existingEval.id.isNotEmpty && !existingEval.isSkipped
+          ? existingEval.durationHours.toInt().toString()
+          : '',
+    );
+    final minutesCtrl = TextEditingController(
+      text: existingEval.id.isNotEmpty && !existingEval.isSkipped
+          ? ((existingEval.durationHours - existingEval.durationHours.toInt()) * 60).round().toString()
+          : '',
+    );
+    final noteCtrl = TextEditingController(text: existingEval.note ?? '');
+    bool isSkipped = existingEval.id.isNotEmpty ? existingEval.isSkipped : false;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('${project.title} Değerlendirmesi'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${normalizedDate.day}/${normalizedDate.month}/${normalizedDate.year} tarihli oturum',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    SwitchListTile(
+                      title: const Text('Bugünü Boş Geç (Pas)'),
+                      value: isSkipped,
+                      onChanged: (v) {
+                        setState(() => isSkipped = v);
+                      },
+                    ),
+                    if (!isSkipped) ...[
+                      TextField(
+                        controller: scoreCtrl,
+                        decoration: InputDecoration(
+                          labelText: project.evaluationType == 'PERCENTAGE'
+                              ? 'Başarı Yüzdesi (%)'
+                              : 'Elde Edilen Sayı (Hedef: ${project.targetValue})',
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: hoursCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Saat',
+                                suffixText: 'saat',
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextField(
+                              controller: minutesCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Dakika',
+                                suffixText: 'dk',
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: noteCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Not Ekle',
+                        hintText: 'Oturumla ilgili notlar yazın...',
+                      ),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                if (existingEval.id.isNotEmpty)
+                  TextButton(
+                    onPressed: () {
+                      appState.deleteEvaluation(project.id, normalizedDate);
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'Sil',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('İptal'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    double score = double.tryParse(scoreCtrl.text) ?? 0.0;
+                    int hrs = int.tryParse(hoursCtrl.text) ?? 0;
+                    int mins = int.tryParse(minutesCtrl.text) ?? 0;
+                    double duration = hrs + (mins / 60.0);
+                    if (duration < 0.0) duration = 0.0;
+
+                    // Calculate skip count if skipped
+                    double finalScore = score;
+                    if (isSkipped) {
+                      final priorSkips = appState.evaluations
+                          .where((e) => e.projectId == project.id && e.isSkipped && e.sessionDate.isBefore(normalizedDate))
+                          .length;
+                      finalScore = (priorSkips + 1).toDouble();
+                    }
+
+                    final eval = ProjectEvaluation(
+                      id: existingEval.id.isNotEmpty
+                          ? existingEval.id
+                          : IdGenerator.generate(
+                              'degerlendirme_${project.title}',
+                              date: normalizedDate,
+                            ),
+                      projectId: project.id,
+                      sessionDate: normalizedDate,
+                      score: isSkipped ? finalScore : score,
+                      isSkipped: isSkipped,
+                      durationHours: isSkipped ? 0.0 : duration,
+                      note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
+                    );
+                    
+                    appState.addOrUpdateEvaluation(eval);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Kaydet'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

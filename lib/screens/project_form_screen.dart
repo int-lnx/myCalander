@@ -17,19 +17,10 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _detailsController;
-  late int _colorValue;
   late String _tag;
   String? _subTag;
   late String _evaluationType;
   late double _targetValue;
-
-  final List<int> _colors = [
-    0xFF2196F3, // Blue
-    0xFFF44336, // Red
-    0xFF4CAF50, // Green
-    0xFFFF9800, // Orange
-    0xFF9C27B0, // Purple
-  ];
 
   @override
   void initState() {
@@ -37,7 +28,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     final proj = widget.existingProject;
     _titleController = TextEditingController(text: proj?.title ?? '');
     _detailsController = TextEditingController(text: proj?.description ?? '');
-    _colorValue = proj?.colorValue ?? _colors[0];
     _tag = proj?.tag ?? 'Genel';
     _subTag = proj?.subTag;
     _evaluationType = proj?.evaluationType ?? 'PERCENTAGE';
@@ -110,23 +100,22 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                 }
               },
             ),
-            const SizedBox(height: 24),
-            const Text('Renk Seçimi', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8.0,
-              children: _colors.map((color) {
-                return GestureDetector(
-                  onTap: () => setState(() => _colorValue = color),
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Color(color),
-                    child: _colorValue == color
-                        ? const Icon(Icons.check, color: Colors.white)
-                        : null,
-                  ),
-                );
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: appState.eventTags.contains(_tag)
+                  ? _tag
+                  : (appState.eventTags.isNotEmpty ? appState.eventTags.first : 'Genel'),
+              decoration: const InputDecoration(labelText: 'Kategori'),
+              items: appState.eventTags.map((t) {
+                return DropdownMenuItem(value: t, child: Text(t));
               }).toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _tag = val;
+                  });
+                }
+              },
             ),
           ],
         ),
@@ -136,11 +125,14 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
   void _save(AppState appState) {
     if (_formKey.currentState!.validate()) {
+      // Auto-assign project color from category tag
+      final tagColor = appState.getEventTagColor(_tag) ?? 0xFF2196F3;
+      
       final proj = Project(
         id: widget.existingProject?.id ?? IdGenerator.generate(_titleController.text),
         title: _titleController.text,
         description: _detailsController.text,
-        colorValue: _colorValue,
+        colorValue: tagColor,
         tag: _tag,
         subTag: _subTag,
         evaluationType: _evaluationType,

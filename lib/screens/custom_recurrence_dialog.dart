@@ -46,7 +46,7 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           DropdownButtonFormField<String>(
-            value: _freq,
+            initialValue: _freq,
             decoration: const InputDecoration(labelText: 'Sıklık'),
             items: const [
               DropdownMenuItem(value: 'DAILY', child: Text('Her gün')),
@@ -94,7 +94,8 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
             } else if (_freq == 'MONTHLY') {
               rule += ';BYMONTHDAY=${widget.eventDate.day}';
             } else if (_freq == 'YEARLY') {
-              rule += ';BYMONTH=${widget.eventDate.month};BYMONTHDAY=${widget.eventDate.day}';
+              rule +=
+                  ';BYMONTH=${widget.eventDate.month};BYMONTHDAY=${widget.eventDate.day}';
             }
             Navigator.pop(context, rule);
           },

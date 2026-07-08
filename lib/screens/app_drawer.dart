@@ -28,84 +28,264 @@ class _AppDrawerState extends State<AppDrawer> {
     bool isEvent,
   ) {
     final title = isEvent ? 'Etkinlik Kategorileri' : 'Görev Kategorileri';
-    final categories = isEvent ? appState.eventTags : appState.taskTags;
-    final ctrl = TextEditingController();
+    String? selectedCategory;
+    final categoryCtrl = TextEditingController();
+    final subCategoryCtrl = TextEditingController();
 
-    return AlertDialog(
-      title: Text('$title Düzenle'),
-      content: SizedBox(
-        width: 300,
-        height: 400,
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: ctrl,
-                    decoration: const InputDecoration(
-                      hintText: 'Yeni Kategori Adı',
-                      isDense: true,
+    final List<int> colorsList = [
+      0xFF2196F3, // Blue
+      0xFFF44336, // Red
+      0xFF4CAF50, // Green
+      0xFFFF9800, // Orange
+      0xFF9C27B0, // Purple
+      0xFF009688, // Teal
+      0xFFE91E63, // Pink
+      0xFFFFC107, // Amber
+      0xFF00BCD4, // Cyan
+      0xFF8BC34A, // Light Green
+      0xFFE040FB, // Orchid
+      0xFFFF5722, // Deep Orange
+      0xFF607D8B, // Blue Grey
+      0xFF795548, // Brown
+    ];
+
+    return StatefulBuilder(
+      builder: (context, setDialogState) {
+        final categories = isEvent ? appState.eventTags : appState.taskTags;
+
+        if (selectedCategory == null) {
+          // List View of Categories
+          return AlertDialog(
+            title: Text('$title Düzenle'),
+            content: SizedBox(
+              width: 350,
+              height: 450,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: categoryCtrl,
+                          decoration: const InputDecoration(
+                            hintText: 'Yeni Kategori Adı',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add, color: Colors.blue),
+                        onPressed: () {
+                          final name = categoryCtrl.text.trim();
+                          if (name.isNotEmpty) {
+                            if (isEvent) {
+                              appState.addEventCategory(name);
+                            } else {
+                              appState.addTaskCategory(name);
+                            }
+                            categoryCtrl.clear();
+                            setDialogState(() {});
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: categories.length,
+                      itemBuilder: (context, idx) {
+                        final cat = categories[idx];
+                        final catColor = isEvent
+                            ? (appState.getEventTagColor(cat) ?? 0xFF2196F3)
+                            : (appState.getTaskTagColor(cat) ?? 0xFF2196F3);
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            radius: 8,
+                            backgroundColor: Color(catColor),
+                          ),
+                          title: Text(cat),
+                          dense: true,
+                          onTap: () {
+                            setDialogState(() {
+                              selectedCategory = cat;
+                            });
+                          },
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.edit, size: 16, color: Colors.grey),
+                              if (cat != 'Genel' && cat != 'Yapılacaklar') ...[
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                                  onPressed: () {
+                                    if (isEvent) {
+                                      appState.deleteEventCategory(cat);
+                                    } else {
+                                      appState.deleteTaskCategory(cat);
+                                    }
+                                    setDialogState(() {});
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ),
-                ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Kapat'),
+              ),
+            ],
+          );
+        } else {
+          // Details & Subcategories & Color Picker view
+          final currentCat = selectedCategory!;
+          final catColor = isEvent
+              ? (appState.getEventTagColor(currentCat) ?? 0xFF2196F3)
+              : (appState.getTaskTagColor(currentCat) ?? 0xFF2196F3);
+
+          final subTags = isEvent
+              ? (appState.eventSubTags[currentCat] ?? [])
+              : (appState.taskSubTags[currentCat] ?? []);
+
+          return AlertDialog(
+            title: Row(
+              children: [
                 IconButton(
-                  icon: const Icon(Icons.add, color: Colors.blue),
+                  icon: const Icon(Icons.arrow_back),
                   onPressed: () {
-                    final name = ctrl.text.trim();
-                    if (name.isNotEmpty) {
-                      if (isEvent) {
-                        appState.addEventCategory(name);
-                      } else {
-                        appState.addTaskCategory(name);
-                      }
-                      ctrl.clear();
-                    }
+                    setDialogState(() {
+                      selectedCategory = null;
+                    });
                   },
+                ),
+                Expanded(
+                  child: Text(
+                    currentCat,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView.builder(
-                itemCount: categories.length,
-                itemBuilder: (context, idx) {
-                  final cat = categories[idx];
-                  if (cat == 'Genel' || cat == 'Yapılacaklar') {
-                    // Varsayılan kategoriler silinemez
+            content: SizedBox(
+              width: 350,
+              height: 450,
+              child: ListView(
+                children: [
+                  const Text(
+                    'Kategori Rengi',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: colorsList.map((colVal) {
+                      final isSelected = colVal == catColor;
+                      return GestureDetector(
+                        onTap: () {
+                          if (isEvent) {
+                            appState.setEventTagColor(currentCat, colVal);
+                          } else {
+                            appState.setTaskTagColor(currentCat, colVal);
+                          }
+                          setDialogState(() {});
+                        },
+                        child: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: Color(colVal),
+                          child: isSelected
+                              ? const Icon(Icons.check, size: 14, color: Colors.white)
+                              : null,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const Divider(height: 24),
+                  const Text(
+                    'Alt Kategoriler (Subcategories)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: subCategoryCtrl,
+                          decoration: const InputDecoration(
+                            hintText: 'Yeni Alt Kategori',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add, color: Colors.blue),
+                        onPressed: () {
+                          final subName = subCategoryCtrl.text.trim();
+                          if (subName.isNotEmpty) {
+                            if (isEvent) {
+                              appState.addEventSubTag(currentCat, subName);
+                            } else {
+                              appState.addTaskSubTag(currentCat, subName);
+                            }
+                            subCategoryCtrl.clear();
+                            setDialogState(() {});
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...subTags.map((sub) {
                     return ListTile(
-                      title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(sub, style: const TextStyle(fontSize: 12)),
                       dense: true,
+                      visualDensity: VisualDensity.compact,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 16),
+                        onPressed: () {
+                          if (isEvent) {
+                            appState.deleteEventSubTag(currentCat, sub);
+                          } else {
+                            appState.deleteTaskSubTag(currentCat, sub);
+                          }
+                          setDialogState(() {});
+                        },
+                      ),
                     );
-                  }
-                  return ListTile(
-                    title: Text(cat),
-                    dense: true,
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                      onPressed: () {
-                        if (isEvent) {
-                          appState.deleteEventCategory(cat);
-                        } else {
-                          appState.deleteTaskCategory(cat);
-                        }
-                      },
-                    ),
-                  );
-                },
+                  }),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Kapat'),
-        ),
-      ],
+            actions: [
+              TextButton(
+                onPressed: () {
+                  setDialogState(() {
+                    selectedCategory = null;
+                  });
+                },
+                child: const Text('Geri Dön'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Kapat'),
+              ),
+            ],
+          );
+        }
+      },
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +332,13 @@ class _AppDrawerState extends State<AppDrawer> {
                       ),
                     ),
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.note_alt_outlined, color: Colors.orange),
+                    tooltip: 'Hızlı Not (Sticky Note)',
+                    onPressed: () {
+                      _showQuickStickyNote(context, appState);
+                    },
+                  ),
                 ],
               ),
             ),
@@ -192,35 +379,65 @@ class _AppDrawerState extends State<AppDrawer> {
                     final isChecked = appState.selectedEventTags.contains(tag);
                     final subTags = appState.eventSubTags[tag] ?? [];
                     final isExpanded = _expandedCategories[tag] ?? false;
+                    final tagColorVal = appState.getEventTagColor(tag) ?? 0xFF2196F3;
+                    final baseColor = Color(tagColorVal);
+                    final borderColor = isDark ? Colors.white70 : Colors.black87;
+                    final bgColor = isChecked 
+                        ? baseColor.withOpacity(0.25) 
+                        : baseColor.withOpacity(0.08);
 
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        CheckboxListTile(
-                          value: isChecked,
-                          title: Text(tag, style: const TextStyle(fontSize: 13)),
-                          controlAffinity: ListTileControlAffinity.leading,
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          onChanged: (val) {
+                        InkWell(
+                          onTap: () {
                             appState.toggleEventTag(tag);
                           },
-                          secondary: subTags.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                    size: 18,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                            decoration: BoxDecoration(
+                              color: bgColor,
+                              borderRadius: BorderRadius.circular(8.0),
+                              border: Border.all(color: isChecked ? baseColor : borderColor, width: 1.2),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: baseColor,
+                                    shape: BoxShape.circle,
                                   ),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  onPressed: () {
-                                    setState(() {
-                                      _expandedCategories[tag] = !isExpanded;
-                                    });
-                                  },
-                                )
-                              : null,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    tag,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                                if (subTags.isNotEmpty)
+                                  IconButton(
+                                    icon: Icon(
+                                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                      size: 18,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () {
+                                      setState(() {
+                                        _expandedCategories[tag] = !isExpanded;
+                                      });
+                                    },
+                                  )
+                              ],
+                            ),
+                          ),
                         ),
                         if (isExpanded && subTags.isNotEmpty)
                           Padding(
@@ -228,15 +445,46 @@ class _AppDrawerState extends State<AppDrawer> {
                             child: Column(
                               children: subTags.map((sub) {
                                 final isSubChecked = appState.selectedEventSubTags.contains('$tag:$sub');
-                                return CheckboxListTile(
-                                  value: isSubChecked,
-                                  title: Text(sub, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  dense: true,
-                                  visualDensity: VisualDensity.compact,
-                                  onChanged: (val) {
+                                final subBgColor = isSubChecked 
+                                    ? baseColor.withOpacity(0.2) 
+                                    : baseColor.withOpacity(0.06);
+
+                                return InkWell(
+                                  onTap: () {
                                     appState.toggleEventSubTag(tag, sub);
                                   },
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                                    decoration: BoxDecoration(
+                                      color: subBgColor,
+                                      borderRadius: BorderRadius.circular(6.0),
+                                      border: Border.all(color: isSubChecked ? baseColor : borderColor, width: 1.0),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: baseColor,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            sub,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: isSubChecked ? FontWeight.bold : FontWeight.normal,
+                                              color: isSubChecked ? baseColor : Colors.grey.shade700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 );
                               }).toList(),
                             ),
@@ -283,35 +531,65 @@ class _AppDrawerState extends State<AppDrawer> {
                     final isChecked = appState.selectedTaskTags.contains(tag);
                     final subTags = appState.taskSubTags[tag] ?? [];
                     final isExpanded = _expandedCategories['task_$tag'] ?? false;
+                    final tagColorVal = appState.getTaskTagColor(tag) ?? 0xFF2196F3;
+                    final baseColor = Color(tagColorVal);
+                    final borderColor = isDark ? Colors.white70 : Colors.black87;
+                    final bgColor = isChecked 
+                        ? baseColor.withOpacity(0.25) 
+                        : baseColor.withOpacity(0.08);
 
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        CheckboxListTile(
-                          value: isChecked,
-                          title: Text(tag, style: const TextStyle(fontSize: 13)),
-                          controlAffinity: ListTileControlAffinity.leading,
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          onChanged: (val) {
+                        InkWell(
+                          onTap: () {
                             appState.toggleTaskTag(tag);
                           },
-                          secondary: subTags.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                    size: 18,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                            decoration: BoxDecoration(
+                              color: bgColor,
+                              borderRadius: BorderRadius.circular(8.0),
+                              border: Border.all(color: isChecked ? baseColor : borderColor, width: 1.2),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: baseColor,
+                                    shape: BoxShape.circle,
                                   ),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  onPressed: () {
-                                    setState(() {
-                                      _expandedCategories['task_$tag'] = !isExpanded;
-                                    });
-                                  },
-                                )
-                              : null,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    tag,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                                if (subTags.isNotEmpty)
+                                  IconButton(
+                                    icon: Icon(
+                                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                      size: 18,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () {
+                                      setState(() {
+                                        _expandedCategories['task_$tag'] = !isExpanded;
+                                      });
+                                    },
+                                  )
+                              ],
+                            ),
+                          ),
                         ),
                         if (isExpanded && subTags.isNotEmpty)
                           Padding(
@@ -319,15 +597,46 @@ class _AppDrawerState extends State<AppDrawer> {
                             child: Column(
                               children: subTags.map((sub) {
                                 final isSubChecked = appState.selectedTaskSubTags.contains('$tag:$sub');
-                                return CheckboxListTile(
-                                  value: isSubChecked,
-                                  title: Text(sub, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  dense: true,
-                                  visualDensity: VisualDensity.compact,
-                                  onChanged: (val) {
+                                final subBgColor = isSubChecked 
+                                    ? baseColor.withOpacity(0.2) 
+                                    : baseColor.withOpacity(0.06);
+
+                                return InkWell(
+                                  onTap: () {
                                     appState.toggleTaskSubTag(tag, sub);
                                   },
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                                    decoration: BoxDecoration(
+                                      color: subBgColor,
+                                      borderRadius: BorderRadius.circular(6.0),
+                                      border: Border.all(color: isSubChecked ? baseColor : borderColor, width: 1.0),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: baseColor,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            sub,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: isSubChecked ? FontWeight.bold : FontWeight.normal,
+                                              color: isSubChecked ? baseColor : Colors.grey.shade700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 );
                               }).toList(),
                             ),
@@ -398,48 +707,80 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   if (_projectsExpanded) ...[
                     // Projesiz Ögeler
-                    CheckboxListTile(
-                      value: appState.selectedProjectIds.contains('no_project'),
-                      title: Row(
-                        children: [
-                          Icon(Icons.grid_on_outlined, size: 16, color: Colors.grey.shade600),
-                          const SizedBox(width: 8),
-                          const Text('Projesiz Ögeler', style: TextStyle(fontSize: 13)),
-                        ],
-                      ),
-                      controlAffinity: ListTileControlAffinity.trailing,
-                      dense: true,
-                      visualDensity: VisualDensity.compact,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      onChanged: (val) {
+                    InkWell(
+                      onTap: () {
                         appState.toggleProjectSelection('no_project');
                       },
-                    ),
-                    // Proje listesi
-                    ...appState.projects.map((proj) {
-                      final isSelected = appState.selectedProjectIds.contains(proj.id);
-                      return CheckboxListTile(
-                        value: isSelected,
-                        title: Row(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                        decoration: BoxDecoration(
+                          color: appState.selectedProjectIds.contains('no_project')
+                              ? Colors.grey.withOpacity(0.25)
+                              : Colors.grey.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8.0),
+                          border: Border.all(
+                            color: appState.selectedProjectIds.contains('no_project')
+                                ? Colors.grey
+                                : (isDark ? Colors.white70 : Colors.black87),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
                           children: [
-                            Icon(Icons.rocket_launch, size: 16, color: Color(proj.colorValue)),
+                            Icon(Icons.grid_on_outlined, size: 16, color: Colors.grey.shade600),
                             const SizedBox(width: 8),
-                            Expanded(
+                            const Expanded(
                               child: Text(
-                                proj.title,
-                                style: const TextStyle(fontSize: 13),
-                                overflow: TextOverflow.ellipsis,
+                                'Projesiz Ögeler',
+                                style: TextStyle(fontSize: 13),
                               ),
                             ),
                           ],
                         ),
-                        controlAffinity: ListTileControlAffinity.trailing,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        onChanged: (val) {
+                      ),
+                    ),
+                    // Proje listesi
+                    ...appState.projects.map((proj) {
+                      final isSelected = appState.selectedProjectIds.contains(proj.id);
+                      final categoryColorVal = appState.getEventTagColor(proj.tag) ?? appState.getTaskTagColor(proj.tag) ?? 0xFF9E9E9E;
+                      final baseColor = Color(categoryColorVal);
+                      final bgColor = isSelected 
+                          ? baseColor.withOpacity(0.25) 
+                          : baseColor.withOpacity(0.08);
+
+                      return InkWell(
+                        onTap: () {
                           appState.toggleProjectSelection(proj.id);
                         },
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: BorderRadius.circular(8.0),
+                            border: Border.all(
+                              color: isSelected ? baseColor : (isDark ? Colors.white70 : Colors.black87),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.rocket_launch, size: 16, color: baseColor),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  proj.title,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       );
                     }),
                   ],
@@ -541,28 +882,137 @@ class _AppDrawerState extends State<AppDrawer> {
     Color color,
   ) {
     final isChecked = appState.selectedImportances.contains(importance);
-    return CheckboxListTile(
-      value: isChecked,
-      title: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
+    final isDark = appState.isDarkMode;
+    final borderColor = isDark ? Colors.white70 : Colors.black87;
+    final bgColor = isChecked 
+        ? color.withOpacity(0.25) 
+        : color.withOpacity(0.08);
+
+    return InkWell(
+      onTap: () {
+        appState.toggleImportance(importance);
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8.0),
+          border: Border.all(
+            color: isChecked ? color : borderColor,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showQuickStickyNote(BuildContext context, AppState appState) {
+    final textCtrl = TextEditingController(text: appState.quickNote);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 8,
+          child: Container(
+            width: 320,
+            height: 320,
             decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
+              color: const Color(0xFFFFFDE7), // Light yellow sticky note color
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.shade300, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 8,
+                  offset: const Offset(4, 4),
+                )
+              ]
+            ),
+            child: Column(
+              children: [
+                // Header bar of the sticky note
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade200,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(10),
+                      topRight: Radius.circular(10),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.push_pin, size: 16, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Hızlı Yapışkan Not',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.brown,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(Icons.close, size: 16, color: Colors.brown),
+                      ),
+                    ],
+                  ),
+                ),
+                // Text Area
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: TextField(
+                      controller: textCtrl,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Bir şeyler yazın... (Otomatik kaydedilir)',
+                        border: InputBorder.none,
+                      ),
+                      onChanged: (val) {
+                        appState.updateQuickNote(val);
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontSize: 13)),
-        ],
-      ),
-      controlAffinity: ListTileControlAffinity.leading,
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-      onChanged: (val) {
-        appState.toggleImportance(importance);
+        );
       },
     );
   }

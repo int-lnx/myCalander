@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event.dart';
 import '../models/task_item.dart';
 import '../models/project.dart';
@@ -296,6 +296,70 @@ class FirestoreService {
 
   Future<void> deleteTopicPlan(String userId, String planId) async {
     await _userCollection(userId, 'steps').doc(planId).delete();
+  }
+
+  Future<void> saveQuickNote(String userId, String note) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('quickNote')
+        .set({'note': note, 'updatedAt': DateTime.now().toIso8601String()});
+  }
+
+  Future<Map<String, dynamic>?> getQuickNote(String userId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('quickNote')
+        .get();
+    return doc.data();
+  }
+
+  Future<void> saveCategoryColors(
+    String userId,
+    Map<String, int> eventTagColors,
+    Map<String, int> taskTagColors,
+  ) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('categoryColors')
+        .set({
+          'eventTagColors': eventTagColors,
+          'taskTagColors': taskTagColors,
+        });
+  }
+
+  Future<Map<String, dynamic>?> getCategoryColors(String userId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('categoryColors')
+        .get();
+    return doc.data();
+  }
+
+  Future<void> saveTaskOrder(String userId, List<String> taskOrder) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('taskOrder')
+        .set({'order': taskOrder, 'updatedAt': DateTime.now().toIso8601String()});
+  }
+
+  Future<Map<String, dynamic>?> getTaskOrder(String userId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('taskOrder')
+        .get();
+    return doc.data();
   }
 }
 

@@ -17,19 +17,29 @@ class PlanScreen extends StatefulWidget {
 }
 
 class _PlanScreenState extends State<PlanScreen> {
-  int _selectedYear = DateTime.now().year;
+  final int _selectedYear = DateTime.now().year;
   late ScrollController _verticalScrollController;
   late ScrollController _headerHorizontalController;
   late ScrollController _contentHorizontalController;
-  bool _showPrediction = false;
-  double _dailyCapacityHours = 2.0;
+  final bool _showPrediction = false;
+  final double _dailyCapacityHours = 2.0;
   late TextEditingController _capacityController;
   final List<int> _generalExcludedWeekdays = [];
   final Set<DateTime> _generalExcludedDates = {};
 
   final List<String> _monthNames = [
-    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+    'Ocak',
+    'Şubat',
+    'Mart',
+    'Nisan',
+    'Mayıs',
+    'Haziran',
+    'Temmuz',
+    'Ağustos',
+    'Eylül',
+    'Ekim',
+    'Kasım',
+    'Aralık',
   ];
 
   final double _rowHeight = 48.0;
@@ -39,21 +49,25 @@ class _PlanScreenState extends State<PlanScreen> {
   @override
   void initState() {
     super.initState();
-    _capacityController = TextEditingController(text: _dailyCapacityHours.toString());
+    _capacityController = TextEditingController(
+      text: _dailyCapacityHours.toString(),
+    );
     _verticalScrollController = ScrollController();
     _headerHorizontalController = ScrollController();
     _contentHorizontalController = ScrollController();
 
     _contentHorizontalController.addListener(() {
       if (_headerHorizontalController.hasClients &&
-          _headerHorizontalController.offset != _contentHorizontalController.offset) {
+          _headerHorizontalController.offset !=
+              _contentHorizontalController.offset) {
         _headerHorizontalController.jumpTo(_contentHorizontalController.offset);
       }
     });
 
     _headerHorizontalController.addListener(() {
       if (_contentHorizontalController.hasClients &&
-          _contentHorizontalController.offset != _headerHorizontalController.offset) {
+          _contentHorizontalController.offset !=
+              _headerHorizontalController.offset) {
         _contentHorizontalController.jumpTo(_headerHorizontalController.offset);
       }
     });
@@ -66,7 +80,9 @@ class _PlanScreenState extends State<PlanScreen> {
 
   void _cleanLeftoverEmptyTopics() {
     final appState = Provider.of<AppState>(context, listen: false);
-    final topics = appState.topics.where((t) => t.projectId == widget.projectId).toList();
+    final topics = appState.topics
+        .where((t) => t.projectId == widget.projectId)
+        .toList();
     for (final topic in topics) {
       final hasPlans = appState.topicPlans.any((p) => p.topicId == topic.id);
       if (!hasPlans) {
@@ -88,7 +104,8 @@ class _PlanScreenState extends State<PlanScreen> {
     if (_verticalScrollController.hasClients && date.year == _selectedYear) {
       final diff = date.difference(_timelineStartDate).inDays;
       final double offset = diff * _rowHeight;
-      final double viewportHeight = _verticalScrollController.position.viewportDimension;
+      final double viewportHeight =
+          _verticalScrollController.position.viewportDimension;
       final double target = max(0.0, offset - viewportHeight / 2);
       _verticalScrollController.animateTo(
         target,
@@ -112,7 +129,9 @@ class _PlanScreenState extends State<PlanScreen> {
 
   void _handleLeftDateTap(DateTime clickedDate) {
     final appState = Provider.of<AppState>(context, listen: false);
-    List<Topic> topics = appState.topics.where((t) => t.projectId == widget.projectId).toList();
+    List<Topic> topics = appState.topics
+        .where((t) => t.projectId == widget.projectId)
+        .toList();
     if (topics.isEmpty) {
       final newTopic = Topic(
         id: IdGenerator.generate('kolon_Kolon'),
@@ -125,9 +144,17 @@ class _PlanScreenState extends State<PlanScreen> {
     _showLeftDateHourEntryDialog(context, clickedDate, appState, topics);
   }
 
-  void _showLeftDateHourEntryDialog(BuildContext context, DateTime date, AppState appState, List<Topic> topics) {
-    final String dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    final allPlans = appState.topicPlans.where((p) => p.projectId == widget.projectId).toList();
+  void _showLeftDateHourEntryDialog(
+    BuildContext context,
+    DateTime date,
+    AppState appState,
+    List<Topic> topics,
+  ) {
+    final String dateKey =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final allPlans = appState.topicPlans
+        .where((p) => p.projectId == widget.projectId)
+        .toList();
 
     String? selectedPlanId;
     final hoursController = TextEditingController();
@@ -141,29 +168,44 @@ class _PlanScreenState extends State<PlanScreen> {
             return AlertDialog(
               title: Text(
                 'Tarihe Saat Girişi\n${date.day} ${_monthNames[date.month - 1]} ${date.year}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String?>(
-                      value: selectedPlanId,
-                      decoration: const InputDecoration(labelText: 'Adım Seçin'),
+                      initialValue: selectedPlanId,
+                      decoration: const InputDecoration(
+                        labelText: 'Adım Seçin',
+                      ),
                       items: [
-                        const DropdownMenuItem<String?>(value: null, child: Text('Seçiniz')),
-                        ...allPlans.map((p) => DropdownMenuItem<String?>(
-                          value: p.id,
-                          child: Text(p.title),
-                        )),
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Seçiniz'),
+                        ),
+                        ...allPlans.map(
+                          (p) => DropdownMenuItem<String?>(
+                            value: p.id,
+                            child: Text(p.title),
+                          ),
+                        ),
                       ],
                       onChanged: (val) {
                         setDialogState(() {
                           selectedPlanId = val;
                           if (val != null) {
-                            final p = allPlans.firstWhere((plan) => plan.id == val);
+                            final p = allPlans.firstWhere(
+                              (plan) => plan.id == val,
+                            );
                             final rep = p.dayReports[dateKey];
-                            hoursController.text = rep != null && rep.hoursWorked > 0 ? rep.hoursWorked.toString() : '';
+                            hoursController.text =
+                                rep != null && rep.hoursWorked > 0
+                                ? rep.hoursWorked.toString()
+                                : '';
                             noteController.text = rep?.note ?? '';
                           }
                         });
@@ -172,13 +214,19 @@ class _PlanScreenState extends State<PlanScreen> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: hoursController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Çalışılan Saat'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Çalışılan Saat',
+                      ),
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: noteController,
-                      decoration: const InputDecoration(labelText: 'Açıklama / Not'),
+                      decoration: const InputDecoration(
+                        labelText: 'Açıklama / Not',
+                      ),
                     ),
                   ],
                 ),
@@ -191,17 +239,22 @@ class _PlanScreenState extends State<PlanScreen> {
                 ElevatedButton(
                   onPressed: () {
                     if (selectedPlanId != null) {
-                      final p = allPlans.firstWhere((plan) => plan.id == selectedPlanId);
-                      final hours = double.tryParse(hoursController.text) ?? 0.0;
+                      final p = allPlans.firstWhere(
+                        (plan) => plan.id == selectedPlanId,
+                      );
+                      final hours =
+                          double.tryParse(hoursController.text) ?? 0.0;
                       final note = noteController.text.trim();
-                      
-                      final Map<String, PlanDayReport> reports = Map.from(p.dayReports);
+
+                      final Map<String, PlanDayReport> reports = Map.from(
+                        p.dayReports,
+                      );
                       reports[dateKey] = PlanDayReport(
                         hoursWorked: hours,
                         note: note,
                         offset: hours > 0 ? 0 : 1,
                       );
-                      
+
                       appState.updateTopicPlan(p.copyWith(dayReports: reports));
                     }
                     Navigator.pop(context);
@@ -222,7 +275,9 @@ class _PlanScreenState extends State<PlanScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        final projectTopics = appState.topics.where((t) => t.projectId == widget.projectId).toList();
+        final projectTopics = appState.topics
+            .where((t) => t.projectId == widget.projectId)
+            .toList();
         return AlertDialog(
           title: const Text('Yeni Kolon Ekle'),
           content: TextField(
@@ -259,7 +314,9 @@ class _PlanScreenState extends State<PlanScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    final topics = appState.topics.where((t) => t.projectId == widget.projectId).toList();
+    final topics = appState.topics
+        .where((t) => t.projectId == widget.projectId)
+        .toList();
 
     return Scaffold(
       appBar: widget.showAppBar
@@ -305,7 +362,10 @@ class _PlanScreenState extends State<PlanScreen> {
                       Container(
                         width: _dateColWidth,
                         alignment: Alignment.center,
-                        child: const Text('Tarih', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text(
+                          'Tarih',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
                       Expanded(
                         child: ListView.builder(
@@ -317,11 +377,17 @@ class _PlanScreenState extends State<PlanScreen> {
                               width: _colWidth,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                border: Border(right: BorderSide(color: Colors.grey.shade300)),
+                                border: Border(
+                                  right: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
                               ),
                               child: Text(
                                 topics[index].name,
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             );
                           },
@@ -335,14 +401,20 @@ class _PlanScreenState extends State<PlanScreen> {
                     controller: _verticalScrollController,
                     itemCount: _totalTimelineDays,
                     itemBuilder: (context, index) {
-                      final date = _timelineStartDate.add(Duration(days: index));
-                      final dateStr = '${date.day} ${_monthNames[date.month - 1]}';
-                      final dayKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+                      final date = _timelineStartDate.add(
+                        Duration(days: index),
+                      );
+                      final dateStr =
+                          '${date.day} ${_monthNames[date.month - 1]}';
+                      final dayKey =
+                          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
                       return Container(
                         height: _rowHeight,
                         decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                          border: Border(
+                            bottom: BorderSide(color: Colors.grey.shade200),
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -352,7 +424,10 @@ class _PlanScreenState extends State<PlanScreen> {
                                 width: _dateColWidth,
                                 alignment: Alignment.center,
                                 color: Colors.blue.shade50,
-                                child: Text(dateStr, style: const TextStyle(fontSize: 12)),
+                                child: Text(
+                                  dateStr,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
                               ),
                             ),
                             Expanded(
@@ -364,7 +439,7 @@ class _PlanScreenState extends State<PlanScreen> {
                                   final topicPlans = appState.topicPlans
                                       .where((p) => p.topicId == topic.id)
                                       .toList();
-                                  
+
                                   String cellText = '';
                                   Color cellColor = Colors.transparent;
 
@@ -372,8 +447,11 @@ class _PlanScreenState extends State<PlanScreen> {
                                     if (plan.dayReports.containsKey(dayKey)) {
                                       final rep = plan.dayReports[dayKey]!;
                                       if (rep.hoursWorked > 0) {
-                                        cellText = '${plan.title}\n(${rep.hoursWorked} sa)';
-                                        cellColor = Color(plan.colorValue).withValues(alpha: 0.2);
+                                        cellText =
+                                            '${plan.title}\n(${rep.hoursWorked} sa)';
+                                        cellColor = Color(
+                                          plan.colorValue,
+                                        ).withValues(alpha: 0.2);
                                       }
                                     }
                                   }
@@ -383,7 +461,11 @@ class _PlanScreenState extends State<PlanScreen> {
                                     padding: const EdgeInsets.all(4),
                                     decoration: BoxDecoration(
                                       color: cellColor,
-                                      border: Border(right: BorderSide(color: Colors.grey.shade200)),
+                                      border: Border(
+                                        right: BorderSide(
+                                          color: Colors.grey.shade200,
+                                        ),
+                                      ),
                                     ),
                                     child: Center(
                                       child: Text(

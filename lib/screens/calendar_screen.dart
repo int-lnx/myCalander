@@ -523,7 +523,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (importanceA != importanceB) {
         return importanceB.compareTo(importanceA);
       }
-      
+
       // If importance is same, keep chronological or original order
       return 0;
     });
@@ -738,7 +738,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
-
 
     final List<TaskItem> rolloverTasks = [];
     for (var t in tasks) {
@@ -2664,12 +2663,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     // Sol taraftaki menü (sidebar) geniş ekranlarda 300px yer kaplar
     final double sidebarWidth = rawScreenWidth >= 1000 ? 300.0 : 0.0;
     final double screenWidth = rawScreenWidth - sidebarWidth;
-    
+
     final bool isWeek = appState.calendarView == CalendarView.week;
-    
+
     // SfCalendar sol saat sütunu genişlikleri
     final double leftPadding = 40.0;
-    
+
     final List<DateTime> dates;
     if (isWeek) {
       if (_visibleDates.length == 7) {
@@ -2690,7 +2689,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     return Container(
       height: isWeek ? 38 : null,
-      padding: isWeek ? EdgeInsets.zero : const EdgeInsets.symmetric(vertical: 8),
+      padding: isWeek
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         border: Border(
@@ -2737,10 +2738,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         : null,
                   ),
                   child: Row(
-                    mainAxisAlignment:
-                        isWeek ? MainAxisAlignment.center : MainAxisAlignment.start,
-                    crossAxisAlignment:
-                        isWeek ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+                    mainAxisAlignment: isWeek
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
+                    crossAxisAlignment: isWeek
+                        ? CrossAxisAlignment.center
+                        : CrossAxisAlignment.start,
                     children: [
                       Icon(
                         hasNote ? Icons.note_alt : Icons.edit_note,
@@ -2840,305 +2843,95 @@ class _CalendarScreenState extends State<CalendarScreen> {
           heightFactor: 0.95,
           child: Consumer<AppState>(
             builder: (context, appState, child) {
-            final currentItems = _getAllDayItemsForDate(date, appState);
-            final dayOnly = DateTime(date.year, date.month, date.day);
-            final daySerits = appState.serits.where((serit) {
-              if (!serit.isVisible) return false;
-              final startOnly = DateTime(
-                serit.startDate.year,
-                serit.startDate.month,
-                serit.startDate.day,
-              );
-              final endOnly = DateTime(
-                serit.endDate.year,
-                serit.endDate.month,
-                serit.endDate.day,
-              );
-              return (dayOnly.isAtSameMomentAs(startOnly) ||
-                      dayOnly.isAfter(startOnly)) &&
-                  (dayOnly.isAtSameMomentAs(endOnly) ||
-                      dayOnly.isBefore(endOnly));
-            }).toList();
-            final displayItems = [...currentItems, ...daySerits];
-            final remainingEvents = 0;
-            final remainingTasks = 0;
+              final currentItems = _getAllDayItemsForDate(date, appState);
+              final dayOnly = DateTime(date.year, date.month, date.day);
+              final daySerits = appState.serits.where((serit) {
+                if (!serit.isVisible) return false;
+                final startOnly = DateTime(
+                  serit.startDate.year,
+                  serit.startDate.month,
+                  serit.startDate.day,
+                );
+                final endOnly = DateTime(
+                  serit.endDate.year,
+                  serit.endDate.month,
+                  serit.endDate.day,
+                );
+                return (dayOnly.isAtSameMomentAs(startOnly) ||
+                        dayOnly.isAfter(startOnly)) &&
+                    (dayOnly.isAtSameMomentAs(endOnly) ||
+                        dayOnly.isBefore(endOnly));
+              }).toList();
+              final displayItems = [...currentItems, ...daySerits];
+              final remainingEvents = 0;
+              final remainingTasks = 0;
 
-            return SafeArea(
-              child: Container(
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 16,
-                  bottom: MediaQuery.of(context).padding.bottom + 16,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${date.day}/${date.month}/${date.year} Tüm Gün Planları',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+              return SafeArea(
+                child: Container(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 16,
+                    bottom: MediaQuery.of(context).padding.bottom + 16,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${date.day}/${date.month}/${date.year} Tüm Gün Planları',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: displayItems.isEmpty
-                          ? const Center(child: Text('Plan yok'))
-                          : Scrollbar(
-                              thumbVisibility: true,
-                              child: ListView.builder(
-                                itemCount: displayItems.length,
-                                itemBuilder: (context, index) {
-                                  final item = displayItems[index];
-                                  if (item is Event) {
-                                    return Card(
-                                      elevation: 0,
-                                      margin: const EdgeInsets.symmetric(
-                                        vertical: 6,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        side: BorderSide(
-                                          color: Colors.grey.shade200,
-                                          width: 1,
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: displayItems.isEmpty
+                            ? const Center(child: Text('Plan yok'))
+                            : Scrollbar(
+                                thumbVisibility: true,
+                                child: ListView.builder(
+                                  itemCount: displayItems.length,
+                                  itemBuilder: (context, index) {
+                                    final item = displayItems[index];
+                                    if (item is Event) {
+                                      return Card(
+                                        elevation: 0,
+                                        margin: const EdgeInsets.symmetric(
+                                          vertical: 6,
                                         ),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 4.0,
-                                                        right: 8.0,
-                                                      ),
-                                                  child: Icon(
-                                                    Icons.event,
-                                                    color: Color(
-                                                      item.colorValue,
-                                                    ),
-                                                    size: 20,
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  child:
-                                                      _buildSheetItemSubtitle(
-                                                        item,
-                                                        appState,
-                                                      ) ??
-                                                      const SizedBox.shrink(),
-                                                ),
-                                                IconButton(
-                                                  icon: Icon(
-                                                    item.isHidden
-                                                        ? Icons.visibility
-                                                        : Icons.visibility_off,
-                                                    size: 20,
-                                                    color: Colors.orange,
-                                                  ),
-                                                  onPressed: () {
-                                                    Navigator.pop(context);
-                                                    appState.hideEvent(
-                                                      item.id,
-                                                      !item.isHidden,
-                                                    );
-                                                    _showUndoSnackBar(
-                                                      item.isHidden
-                                                          ? '"${item.title}" gösterildi'
-                                                          : '"${item.title}" gizlendi',
-                                                      () {
-                                                        appState.hideEvent(
-                                                          item.id,
-                                                          item.isHidden,
-                                                        );
-                                                      },
-                                                    );
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.edit,
-                                                    size: 20,
-                                                    color: Colors.blueGrey,
-                                                  ),
-                                                  onPressed: () {
-                                                    Navigator.pop(context);
-                                                    final originalItem =
-                                                        _getOriginalItem(
-                                                          item,
-                                                          appState,
-                                                        );
-                                                    final hasRecurrence =
-                                                        originalItem
-                                                                .recurrenceRule !=
-                                                            null &&
-                                                        originalItem
-                                                            .recurrenceRule!
-                                                            .isNotEmpty;
-                                                    if (hasRecurrence) {
-                                                      _handleRecurringAction(
-                                                        context,
-                                                        originalItem,
-                                                        date,
-                                                        false,
-                                                      );
-                                                    } else {
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                          builder: (context) =>
-                                                              EventFormScreen(
-                                                                existingEvent:
-                                                                    originalItem,
-                                                              ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.delete,
-                                                    size: 20,
-                                                    color: Colors.red,
-                                                  ),
-                                                  onPressed: () {
-                                                    Navigator.pop(context);
-                                                    final originalItem =
-                                                        _getOriginalItem(
-                                                          item,
-                                                          appState,
-                                                        );
-                                                    final hasRecurrence =
-                                                        originalItem
-                                                                .recurrenceRule !=
-                                                            null &&
-                                                        originalItem
-                                                            .recurrenceRule!
-                                                            .isNotEmpty;
-                                                    if (hasRecurrence) {
-                                                      _handleRecurringAction(
-                                                        context,
-                                                        originalItem,
-                                                        date,
-                                                        true,
-                                                      );
-                                                    } else {
-                                                      final deleted =
-                                                          originalItem;
-                                                      appState.deleteEvent(
-                                                        originalItem.id,
-                                                      );
-                                                      _showUndoSnackBar(
-                                                        '"${deleted.title}" silindi',
-                                                        () {
-                                                          appState.addEvent(
-                                                            deleted,
-                                                          );
-                                                        },
-                                                      );
-                                                    }
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: 4.0,
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          side: BorderSide(
+                                            color: Colors.grey.shade200,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12.0),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
                                                 children: [
-                                                  Text(
-                                                    item.title,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 15,
-                                                    ),
-                                                  ),
-                                                  if (item
-                                                      .description
-                                                      .isNotEmpty) ...[
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      item.description,
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: Colors
-                                                            .grey
-                                                            .shade600,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  } else if (item is TaskItem) {
-                                    return Card(
-                                      elevation: 0,
-                                      margin: const EdgeInsets.symmetric(
-                                        vertical: 6,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        side: BorderSide(
-                                          color: Colors.grey.shade200,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Transform.translate(
-                                                  offset: const Offset(-8, 0),
-                                                  child: Checkbox(
-                                                    value: item.isCompleted,
-                                                    activeColor: Color(
-                                                      item.colorValue,
-                                                    ),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            4,
-                                                          ),
-                                                    ),
-                                                    materialTapTargetSize:
-                                                        MaterialTapTargetSize
-                                                            .shrinkWrap,
-                                                    visualDensity:
-                                                        const VisualDensity(
-                                                          horizontal: -4.0,
-                                                          vertical: -4.0,
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          left: 4.0,
+                                                          right: 8.0,
                                                         ),
-                                                    onChanged: (bool? value) {
-                                                      appState
-                                                          .toggleTaskCompletion(
-                                                            item.id,
-                                                          );
-                                                    },
+                                                    child: Icon(
+                                                      Icons.event,
+                                                      color: Color(
+                                                        item.colorValue,
+                                                      ),
+                                                      size: 20,
+                                                    ),
                                                   ),
-                                                ),
-                                                Expanded(
-                                                  child: Transform.translate(
-                                                    offset: const Offset(-8, 0),
+                                                  Expanded(
                                                     child:
                                                         _buildSheetItemSubtitle(
                                                           item,
@@ -3146,437 +2939,666 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                         ) ??
                                                         const SizedBox.shrink(),
                                                   ),
-                                                ),
-                                                IconButton(
-                                                  icon: Icon(
-                                                    item.isHidden
-                                                        ? Icons.visibility
-                                                        : Icons.visibility_off,
-                                                    size: 20,
-                                                    color: Colors.orange,
-                                                  ),
-                                                  onPressed: () {
-                                                    Navigator.pop(context);
-                                                    appState.hideTask(
-                                                      item.id,
-                                                      !item.isHidden,
-                                                    );
-                                                    _showUndoSnackBar(
+                                                  IconButton(
+                                                    icon: Icon(
                                                       item.isHidden
-                                                          ? '"${item.title}" gösterildi'
-                                                          : '"${item.title}" gizlendi',
-                                                      () {
-                                                        appState.hideTask(
-                                                          item.id,
-                                                          item.isHidden,
-                                                        );
-                                                      },
-                                                    );
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.edit,
-                                                    size: 20,
-                                                    color: Colors.blueGrey,
-                                                  ),
-                                                  onPressed: () {
-                                                    Navigator.pop(context);
-                                                    final originalItem =
-                                                        _getOriginalItem(
-                                                          item,
-                                                          appState,
-                                                        );
-                                                    final hasRecurrence =
-                                                        !originalItem
-                                                            .isCompleted &&
-                                                        originalItem
-                                                                .recurrenceRule !=
-                                                            null &&
-                                                        originalItem
-                                                            .recurrenceRule!
-                                                            .isNotEmpty;
-                                                    if (hasRecurrence) {
-                                                      _handleRecurringAction(
-                                                        context,
-                                                        originalItem,
-                                                        date,
-                                                        false,
-                                                      );
-                                                    } else {
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                          builder: (context) =>
-                                                              TaskFormScreen(
-                                                                existingTask:
-                                                                    originalItem,
-                                                              ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.delete,
-                                                    size: 20,
-                                                    color: Colors.red,
-                                                  ),
-                                                  onPressed: () {
-                                                    Navigator.pop(context);
-                                                    final originalItem =
-                                                        _getOriginalItem(
-                                                          item,
-                                                          appState,
-                                                        );
-                                                    final hasRecurrence =
-                                                        !originalItem
-                                                            .isCompleted &&
-                                                        originalItem
-                                                                .recurrenceRule !=
-                                                            null &&
-                                                        originalItem
-                                                            .recurrenceRule!
-                                                            .isNotEmpty;
-                                                    if (hasRecurrence) {
-                                                      _handleRecurringAction(
-                                                        context,
-                                                        originalItem,
-                                                        date,
-                                                        true,
-                                                      );
-                                                    } else {
-                                                      final deleted =
-                                                          originalItem;
-                                                      appState.deleteTask(
-                                                        originalItem.id,
+                                                          ? Icons.visibility
+                                                          : Icons
+                                                                .visibility_off,
+                                                      size: 20,
+                                                      color: Colors.orange,
+                                                    ),
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      appState.hideEvent(
+                                                        item.id,
+                                                        !item.isHidden,
                                                       );
                                                       _showUndoSnackBar(
-                                                        '"${deleted.title}" silindi',
+                                                        item.isHidden
+                                                            ? '"${item.title}" gösterildi'
+                                                            : '"${item.title}" gizlendi',
                                                         () {
-                                                          appState.addTask(
-                                                            deleted,
+                                                          appState.hideEvent(
+                                                            item.id,
+                                                            item.isHidden,
                                                           );
                                                         },
                                                       );
-                                                    }
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: 4.0,
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    item.id.startsWith(
-                                                          'rollover_',
-                                                        )
-                                                        ? (item.title
-                                                                  .startsWith(
-                                                                    '⚠️',
-                                                                  )
-                                                              ? item.title
-                                                              : '⚠️ ${item.title}')
-                                                        : item.title,
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 15,
-                                                      decoration:
-                                                          item.isCompleted
-                                                          ? TextDecoration
-                                                                .lineThrough
-                                                          : null,
-                                                    ),
+                                                    },
                                                   ),
-                                                  if (item
-                                                      .details
-                                                      .isNotEmpty) ...[
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      item.details,
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: Colors
-                                                            .grey
-                                                            .shade600,
-                                                      ),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.edit,
+                                                      size: 20,
+                                                      color: Colors.blueGrey,
                                                     ),
-                                                  ],
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      final originalItem =
+                                                          _getOriginalItem(
+                                                            item,
+                                                            appState,
+                                                          );
+                                                      final hasRecurrence =
+                                                          originalItem
+                                                                  .recurrenceRule !=
+                                                              null &&
+                                                          originalItem
+                                                              .recurrenceRule!
+                                                              .isNotEmpty;
+                                                      if (hasRecurrence) {
+                                                        _handleRecurringAction(
+                                                          context,
+                                                          originalItem,
+                                                          date,
+                                                          false,
+                                                        );
+                                                      } else {
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder: (context) =>
+                                                                EventFormScreen(
+                                                                  existingEvent:
+                                                                      originalItem,
+                                                                ),
+                                                          ),
+                                                        );
+                                                      }
+                                                    },
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.delete,
+                                                      size: 20,
+                                                      color: Colors.red,
+                                                    ),
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      final originalItem =
+                                                          _getOriginalItem(
+                                                            item,
+                                                            appState,
+                                                          );
+                                                      final hasRecurrence =
+                                                          originalItem
+                                                                  .recurrenceRule !=
+                                                              null &&
+                                                          originalItem
+                                                              .recurrenceRule!
+                                                              .isNotEmpty;
+                                                      if (hasRecurrence) {
+                                                        _handleRecurringAction(
+                                                          context,
+                                                          originalItem,
+                                                          date,
+                                                          true,
+                                                        );
+                                                      } else {
+                                                        final deleted =
+                                                            originalItem;
+                                                        appState.deleteEvent(
+                                                          originalItem.id,
+                                                        );
+                                                        _showUndoSnackBar(
+                                                          '"${deleted.title}" silindi',
+                                                          () {
+                                                            appState.addEvent(
+                                                              deleted,
+                                                            );
+                                                          },
+                                                        );
+                                                      }
+                                                    },
+                                                  ),
                                                 ],
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  } else if (item is ProjectEvaluation) {
-                                    Project? linkedProject;
-                                    try {
-                                      linkedProject = appState.projects
-                                          .firstWhere(
-                                            (p) => p.id == item.projectId,
-                                          );
-                                    } catch (_) {}
-                                    final titleText = linkedProject != null
-                                        ? '📊 ${linkedProject.title}: ${item.isSkipped ? "Pas" : "%${item.score.toStringAsFixed(0)}"}'
-                                        : '📊 Değerlendirme';
-                                    final color = linkedProject != null
-                                        ? (item.isSkipped
-                                              ? Colors.red.shade400
-                                              : Color(linkedProject.colorValue))
-                                        : Colors.blue;
-                                    return ListTile(
-                                      leading: Icon(
-                                        Icons.bar_chart,
-                                        color: color,
-                                      ),
-                                      title: Text(titleText),
-                                      trailing: linkedProject != null
-                                          ? IconButton(
-                                              icon: const Icon(
-                                                Icons.edit,
-                                                size: 20,
-                                              ),
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                                _showProjectEvaluationDialog(
-                                                  context,
-                                                  linkedProject!,
-                                                  item.sessionDate,
-                                                );
-                                              },
-                                            )
-                                          : null,
-                                      onTap: () {
-                                        Navigator.pop(context);
-                                        _showItemDetailsDialog(
-                                          context,
-                                          item,
-                                          tappedDate: date,
-                                        );
-                                      },
-                                    );
-                                  } else if (item is Serit) {
-                                    return Card(
-                                      elevation: 0,
-                                      margin: const EdgeInsets.symmetric(
-                                        vertical: 6,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        side: BorderSide(
-                                          color: Colors.grey.shade200,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Checkbox(
-                                                  value: item.isCompleted,
-                                                  activeColor: Color(
-                                                    item.colorValue,
-                                                  ),
-                                                  onChanged: (bool? val) {
-                                                    appState.updateSerit(
-                                                      item.copyWith(
-                                                        isCompleted:
-                                                            val ?? false,
-                                                      ),
-                                                    );
-                                                  },
+                                              const SizedBox(height: 8),
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: 4.0,
                                                 ),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        'Katman: ${item.title}',
-                                                        style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 15,
-                                                          decoration:
-                                                              item.isCompleted
-                                                              ? TextDecoration
-                                                                    .lineThrough
-                                                              : null,
-                                                        ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      item.title,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 15,
                                                       ),
+                                                    ),
+                                                    if (item
+                                                        .description
+                                                        .isNotEmpty) ...[
+                                                      const SizedBox(height: 4),
                                                       Text(
-                                                        '${item.startDate.day}/${item.startDate.month}/${item.startDate.year} - ${item.endDate.day}/${item.endDate.month}/${item.endDate.year}',
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          color: Colors.grey,
+                                                        item.description,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: Colors
+                                                              .grey
+                                                              .shade600,
                                                         ),
                                                       ),
                                                     ],
-                                                  ),
-                                                ),
-                                                IconButton(
-                                                  icon: Icon(
-                                                    item.isVisible
-                                                        ? Icons.visibility
-                                                        : Icons.visibility_off,
-                                                    size: 20,
-                                                    color: Colors.orange,
-                                                  ),
-                                                  onPressed: () {
-                                                    appState.updateSerit(
-                                                      item.copyWith(
-                                                        isVisible:
-                                                            !item.isVisible,
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.edit,
-                                                    size: 20,
-                                                    color: Colors.blueGrey,
-                                                  ),
-                                                  onPressed: () {
-                                                    Navigator.pop(context);
-                                                    AllTimelineScreen.showSeritFormDialog(
-                                                      context,
-                                                      appState,
-                                                      existingSerit: item,
-                                                    );
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.delete,
-                                                    size: 20,
-                                                    color: Colors.red,
-                                                  ),
-                                                  onPressed: () {
-                                                    showDialog(
-                                                      context: context,
-                                                      builder: (context) => AlertDialog(
-                                                        title: const Text(
-                                                          'Şeriti Sil',
-                                                        ),
-                                                        content: const Text(
-                                                          'Bu şeriti silmek istediğinize emin misiniz?',
-                                                        ),
-                                                        actions: [
-                                                          TextButton(
-                                                            onPressed: () =>
-                                                                Navigator.pop(
-                                                                  context,
-                                                                ),
-                                                            child: const Text(
-                                                              'İptal',
-                                                            ),
-                                                          ),
-                                                          ElevatedButton(
-                                                            onPressed: () {
-                                                              appState
-                                                                  .deleteSerit(
-                                                                    item.id,
-                                                                  );
-                                                              Navigator.pop(
-                                                                context,
-                                                              ); // Close dialog
-                                                              Navigator.pop(
-                                                                context,
-                                                              ); // Close bottom sheet
-                                                            },
-                                                            style: ElevatedButton.styleFrom(
-                                                              backgroundColor:
-                                                                  Colors.red,
-                                                              foregroundColor:
-                                                                  Colors.white,
-                                                            ),
-                                                            child: const Text(
-                                                              'Sil',
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                            if (item
-                                                .description
-                                                .isNotEmpty) ...[
-                                              const SizedBox(height: 4),
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  left: 48.0,
-                                                ),
-                                                child: Text(
-                                                  item.description,
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.grey.shade600,
-                                                  ),
+                                                  ],
                                                 ),
                                               ),
                                             ],
-                                          ],
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  }
-                                  return const SizedBox();
-                                },
+                                      );
+                                    } else if (item is TaskItem) {
+                                      return Card(
+                                        elevation: 0,
+                                        margin: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          side: BorderSide(
+                                            color: Colors.grey.shade200,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12.0),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Transform.translate(
+                                                    offset: const Offset(-8, 0),
+                                                    child: Checkbox(
+                                                      value: item.isCompleted,
+                                                      activeColor: Color(
+                                                        item.colorValue,
+                                                      ),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                      ),
+                                                      materialTapTargetSize:
+                                                          MaterialTapTargetSize
+                                                              .shrinkWrap,
+                                                      visualDensity:
+                                                          const VisualDensity(
+                                                            horizontal: -4.0,
+                                                            vertical: -4.0,
+                                                          ),
+                                                      onChanged: (bool? value) {
+                                                        appState
+                                                            .toggleTaskCompletion(
+                                                              item.id,
+                                                            );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    child: Transform.translate(
+                                                      offset: const Offset(
+                                                        -8,
+                                                        0,
+                                                      ),
+                                                      child:
+                                                          _buildSheetItemSubtitle(
+                                                            item,
+                                                            appState,
+                                                          ) ??
+                                                          const SizedBox.shrink(),
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                    icon: Icon(
+                                                      item.isHidden
+                                                          ? Icons.visibility
+                                                          : Icons
+                                                                .visibility_off,
+                                                      size: 20,
+                                                      color: Colors.orange,
+                                                    ),
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      appState.hideTask(
+                                                        item.id,
+                                                        !item.isHidden,
+                                                      );
+                                                      _showUndoSnackBar(
+                                                        item.isHidden
+                                                            ? '"${item.title}" gösterildi'
+                                                            : '"${item.title}" gizlendi',
+                                                        () {
+                                                          appState.hideTask(
+                                                            item.id,
+                                                            item.isHidden,
+                                                          );
+                                                        },
+                                                      );
+                                                    },
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.edit,
+                                                      size: 20,
+                                                      color: Colors.blueGrey,
+                                                    ),
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      final originalItem =
+                                                          _getOriginalItem(
+                                                            item,
+                                                            appState,
+                                                          );
+                                                      final hasRecurrence =
+                                                          !originalItem
+                                                              .isCompleted &&
+                                                          originalItem
+                                                                  .recurrenceRule !=
+                                                              null &&
+                                                          originalItem
+                                                              .recurrenceRule!
+                                                              .isNotEmpty;
+                                                      if (hasRecurrence) {
+                                                        _handleRecurringAction(
+                                                          context,
+                                                          originalItem,
+                                                          date,
+                                                          false,
+                                                        );
+                                                      } else {
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder: (context) =>
+                                                                TaskFormScreen(
+                                                                  existingTask:
+                                                                      originalItem,
+                                                                ),
+                                                          ),
+                                                        );
+                                                      }
+                                                    },
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.delete,
+                                                      size: 20,
+                                                      color: Colors.red,
+                                                    ),
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      final originalItem =
+                                                          _getOriginalItem(
+                                                            item,
+                                                            appState,
+                                                          );
+                                                      final hasRecurrence =
+                                                          !originalItem
+                                                              .isCompleted &&
+                                                          originalItem
+                                                                  .recurrenceRule !=
+                                                              null &&
+                                                          originalItem
+                                                              .recurrenceRule!
+                                                              .isNotEmpty;
+                                                      if (hasRecurrence) {
+                                                        _handleRecurringAction(
+                                                          context,
+                                                          originalItem,
+                                                          date,
+                                                          true,
+                                                        );
+                                                      } else {
+                                                        final deleted =
+                                                            originalItem;
+                                                        appState.deleteTask(
+                                                          originalItem.id,
+                                                        );
+                                                        _showUndoSnackBar(
+                                                          '"${deleted.title}" silindi',
+                                                          () {
+                                                            appState.addTask(
+                                                              deleted,
+                                                            );
+                                                          },
+                                                        );
+                                                      }
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: 4.0,
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      item.id.startsWith(
+                                                            'rollover_',
+                                                          )
+                                                          ? (item.title
+                                                                    .startsWith(
+                                                                      '⚠️',
+                                                                    )
+                                                                ? item.title
+                                                                : '⚠️ ${item.title}')
+                                                          : item.title,
+                                                      style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 15,
+                                                        decoration:
+                                                            item.isCompleted
+                                                            ? TextDecoration
+                                                                  .lineThrough
+                                                            : null,
+                                                      ),
+                                                    ),
+                                                    if (item
+                                                        .details
+                                                        .isNotEmpty) ...[
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        item.details,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: Colors
+                                                              .grey
+                                                              .shade600,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    } else if (item is ProjectEvaluation) {
+                                      Project? linkedProject;
+                                      try {
+                                        linkedProject = appState.projects
+                                            .firstWhere(
+                                              (p) => p.id == item.projectId,
+                                            );
+                                      } catch (_) {}
+                                      final titleText = linkedProject != null
+                                          ? '📊 ${linkedProject.title}: ${item.isSkipped ? "Pas" : "%${item.score.toStringAsFixed(0)}"}'
+                                          : '📊 Değerlendirme';
+                                      final color = linkedProject != null
+                                          ? (item.isSkipped
+                                                ? Colors.red.shade400
+                                                : Color(
+                                                    linkedProject.colorValue,
+                                                  ))
+                                          : Colors.blue;
+                                      return ListTile(
+                                        leading: Icon(
+                                          Icons.bar_chart,
+                                          color: color,
+                                        ),
+                                        title: Text(titleText),
+                                        trailing: linkedProject != null
+                                            ? IconButton(
+                                                icon: const Icon(
+                                                  Icons.edit,
+                                                  size: 20,
+                                                ),
+                                                onPressed: () {
+                                                  Navigator.pop(context);
+                                                  _showProjectEvaluationDialog(
+                                                    context,
+                                                    linkedProject!,
+                                                    item.sessionDate,
+                                                  );
+                                                },
+                                              )
+                                            : null,
+                                        onTap: () {
+                                          Navigator.pop(context);
+                                          _showItemDetailsDialog(
+                                            context,
+                                            item,
+                                            tappedDate: date,
+                                          );
+                                        },
+                                      );
+                                    } else if (item is Serit) {
+                                      return Card(
+                                        elevation: 0,
+                                        margin: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          side: BorderSide(
+                                            color: Colors.grey.shade200,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12.0),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Checkbox(
+                                                    value: item.isCompleted,
+                                                    activeColor: Color(
+                                                      item.colorValue,
+                                                    ),
+                                                    onChanged: (bool? val) {
+                                                      appState.updateSerit(
+                                                        item.copyWith(
+                                                          isCompleted:
+                                                              val ?? false,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          'Katman: ${item.title}',
+                                                          style: TextStyle(
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 15,
+                                                            decoration:
+                                                                item.isCompleted
+                                                                ? TextDecoration
+                                                                      .lineThrough
+                                                                : null,
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          '${item.startDate.day}/${item.startDate.month}/${item.startDate.year} - ${item.endDate.day}/${item.endDate.month}/${item.endDate.year}',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 11,
+                                                                color:
+                                                                    Colors.grey,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                    icon: Icon(
+                                                      item.isVisible
+                                                          ? Icons.visibility
+                                                          : Icons
+                                                                .visibility_off,
+                                                      size: 20,
+                                                      color: Colors.orange,
+                                                    ),
+                                                    onPressed: () {
+                                                      appState.updateSerit(
+                                                        item.copyWith(
+                                                          isVisible:
+                                                              !item.isVisible,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.edit,
+                                                      size: 20,
+                                                      color: Colors.blueGrey,
+                                                    ),
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      AllTimelineScreen.showSeritFormDialog(
+                                                        context,
+                                                        appState,
+                                                        existingSerit: item,
+                                                      );
+                                                    },
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.delete,
+                                                      size: 20,
+                                                      color: Colors.red,
+                                                    ),
+                                                    onPressed: () {
+                                                      showDialog(
+                                                        context: context,
+                                                        builder: (context) => AlertDialog(
+                                                          title: const Text(
+                                                            'Şeriti Sil',
+                                                          ),
+                                                          content: const Text(
+                                                            'Bu şeriti silmek istediğinize emin misiniz?',
+                                                          ),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed: () =>
+                                                                  Navigator.pop(
+                                                                    context,
+                                                                  ),
+                                                              child: const Text(
+                                                                'İptal',
+                                                              ),
+                                                            ),
+                                                            ElevatedButton(
+                                                              onPressed: () {
+                                                                appState
+                                                                    .deleteSerit(
+                                                                      item.id,
+                                                                    );
+                                                                Navigator.pop(
+                                                                  context,
+                                                                ); // Close dialog
+                                                                Navigator.pop(
+                                                                  context,
+                                                                ); // Close bottom sheet
+                                                              },
+                                                              style: ElevatedButton.styleFrom(
+                                                                backgroundColor:
+                                                                    Colors.red,
+                                                                foregroundColor:
+                                                                    Colors
+                                                                        .white,
+                                                              ),
+                                                              child: const Text(
+                                                                'Sil',
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
+                                              if (item
+                                                  .description
+                                                  .isNotEmpty) ...[
+                                                const SizedBox(height: 4),
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 48.0,
+                                                      ),
+                                                  child: Text(
+                                                    item.description,
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color:
+                                                          Colors.grey.shade600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox();
+                                  },
+                                ),
                               ),
+                      ),
+                      if (remainingEvents > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0, left: 8.0),
+                          child: Text(
+                            '+$remainingEvents Etkinlik',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
                             ),
-                    ),
-                    if (remainingEvents > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0, left: 8.0),
-                        child: Text(
-                          '+$remainingEvents Etkinlik',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
                           ),
                         ),
-                      ),
-                    if (remainingTasks > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4.0, left: 8.0),
-                        child: Text(
-                          '+$remainingTasks görev',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                      if (remainingTasks > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0, left: 8.0),
+                          child: Text(
+                            '+$remainingTasks görev',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
-        ),
-      );
-    },
-  );
-}
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 
   void _showItemDetailsDialog(
     BuildContext context,
@@ -3716,7 +3738,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 final eval = dailyEval!;
                                 final proj = linkedProject!;
                                 final successPercent = proj
-                                    .calculateSingleSuccessPercentage(eval.score);
+                                    .calculateSingleSuccessPercentage(
+                                      eval.score,
+                                    );
                                 final grossStr = formatDuration(
                                   eval.durationHours,
                                 );
@@ -4368,9 +4392,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         }
         if (item is TaskItem) {
           final deleted = item;
-          if (item.seriesId != null) {
-            appState.deleteTaskSeries(item.seriesId!);
-          }
+          appState.deleteTaskSeries(item.seriesId!);
           _showUndoSnackBar('"${deleted.title}" tüm serisi silindi', null);
         }
       } else {

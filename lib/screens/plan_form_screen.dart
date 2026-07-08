@@ -50,14 +50,19 @@ class _PlanFormScreenState extends State<PlanFormScreen> {
     final p = widget.plan;
     _titleController = TextEditingController(text: p?.title ?? '');
     _descController = TextEditingController(text: p?.description ?? '');
-    _targetHoursController = TextEditingController(text: (p?.targetHours ?? 0.0).toString());
-    _colorValue = p?.colorValue ?? (widget.parentId != null ? 0xFF4CAF50 : 0xFF009688);
+    _targetHoursController = TextEditingController(
+      text: (p?.targetHours ?? 0.0).toString(),
+    );
+    _colorValue =
+        p?.colorValue ?? (widget.parentId != null ? 0xFF4CAF50 : 0xFF009688);
     _importance = p?.importance ?? 0;
     _status = p?.status ?? 'Yapılacak';
     if (_status == 'Başlanmadı') {
       _status = 'Yapılacak';
     }
-    _selectedTopicId = (p?.topicId == null || p!.topicId.isEmpty) ? widget.topic.id : p.topicId;
+    _selectedTopicId = (p?.topicId == null || p!.topicId.isEmpty)
+        ? widget.topic.id
+        : p.topicId;
     _excludedWeekdays = List<int>.from(p?.excludedWeekdays ?? []);
   }
 
@@ -80,20 +85,24 @@ class _PlanFormScreenState extends State<PlanFormScreen> {
   void _saveForm() {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen bir başlık girin')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Lütfen bir başlık girin')));
       return;
     }
 
-    final double targetHours = double.tryParse(_targetHoursController.text.trim()) ?? 0.0;
-    final DateTime targetDate = widget.initialStartDate ?? widget.plan?.startDate ?? DateTime.now();
+    final double targetHours =
+        double.tryParse(_targetHoursController.text.trim()) ?? 0.0;
+    final DateTime targetDate =
+        widget.initialStartDate ?? widget.plan?.startDate ?? DateTime.now();
 
     final appState = Provider.of<AppState>(context, listen: false);
 
     if (widget.plan == null) {
       final newPlan = TopicPlan(
-        id: IdGenerator.generate(widget.parentId != null ? 'altplan_$title' : 'plan_$title'),
+        id: IdGenerator.generate(
+          widget.parentId != null ? 'altplan_$title' : 'plan_$title',
+        ),
         topicId: _selectedTopicId ?? widget.topic.id,
         title: title,
         description: _descController.text.trim(),
@@ -148,12 +157,18 @@ class _PlanFormScreenState extends State<PlanFormScreen> {
     Navigator.pop(context);
   }
 
-  void _confirmDeletePlan(BuildContext context, TopicPlan plan, AppState appState) {
+  void _confirmDeletePlan(
+    BuildContext context,
+    TopicPlan plan,
+    AppState appState,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Adımı Sil'),
-        content: Text('"${plan.title}" adımını silmek istediğinize emin misiniz?'),
+        content: Text(
+          '"${plan.title}" adımını silmek istediğinize emin misiniz?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -192,12 +207,10 @@ class _PlanFormScreenState extends State<PlanFormScreen> {
           if (isEdit)
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _confirmDeletePlan(context, widget.plan!, appState),
+              onPressed: () =>
+                  _confirmDeletePlan(context, widget.plan!, appState),
             ),
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _saveForm,
-          ),
+          IconButton(icon: const Icon(Icons.check), onPressed: _saveForm),
         ],
       ),
       body: ListView(
@@ -221,7 +234,7 @@ class _PlanFormScreenState extends State<PlanFormScreen> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<int>(
-            value: _importance,
+            initialValue: _importance,
             decoration: const InputDecoration(labelText: 'Önem Derecesi'),
             items: const [
               DropdownMenuItem(value: 0, child: Text('Düşük')),
@@ -234,19 +247,25 @@ class _PlanFormScreenState extends State<PlanFormScreen> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _status,
+            initialValue: _status,
             decoration: const InputDecoration(labelText: 'Durum'),
             items: const [
               DropdownMenuItem(value: 'Yapılacak', child: Text('Yapılacak')),
               DropdownMenuItem(value: 'Yapılanlar', child: Text('Yapılanlar')),
-              DropdownMenuItem(value: 'Bekleyenler', child: Text('Bekleyenler')),
+              DropdownMenuItem(
+                value: 'Bekleyenler',
+                child: Text('Bekleyenler'),
+              ),
             ],
             onChanged: (val) {
               if (val != null) setState(() => _status = val);
             },
           ),
           const SizedBox(height: 24),
-          const Text('Renk Seçimi', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Renk Seçimi',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8.0,

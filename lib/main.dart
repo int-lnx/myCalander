@@ -156,10 +156,10 @@ class _MainScreenState extends State<MainScreen> {
               final isSelected = view == 'plan'
                   ? appState.showPlanView
                   : (view == 'serit'
-                      ? appState.showSeritView
-                      : (!appState.showSeritView &&
-                          !appState.showPlanView &&
-                          currentView == view));
+                        ? appState.showSeritView
+                        : (!appState.showSeritView &&
+                              !appState.showPlanView &&
+                              currentView == view));
 
               return GestureDetector(
                 onTap: () {
@@ -218,8 +218,18 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildDateIndicator(AppState appState) {
     final today = DateTime.now();
     const shortMonths = [
-      'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+      'Oca',
+      'Şub',
+      'Mar',
+      'Nis',
+      'May',
+      'Haz',
+      'Tem',
+      'Ağu',
+      'Eyl',
+      'Eki',
+      'Kas',
+      'Ara',
     ];
     final shortMonthStr = shortMonths[today.month - 1];
 
@@ -265,8 +275,18 @@ class _MainScreenState extends State<MainScreen> {
 
     final dateToShow = appState.displayDate;
     const fullMonths = [
-      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
     ];
     final fullMonthStr = fullMonths[dateToShow.month - 1];
 
@@ -433,29 +453,52 @@ class _MainScreenState extends State<MainScreen> {
             const VerticalDivider(width: 1),
             Expanded(
               child: Scaffold(
-                appBar: _currentIndex == 0 ? AppBar(
-                  title: _buildDateIndicator(appState),
-                  actions: [
-                    IconButton(
-                      icon: Icon(appState.isDarkMode ? Icons.light_mode : Icons.dark_mode),
-                      onPressed: () => appState.toggleDarkMode(),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.person),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                        );
-                      },
-                    ),
-                  ],
-                ) : null,
+                appBar: _currentIndex == 0
+                    ? AppBar(
+                        title: _buildDateIndicator(appState),
+                        actions: [
+                          if (_currentIndex == 0)
+                            IconButton(
+                              icon: Icon(
+                                appState.fitToScreen
+                                    ? Icons.fullscreen_exit
+                                    : Icons.fullscreen,
+                                color: appState.fitToScreen
+                                    ? Colors.blue
+                                    : null,
+                              ),
+                              tooltip: 'Dikey Ekrana Sığdır',
+                              onPressed: () => appState.toggleFitToScreen(),
+                            ),
+                          IconButton(
+                            icon: Icon(
+                              appState.isDarkMode
+                                  ? Icons.light_mode
+                                  : Icons.dark_mode,
+                            ),
+                            onPressed: () => appState.toggleDarkMode(),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.person),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ProfileScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      )
+                    : null,
                 body: currentScreen,
-                floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
-                  onPressed: () => _showAddSelection(context, appState),
-                  child: const Icon(Icons.add),
-                ) : null,
+                floatingActionButton: _currentIndex == 0
+                    ? FloatingActionButton(
+                        onPressed: () => _showAddSelection(context, appState),
+                        child: const Icon(Icons.add),
+                      )
+                    : null,
               ),
             ),
           ],
@@ -464,18 +507,33 @@ class _MainScreenState extends State<MainScreen> {
     } else {
       return Scaffold(
         appBar: AppBar(
-          title: _currentIndex == 0 ? _buildDateIndicator(appState) : Text(
-            _currentIndex == 1
-                ? 'Görevler'
-                : _currentIndex == 2
-                    ? 'Projeler'
-                    : _currentIndex == 3
-                        ? 'Analiz'
-                        : 'Ayarlar',
-          ),
+          title: _currentIndex == 0
+              ? _buildDateIndicator(appState)
+              : Text(
+                  _currentIndex == 1
+                      ? 'Görevler'
+                      : _currentIndex == 2
+                      ? 'Projeler'
+                      : _currentIndex == 3
+                      ? 'Analiz'
+                      : 'Ayarlar',
+                ),
           actions: [
+            if (_currentIndex == 0)
+              IconButton(
+                icon: Icon(
+                  appState.fitToScreen
+                      ? Icons.fullscreen_exit
+                      : Icons.fullscreen,
+                  color: appState.fitToScreen ? Colors.blue : null,
+                ),
+                tooltip: 'Dikey Ekrana Sığdır',
+                onPressed: () => appState.toggleFitToScreen(),
+              ),
             IconButton(
-              icon: Icon(appState.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+              icon: Icon(
+                appState.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              ),
               onPressed: () => appState.toggleDarkMode(),
             ),
             IconButton(
@@ -483,7 +541,9 @@ class _MainScreenState extends State<MainScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
                 );
               },
             ),
@@ -499,10 +559,12 @@ class _MainScreenState extends State<MainScreen> {
           },
         ),
         body: currentScreen,
-        floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
-          onPressed: () => _showAddSelection(context, appState),
-          child: const Icon(Icons.add),
-        ) : null,
+        floatingActionButton: _currentIndex == 0
+            ? FloatingActionButton(
+                onPressed: () => _showAddSelection(context, appState),
+                child: const Icon(Icons.add),
+              )
+            : null,
       );
     }
   }
