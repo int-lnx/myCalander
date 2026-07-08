@@ -17,6 +17,7 @@ import 'screens/task_form_screen.dart';
 import 'screens/all_timeline_screen.dart';
 import 'screens/day_note_dialog.dart';
 import 'screens/app_drawer.dart';
+import 'screens/splash_screen.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -95,7 +96,7 @@ class MyApp extends StatelessWidget {
           child: child!,
         );
       },
-      home: const MainScreen(),
+      home: const SplashScreen(),
     );
   }
 }
