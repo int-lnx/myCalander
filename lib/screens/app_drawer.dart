@@ -316,15 +316,28 @@ class _AppDrawerState extends State<AppDrawer> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Projeler',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blueGrey,
+                        const Expanded(
+                          child: Text(
+                            'Projeler',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueGrey,
+                            ),
                           ),
+                        ),
+                        Checkbox(
+                          value: appState.selectedProjectIds.length == appState.projects.length + 1,
+                          tristate: true,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (val) {
+                            if (val == true) {
+                              appState.selectAllProjects();
+                            } else {
+                              appState.deselectAllProjects();
+                            }
+                          },
                         ),
                         IconButton(
                           icon: Icon(

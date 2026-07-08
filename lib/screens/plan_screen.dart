@@ -9,7 +9,8 @@ import 'plan_form_screen.dart';
 
 class PlanScreen extends StatefulWidget {
   final String? projectId;
-  const PlanScreen({super.key, this.projectId});
+  final bool showAppBar;
+  const PlanScreen({super.key, this.projectId, this.showAppBar = true});
 
   @override
   State<PlanScreen> createState() => _PlanScreenState();
@@ -261,17 +262,39 @@ class _PlanScreenState extends State<PlanScreen> {
     final topics = appState.topics.where((t) => t.projectId == widget.projectId).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Proje Planı'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_box),
-            onPressed: () => _showAddTopicDialog(context, appState),
-          ),
-        ],
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              title: const Text('Proje Planı'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.add_box),
+                  onPressed: () => _showAddTopicDialog(context, appState),
+                ),
+              ],
+            )
+          : null,
+      floatingActionButton: widget.showAppBar
+          ? null
+          : FloatingActionButton(
+              mini: true,
+              child: const Icon(Icons.add),
+              onPressed: () => _showAddTopicDialog(context, appState),
+            ),
       body: topics.isEmpty
-          ? const Center(child: Text('Henüz kolon eklenmemiş. Sağ üstten kolon ekleyin.'))
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Henüz kolon eklenmemiş.'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add),
+                    label: const Text('Kolon Ekle'),
+                    onPressed: () => _showAddTopicDialog(context, appState),
+                  ),
+                ],
+              ),
+            )
           : Column(
               children: [
                 Container(
