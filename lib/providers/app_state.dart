@@ -18,6 +18,7 @@ import '../services/firestore_service.dart';
 import '../models/serit.dart';
 import '../models/topic.dart';
 import '../models/topic_plan.dart';
+import '../models/note.dart';
 import '../models/day_note.dart';
 import '../services/notification_service.dart';
 
@@ -76,6 +77,9 @@ class AppState extends ChangeNotifier {
   List<DayNote> _dayNotes = [];
   List<DayNote> get dayNotes => _dayNotes;
 
+  List<Note> _notes = [];
+  List<Note> get notes => _notes;
+
   String _quickNote = '';
   String get quickNote => _quickNote;
 
@@ -89,6 +93,40 @@ class AppState extends ChangeNotifier {
         await _firestoreService.saveQuickNote(_user!.uid, _quickNote);
       } catch (e) {
         debugPrint('Firestore save quickNote error: $e');
+      }
+    }
+  }
+
+  Future<void> addNote(Note note) async {
+    _notes.add(note);
+    notifyListeners();
+    await saveNotes();
+  }
+
+  Future<void> updateNote(Note note) async {
+    final idx = _notes.indexWhere((n) => n.id == note.id);
+    if (idx != -1) {
+      _notes[idx] = note;
+      notifyListeners();
+      await saveNotes();
+    }
+  }
+
+  Future<void> deleteNote(String noteId) async {
+    _notes.removeWhere((n) => n.id == noteId);
+    notifyListeners();
+    await saveNotes();
+  }
+
+  Future<void> saveNotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> notesJson = _notes.map((n) => json.encode(n.toJson())).toList();
+    await prefs.setStringList('keepNotes', notesJson);
+    if (_user != null) {
+      try {
+        await _firestoreService.saveNotes(_user!.uid, _notes.map((n) => n.toJson()).toList());
+      } catch (e) {
+        debugPrint('Firestore saveNotes error: $e');
       }
     }
   }
@@ -683,6 +721,16 @@ class AppState extends ChangeNotifier {
         _dayNotes.add(DayNote.fromJson(json.decode(n)));
       } catch (err) {
         debugPrint('Error loading day note: $err');
+      }
+    }
+
+    final keepNotesJson = prefs.getStringList('keepNotes') ?? [];
+    _notes = [];
+    for (final n in keepNotesJson) {
+      try {
+        _notes.add(Note.fromJson(json.decode(n)));
+      } catch (err) {
+        debugPrint('Error loading note: $err');
       }
     }
 
@@ -2647,6 +2695,26 @@ class AppState extends ChangeNotifier {
         }
       } catch (e) {
         debugPrint('Sync quickNote error: $e');
+      }
+
+      // Sync Notes
+      try {
+        final remoteNotesData = await _firestoreService.getNotes(userId);
+        if (remoteNotesData != null && remoteNotesData['notes'] != null) {
+          final List<dynamic> remoteList = remoteNotesData['notes'] as List<dynamic>;
+          if (remoteList.isNotEmpty && _notes.isEmpty) {
+            _notes = remoteList.map((n) => Note.fromJson(Map<String, dynamic>.from(n as Map))).toList();
+            final prefs = await SharedPreferences.getInstance();
+            final List<String> notesJson = _notes.map((n) => json.encode(n.toJson())).toList();
+            await prefs.setStringList('keepNotes', notesJson);
+          } else if (_notes.isNotEmpty) {
+            await _firestoreService.saveNotes(userId, _notes.map((n) => n.toJson()).toList());
+          }
+        } else if (_notes.isNotEmpty) {
+          await _firestoreService.saveNotes(userId, _notes.map((n) => n.toJson()).toList());
+        }
+      } catch (e) {
+        debugPrint('Sync notes error: $e');
       }
 
       // Sync Category Colors

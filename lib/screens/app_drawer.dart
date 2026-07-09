@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import 'settings_screen.dart';
+import '../models/note.dart';
+import '../utils/id_generator.dart';
 
 class AppDrawer extends StatefulWidget {
   final bool isSidebar;
@@ -1001,6 +1003,26 @@ class _AppDrawerState extends State<AppDrawer> {
                             color: Colors.brown,
                           ),
                         ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.archive, size: 16, color: Colors.brown),
+                        tooltip: 'Notlarıma Kaydet',
+                        onPressed: () {
+                          if (textCtrl.text.trim().isNotEmpty) {
+                            appState.addNote(Note(
+                              id: IdGenerator.generate('quick_note'),
+                              title: 'Hızlı Not',
+                              content: textCtrl.text,
+                              colorValue: 0xFFFFF475, // Light Yellow
+                            ));
+                            textCtrl.clear();
+                            appState.updateQuickNote('');
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Not kaydedildi!')),
+                            );
+                          }
+                        },
                       ),
                       GestureDetector(
                         onTap: () => Navigator.pop(context),

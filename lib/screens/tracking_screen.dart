@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../models/project.dart';
 import '../models/project_evaluation.dart';
+import '../models/topic_plan.dart';
 import '../utils/id_generator.dart';
 import 'project_details_screen.dart';
 
@@ -29,6 +30,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final months = [
       '', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
     ];
+    if (start.year == end.year && start.month == end.month && start.day == end.day) {
+      return '${start.day} ${months[start.month]} ${start.year}';
+    }
     if (start.month == end.month) {
       return '${start.day} - ${end.day} ${months[start.month]} ${start.year}';
     } else {
@@ -56,20 +60,35 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
     final categories = categorizedProjects.keys.toList();
 
-    // Calculate total hours in the current month
+    // Get filter days based on selected time range
+    List<DateTime> filterDays = [];
+    if (_timeRange == 'Günlük') {
+      filterDays = [DateTime(_focusedDate.year, _focusedDate.month, _focusedDate.day)];
+    } else if (_timeRange == 'Haftalık') {
+      filterDays = List.generate(7, (i) => DateTime(_focusedDate.year, _focusedDate.month, _focusedDate.day).subtract(Duration(days: 6 - i)));
+    } else { // 'Aylık'
+      filterDays = _getMonthDays(_focusedDate);
+    }
+
+    // Calculate total hours in the selected time range and value type
     double totalWeekHours = 0.0;
-    final Map<String, double> projectHours = {};
+    final Map<Project, double> projectHours = {};
 
     for (var p in projects) {
       double projSum = 0.0;
-      for (var day in monthDays) {
-        final ev = _getEvalForDay(evaluations, p.id, day);
-        if (ev != null) {
-          projSum += ev.durationHours;
+      for (var day in filterDays) {
+        if (_valueType == 'Yapılan' || _valueType == 'Toplam') {
+          final ev = _getEvalForDay(evaluations, p.id, day);
+          if (ev != null && !ev.isSkipped) {
+            projSum += ev.durationHours;
+          }
+        }
+        if (_valueType == 'Yapılacak' || _valueType == 'Toplam') {
+          projSum += _getPlannedHoursForDay(appState.topicPlans, p.id, day);
         }
       }
       if (projSum > 0) {
-        projectHours[p.title] = projSum;
+        projectHours[p] = projSum;
         totalWeekHours += projSum;
       }
     }
@@ -91,19 +110,25 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     icon: const Icon(Icons.arrow_back_ios, size: 16),
                     onPressed: () {
                       setState(() {
-                        _focusedDate = _focusedDate.subtract(const Duration(days: 30));
+                        int days = 30;
+                        if (_timeRange == 'Günlük') days = 1;
+                        if (_timeRange == 'Haftalık') days = 7;
+                        _focusedDate = _focusedDate.subtract(Duration(days: days));
                       });
                     },
                   ),
                   Text(
-                    _formatMonthRange(monthDays),
+                    _formatMonthRange(filterDays),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   IconButton(
                     icon: const Icon(Icons.arrow_forward_ios, size: 16),
                     onPressed: () {
                       setState(() {
-                        _focusedDate = _focusedDate.add(const Duration(days: 30));
+                        int days = 30;
+                        if (_timeRange == 'Günlük') days = 1;
+                        if (_timeRange == 'Haftalık') days = 7;
+                        _focusedDate = _focusedDate.add(Duration(days: days));
                       });
                     },
                   ),
@@ -136,14 +161,21 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 children: [
                   // Pie Chart representation
                   Center(
-                    child: Container(
-                      width: 140,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.orange.shade400, width: 14),
+                    child: CustomPaint(
+                      painter: PieChartPainter(
+                        totalWeekHours > 0
+                            ? projectHours.entries.map((entry) {
+                                return PieChartSegment(
+                                  color: Color(entry.key.colorValue),
+                                  percentage: entry.value / totalWeekHours,
+                                );
+                              }).toList()
+                            : [PieChartSegment(color: Colors.grey.shade400, percentage: 1.0)],
                       ),
-                      child: Center(
+                      child: Container(
+                        width: 140,
+                        height: 140,
+                        alignment: Alignment.center,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -171,10 +203,16 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     Wrap(
                       spacing: 12,
                       children: projectHours.entries.map((entry) {
-                        final percentage = totalWeekHours > 0 ? (entry.value / totalWeekHours) * 100 : 0.0;
+                        final proj = entry.key;
+                        final value = entry.value;
+                        final percentage = totalWeekHours > 0 ? (value / totalWeekHours) * 100 : 0.0;
                         return Text(
-                          '${entry.key} %${percentage.toStringAsFixed(0)}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange),
+                          '${proj.title} %${percentage.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(proj.colorValue),
+                          ),
                         );
                       }).toList(),
                     ),
@@ -499,6 +537,26 @@ class _TrackingScreenState extends State<TrackingScreen> {
       }
     }
     return null;
+  }
+
+  double _getPlannedHoursForDay(List<TopicPlan> plans, String projectId, DateTime day) {
+    double sum = 0.0;
+    final normalizedDay = DateTime(day.year, day.month, day.day);
+    for (var plan in plans) {
+      if (plan.projectId == projectId) {
+        final start = DateTime(plan.startDate.year, plan.startDate.month, plan.startDate.day);
+        final end = DateTime(plan.endDate.year, plan.endDate.month, plan.endDate.day);
+        if (normalizedDay.isAtSameMomentAs(start) || 
+            normalizedDay.isAtSameMomentAs(end) || 
+            (normalizedDay.isAfter(start) && normalizedDay.isBefore(end))) {
+          final totalDays = end.difference(start).inDays + 1;
+          if (totalDays > 0) {
+            sum += plan.targetHours / totalDays;
+          }
+        }
+      }
+    }
+    return sum;
   }
 
   Widget _buildHeaderCell(String text) {
@@ -827,4 +885,41 @@ class _TrackingScreenState extends State<TrackingScreen> {
       },
     );
   }
+}
+
+class PieChartSegment {
+  final Color color;
+  final double percentage;
+
+  PieChartSegment({required this.color, required this.percentage});
+}
+
+class PieChartPainter extends CustomPainter {
+  final List<PieChartSegment> segments;
+
+  PieChartPainter(this.segments);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double radius = size.width / 2;
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final Rect rect = Rect.fromCircle(center: center, radius: radius);
+
+    double startAngle = -3.141592653589793 / 2; // Start from top (-90 degrees)
+
+    for (final segment in segments) {
+      final sweepAngle = segment.percentage * 2 * 3.141592653589793;
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 14
+        ..color = segment.color
+        ..strokeCap = StrokeCap.butt;
+
+      canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+      startAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

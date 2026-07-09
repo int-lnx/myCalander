@@ -361,5 +361,24 @@ class FirestoreService {
         .get();
     return doc.data();
   }
+
+  Future<void> saveNotes(String userId, List<Map<String, dynamic>> notesJson) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('keepNotes')
+        .set({'notes': notesJson, 'updatedAt': DateTime.now().toIso8601String()});
+  }
+
+  Future<Map<String, dynamic>?> getNotes(String userId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('keepNotes')
+        .get();
+    return doc.data();
+  }
 }
 

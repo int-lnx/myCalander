@@ -17,6 +17,7 @@ import 'screens/event_form_screen.dart';
 import 'screens/project_form_screen.dart';
 import 'screens/task_form_screen.dart';
 import 'screens/all_timeline_screen.dart';
+import 'screens/analysis_screen.dart';
 import 'screens/day_note_dialog.dart';
 import 'screens/app_drawer.dart';
 import 'screens/splash_screen.dart';
@@ -508,7 +509,7 @@ class _MainScreenState extends State<MainScreen> {
         currentScreen = const TrackingScreen();
         break;
       case 3:
-        currentScreen = const AllTimelineScreen();
+        currentScreen = const AnalysisScreen();
         break;
       case 4:
         currentScreen = const NotesScreen();
