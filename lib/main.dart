@@ -10,6 +10,7 @@ import 'services/notification_service.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/tasks_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/notes_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/tracking_screen.dart';
 import 'screens/event_form_screen.dart';
@@ -449,7 +450,7 @@ class _MainScreenState extends State<MainScreen> {
         currentScreen = const AllTimelineScreen();
         break;
       case 4:
-        currentScreen = const SettingsScreen();
+        currentScreen = const NotesScreen();
         break;
       default:
         currentScreen = Column(
@@ -536,7 +537,7 @@ class _MainScreenState extends State<MainScreen> {
                       ? 'Projeler'
                       : _currentIndex == 3
                       ? 'Analiz'
-                      : 'Ayarlar',
+                      : 'Notlar',
                 ),
           actions: [
             if (_currentIndex == 0)
@@ -607,8 +608,8 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Analiz',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
-              label: 'Ayarlar',
+              icon: Icon(Icons.note_alt),
+              label: 'Notlar',
             ),
           ],
         ),

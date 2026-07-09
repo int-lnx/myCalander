@@ -389,10 +389,11 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey),
               ),
               const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  ...['😊', '😐', '😢', '😡', '🎉', '💪', '🔥', '😴'].map((emo) {
+                  ...['😊', '😐', '😢', '😡', '🎉', '💪', '🔥', '😴', '🥳', '😭', '❤️', '🌟', '🎯', '💼', '🏠', '✈️'].map((emo) {
                     final isSelected = _emoji == emo;
                     return GestureDetector(
                       onTap: () {
@@ -416,7 +417,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                         ),
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
               const SizedBox(height: 16),

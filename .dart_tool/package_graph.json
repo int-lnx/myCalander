@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "my_plan",
-      "version": "1.61.0",
+      "version": "1.62.0",
       "dependencies": [
         "cloud_firestore",
         "cupertino_icons",

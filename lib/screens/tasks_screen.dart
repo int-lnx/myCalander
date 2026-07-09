@@ -409,10 +409,32 @@ class _TasksScreenState extends State<TasksScreen> {
                   ),
                   const Spacer(),
                   if (currentTag != null)
-                    Icon(
-                      Icons.add_circle_outline,
-                      size: 16,
-                      color: Colors.blue.shade400,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade200, width: 0.8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.add,
+                            size: 12,
+                            color: Colors.blue.shade700,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Görev Ekle',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                 ],
               ),
@@ -498,7 +520,7 @@ class _TasksScreenState extends State<TasksScreen> {
     } else if (_sortMode == 'CREATED_DATE') {
       displayedTasks.sort((a, b) {
         if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
-        return a.createdAt.compareTo(b.createdAt);
+        return b.createdAt.compareTo(a.createdAt);
       });
     } else {
       // CUSTOM order: Benim sıralamam
@@ -727,6 +749,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 final tab = tabs[index];
                 final isSelected = tab == _selectedTab;
                 final count = tasks.where((t) {
+                  if (t.isCompleted) return false;
                   if (tab == 'Tüm Tarihliler') return t.from != null;
                   if (tab == 'Tüm Tarihsizler') return t.from == null;
                   return t.tag == tab;
@@ -803,16 +826,6 @@ class _TasksScreenState extends State<TasksScreen> {
                   ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (context) => const TaskFormScreen()),
-          );
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }

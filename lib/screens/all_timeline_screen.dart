@@ -132,10 +132,6 @@ class AllTimelineScreen extends StatelessWidget {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showSeritFormDialog(context, appState),
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }
