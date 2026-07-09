@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../models/project.dart';
+import '../models/task_item.dart';
 import 'task_form_screen.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -87,16 +88,28 @@ class _TasksScreenState extends State<TasksScreen> {
             ? Colors.red
             : (task.importance == 1 ? Colors.orange : Colors.blue));
 
+    final isSelectedResult = appState.searchQuery.isNotEmpty &&
+        appState.searchResults.isNotEmpty &&
+        appState.searchResultIndex < appState.searchResults.length &&
+        appState.searchResults[appState.searchResultIndex] is TaskItem &&
+        appState.searchResults[appState.searchResultIndex].id == task.id;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: isDark ? Colors.grey.shade800 : Colors.white,
         borderRadius: BorderRadius.circular(10),
+        border: isSelectedResult
+            ? Border.all(color: Colors.blue.shade500, width: 2.5)
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: isSelectedResult
+                ? Colors.blue.withValues(alpha: 0.2)
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: isSelectedResult ? 8 : 4,
+            spreadRadius: isSelectedResult ? 2 : 0,
+            offset: isSelectedResult ? const Offset(0, 0) : const Offset(0, 2),
           ),
         ],
       ),
@@ -542,200 +555,143 @@ class _TasksScreenState extends State<TasksScreen> {
     final now = DateTime.now();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Text(
-                '${now.day} Tem',
-                style: TextStyle(
-                  color: Colors.blue.shade700,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              if (appState.firebaseUser != null) {
-                await appState.syncDataWithFirebase();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Veriler senkronize edildi.')),
-                  );
-                }
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) {
-                  final searchCtrl =
-                      TextEditingController(text: appState.searchQuery);
-                  return AlertDialog(
-                    title: const Text('Görev Ara'),
-                    content: TextField(
-                      controller: searchCtrl,
-                      decoration: const InputDecoration(
-                          hintText: 'Arama terimi girin...'),
-                      autofocus: true,
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () {
-                          appState.setSearchQuery('');
-                          Navigator.pop(context);
-                        },
-                        child: const Text('Temizle'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          appState.setSearchQuery(searchCtrl.text);
-                          Navigator.pop(context);
-                        },
-                        child: const Text('Ara'),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const TaskFormScreen()),
-              );
-            },
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (val) {
-              if (val == 'SORT_CUSTOM') {
-                setState(() => _sortMode = 'CUSTOM');
-              } else if (val == 'SORT_DATE') {
-                setState(() => _sortMode = 'DATE');
-              } else if (val == 'SORT_IMPORTANCE') {
-                setState(() => _sortMode = 'IMPORTANCE');
-              } else if (val == 'SORT_CREATED_DATE') {
-                setState(() => _sortMode = 'CREATED_DATE');
-              } else if (val == 'RENAME_LIST') {
-                _showRenameListDialog(context, appState, _selectedTab);
-              } else if (val == 'DELETE_LIST') {
-                _showDeleteListDialog(context, appState, _selectedTab);
-              } else if (val == 'DELETE_COMPLETED') {
-                _deleteCompletedTasks(context, appState, displayedTasks);
-              }
-            },
-            itemBuilder: (context) {
-              final isAllTab = _selectedTab == 'Tüm Tarihliler' || _selectedTab == 'Tüm Tarihsizler';
-              return [
-                PopupMenuItem(
-                  enabled: false,
-                  child: Text(
-                    'Sıralama ölçütü',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'SORT_CUSTOM',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check,
-                        color: _sortMode == 'CUSTOM' ? Colors.blue : Colors.transparent,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text('Benim sıralamam'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'SORT_DATE',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check,
-                        color: _sortMode == 'DATE' ? Colors.blue : Colors.transparent,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text('Tarih'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'SORT_IMPORTANCE',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check,
-                        color: _sortMode == 'IMPORTANCE' ? Colors.blue : Colors.transparent,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text('Önem seviyesi'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'SORT_CREATED_DATE',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check,
-                        color: _sortMode == 'CREATED_DATE' ? Colors.blue : Colors.transparent,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text('Eklenme tarihi'),
-                    ],
-                  ),
-                ),
-                const PopupMenuDivider(),
-                if (!isAllTab) ...[
-                  const PopupMenuItem(
-                    value: 'RENAME_LIST',
-                    child: Text('Listeyi yeniden adlandır'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'DELETE_LIST',
-                    child: Text('Listeyi sil'),
-                  ),
-                  const PopupMenuDivider(),
-                ],
-                const PopupMenuItem(
-                  value: 'DELETE_COMPLETED',
-                  child: Text('Tamamlanan tüm görevleri sil'),
-                ),
-              ];
-            },
-          ),
-        ],
-      ),
+      appBar: null,
       body: Column(
         children: [
+          // Actions row (refresh, sort, add)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+            child: Row(
+              children: [
+                // Date chip
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Text(
+                    '${now.day}/${now.month}/${now.year}',
+                    style: TextStyle(
+                      color: Colors.blue.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                // Refresh
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () async {
+                    if (appState.firebaseUser != null) {
+                      await appState.syncDataWithFirebase();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Veriler senkronize edildi.')),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(width: 8),
+                // Add task
+                IconButton(
+                  icon: const Icon(Icons.add, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const TaskFormScreen()),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                // Sort & more
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  padding: EdgeInsets.zero,
+                  onSelected: (val) {
+                    if (val == 'SORT_CUSTOM') {
+                      setState(() => _sortMode = 'CUSTOM');
+                    } else if (val == 'SORT_DATE') {
+                      setState(() => _sortMode = 'DATE');
+                    } else if (val == 'SORT_IMPORTANCE') {
+                      setState(() => _sortMode = 'IMPORTANCE');
+                    } else if (val == 'SORT_CREATED_DATE') {
+                      setState(() => _sortMode = 'CREATED_DATE');
+                    } else if (val == 'RENAME_LIST') {
+                      _showRenameListDialog(context, appState, _selectedTab);
+                    } else if (val == 'DELETE_LIST') {
+                      _showDeleteListDialog(context, appState, _selectedTab);
+                    } else if (val == 'DELETE_COMPLETED') {
+                      _deleteCompletedTasks(context, appState, displayedTasks);
+                    }
+                  },
+                  itemBuilder: (context) {
+                    final isAllTab = _selectedTab == 'Tüm Tarihliler' || _selectedTab == 'Tüm Tarihsizler';
+                    return [
+                      PopupMenuItem(
+                        enabled: false,
+                        child: Text(
+                          'Sıralama ölçütü',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'SORT_CUSTOM',
+                        child: Row(children: [
+                          Icon(Icons.check, color: _sortMode == 'CUSTOM' ? Colors.blue : Colors.transparent, size: 18),
+                          const SizedBox(width: 8),
+                          const Text('Benim sıralamam'),
+                        ]),
+                      ),
+                      PopupMenuItem(
+                        value: 'SORT_DATE',
+                        child: Row(children: [
+                          Icon(Icons.check, color: _sortMode == 'DATE' ? Colors.blue : Colors.transparent, size: 18),
+                          const SizedBox(width: 8),
+                          const Text('Tarih'),
+                        ]),
+                      ),
+                      PopupMenuItem(
+                        value: 'SORT_IMPORTANCE',
+                        child: Row(children: [
+                          Icon(Icons.check, color: _sortMode == 'IMPORTANCE' ? Colors.blue : Colors.transparent, size: 18),
+                          const SizedBox(width: 8),
+                          const Text('Önem seviyesi'),
+                        ]),
+                      ),
+                      PopupMenuItem(
+                        value: 'SORT_CREATED_DATE',
+                        child: Row(children: [
+                          Icon(Icons.check, color: _sortMode == 'CREATED_DATE' ? Colors.blue : Colors.transparent, size: 18),
+                          const SizedBox(width: 8),
+                          const Text('Eklenme tarihi'),
+                        ]),
+                      ),
+                      const PopupMenuDivider(),
+                      if (!isAllTab) ...[
+                        const PopupMenuItem(value: 'RENAME_LIST', child: Text('Listeyi yeniden adlandır')),
+                        const PopupMenuItem(value: 'DELETE_LIST', child: Text('Listeyi sil')),
+                        const PopupMenuDivider(),
+                      ],
+                      const PopupMenuItem(value: 'DELETE_COMPLETED', child: Text('Tamamlanan tüm görevleri sil')),
+                    ];
+                  },
+                ),
+              ],
+            ),
+          ),
           // Horizontal scrolling tab bar
           Container(
             height: 48,

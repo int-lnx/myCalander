@@ -125,6 +125,67 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0; // 0: Takvim, 1: Görevler
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  Widget _buildSearchField(AppState appState) {
+    final isDark = appState.isDarkMode;
+    return TextField(
+      controller: _searchController,
+      autofocus: true,
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 16),
+      decoration: InputDecoration(
+        hintText: 'Ara...',
+        border: InputBorder.none,
+        hintStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black45),
+      ),
+      onChanged: (val) {
+        appState.setSearchQuery(val);
+      },
+    );
+  }
+
+  List<Widget> _buildSearchActions(AppState appState) {
+    return [
+      if (appState.searchResults.isNotEmpty) ...[
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${appState.searchResultIndex + 1}/${appState.searchResults.length}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          onPressed: () => appState.prevSearchResult(),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          onPressed: () => appState.nextSearchResult(),
+        ),
+      ],
+      IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: () {
+          setState(() {
+            _isSearching = false;
+            _searchController.clear();
+            appState.setSearchQuery('');
+          });
+        },
+      ),
+    ];
+  }
 
   Widget _buildViewTypeSelectorBar(BuildContext context, AppState appState) {
     final currentView = appState.calendarView;
@@ -480,43 +541,57 @@ class _MainScreenState extends State<MainScreen> {
             const VerticalDivider(width: 1),
             Expanded(
               child: Scaffold(
-                appBar: _currentIndex == 0
+                appBar: (_currentIndex == 0 || _currentIndex == 1)
                     ? AppBar(
-                        title: _buildDateIndicator(appState),
-                        actions: [
-                          if (_currentIndex == 0)
-                            IconButton(
-                              icon: Icon(
-                                appState.fitToScreen
-                                    ? Icons.fullscreen_exit
-                                    : Icons.fullscreen,
-                                color: appState.fitToScreen
-                                    ? Colors.blue
-                                    : null,
-                              ),
-                              tooltip: 'Dikey Ekrana Sığdır',
-                              onPressed: () => appState.toggleFitToScreen(),
-                            ),
-                          IconButton(
-                            icon: Icon(
-                              appState.isDarkMode
-                                  ? Icons.light_mode
-                                  : Icons.dark_mode,
-                            ),
-                            onPressed: () => appState.toggleDarkMode(),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.person),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ProfileScreen(),
+                        title: _isSearching
+                            ? _buildSearchField(appState)
+                            : (_currentIndex == 0
+                                ? _buildDateIndicator(appState)
+                                : const Text('Görevler')),
+                        actions: _isSearching
+                            ? _buildSearchActions(appState)
+                            : [
+                                if (_currentIndex == 0)
+                                  IconButton(
+                                    icon: Icon(
+                                      appState.fitToScreen
+                                          ? Icons.fullscreen_exit
+                                          : Icons.fullscreen,
+                                      color: appState.fitToScreen
+                                          ? Colors.blue
+                                          : null,
+                                    ),
+                                    tooltip: 'Dikey Ekrana Sığdır',
+                                    onPressed: () => appState.toggleFitToScreen(),
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.search),
+                                  tooltip: 'Ara',
+                                  onPressed: () {
+                                    setState(() => _isSearching = true);
+                                  },
                                 ),
-                              );
-                            },
-                          ),
-                        ],
+                                IconButton(
+                                  icon: Icon(
+                                    appState.isDarkMode
+                                        ? Icons.light_mode
+                                        : Icons.dark_mode,
+                                  ),
+                                  onPressed: () => appState.toggleDarkMode(),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.person),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const ProfileScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
                       )
                     : null,
                 body: currentScreen,
@@ -528,47 +603,59 @@ class _MainScreenState extends State<MainScreen> {
     } else {
       return Scaffold(
         appBar: AppBar(
-          title: _currentIndex == 0
-              ? _buildDateIndicator(appState)
-              : Text(
-                  _currentIndex == 1
-                      ? 'Görevler'
-                      : _currentIndex == 2
-                      ? 'Projeler'
-                      : _currentIndex == 3
-                      ? 'Analiz'
-                      : 'Notlar',
-                ),
-          actions: [
-            if (_currentIndex == 0)
-              IconButton(
-                icon: Icon(
-                  appState.fitToScreen
-                      ? Icons.fullscreen_exit
-                      : Icons.fullscreen,
-                  color: appState.fitToScreen ? Colors.blue : null,
-                ),
-                tooltip: 'Dikey Ekrana Sığdır',
-                onPressed: () => appState.toggleFitToScreen(),
-              ),
-            IconButton(
-              icon: Icon(
-                appState.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-              ),
-              onPressed: () => appState.toggleDarkMode(),
-            ),
-            IconButton(
-              icon: const Icon(Icons.person),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileScreen(),
+          title: _isSearching
+              ? _buildSearchField(appState)
+              : (_currentIndex == 0
+                  ? _buildDateIndicator(appState)
+                  : Text(
+                      _currentIndex == 1
+                          ? 'Görevler'
+                          : _currentIndex == 2
+                          ? 'Projeler'
+                          : _currentIndex == 3
+                          ? 'Analiz'
+                          : 'Notlar',
+                    )),
+          actions: _isSearching
+              ? _buildSearchActions(appState)
+              : [
+                  if (_currentIndex == 0)
+                    IconButton(
+                      icon: Icon(
+                        appState.fitToScreen
+                            ? Icons.fullscreen_exit
+                            : Icons.fullscreen,
+                        color: appState.fitToScreen ? Colors.blue : null,
+                      ),
+                      tooltip: 'Dikey Ekrana Sığdır',
+                      onPressed: () => appState.toggleFitToScreen(),
+                    ),
+                  if (_currentIndex == 0 || _currentIndex == 1)
+                    IconButton(
+                      icon: const Icon(Icons.search),
+                      tooltip: 'Ara',
+                      onPressed: () {
+                        setState(() => _isSearching = true);
+                      },
+                    ),
+                  IconButton(
+                    icon: Icon(
+                      appState.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                    ),
+                    onPressed: () => appState.toggleDarkMode(),
                   ),
-                );
-              },
-            ),
-          ],
+                  IconButton(
+                    icon: const Icon(Icons.person),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
         ),
         drawer: AppDrawer(
           isSidebar: false,
