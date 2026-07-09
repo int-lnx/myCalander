@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
+import 'settings_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   final bool isSidebar;
@@ -781,6 +782,31 @@ class _AppDrawerState extends State<AppDrawer> {
                       );
                     }),
                   ],
+                  const Divider(),
+
+                  ListTile(
+                    leading: Icon(
+                      Icons.settings,
+                      color: Colors.grey.shade600,
+                      size: 20,
+                    ),
+                    title: const Text(
+                      'Ayarlar',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    dense: true,
+                    onTap: () {
+                      if (!widget.isSidebar) {
+                        Navigator.pop(context); // Mobile drawer close
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
                   const Divider(),
 
                   // Gizlenenleri Göster
