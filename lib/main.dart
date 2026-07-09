@@ -519,12 +519,6 @@ class _MainScreenState extends State<MainScreen> {
                       )
                     : null,
                 body: currentScreen,
-                floatingActionButton: _currentIndex == 0
-                    ? FloatingActionButton(
-                        onPressed: () => _showAddSelection(context, appState),
-                        child: const Icon(Icons.add),
-                      )
-                    : null,
               ),
             ),
           ],
@@ -585,12 +579,39 @@ class _MainScreenState extends State<MainScreen> {
           },
         ),
         body: currentScreen,
-        floatingActionButton: _currentIndex == 0
-            ? FloatingActionButton(
-                onPressed: () => _showAddSelection(context, appState),
-                child: const Icon(Icons.add),
-              )
-            : null,
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.grey,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_today),
+              label: 'Takvim',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.task_alt),
+              label: 'Görevler',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.rocket_launch),
+              label: 'Projeler',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart),
+              label: 'Analiz',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings),
+              label: 'Ayarlar',
+            ),
+          ],
+        ),
       );
     }
   }

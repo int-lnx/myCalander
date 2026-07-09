@@ -282,65 +282,74 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
         ),
       ),
       actions: [
-        // Sil
-        TextButton(
-          onPressed: () {
-            final backupText = _existingNote?.note ?? '';
-            final backupRating = _existingNote?.rating;
-            final backupEmoji = _existingNote?.emoji;
-            widget.appState.addOrUpdateDayNote(_normalizedDate, '');
-            Navigator.pop(context);
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton(
+              onPressed: () {
+                final backupText = _existingNote?.note ?? '';
+                final backupRating = _existingNote?.rating;
+                final backupEmoji = _existingNote?.emoji;
+                widget.appState.addOrUpdateDayNote(_normalizedDate, '');
+                Navigator.pop(context);
 
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Not silindi'),
-                duration: const Duration(seconds: 10),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                showCloseIcon: true,
-                closeIconColor: Colors.white70,
-                action: SnackBarAction(
-                  label: 'Geri Al',
-                  textColor: Colors.amber,
-                  onPressed: () =>
-                      widget.appState.addOrUpdateDayNote(
-                        _normalizedDate,
-                        backupText,
-                        rating: backupRating,
-                        emoji: backupEmoji,
-                      ),
-                ),
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Not silindi'),
+                    duration: const Duration(seconds: 10),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    showCloseIcon: true,
+                    closeIconColor: Colors.white70,
+                    action: SnackBarAction(
+                      label: 'Geri Al',
+                      textColor: Colors.amber,
+                      onPressed: () =>
+                          widget.appState.addOrUpdateDayNote(
+                            _normalizedDate,
+                            backupText,
+                            rating: backupRating,
+                            emoji: backupEmoji,
+                          ),
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Sil', style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Kapat'),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.amber.shade100,
+                foregroundColor: Colors.amber.shade900,
               ),
-            );
-          },
-          child: const Text('Sil', style: TextStyle(color: Colors.red)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Kapat'),
-        ),
-        // Düzenle → aynı dialog'u edit modda yeniden aç
-        ElevatedButton.icon(
-          icon: const Icon(Icons.edit, size: 16),
-          label: const Text('Düzenle'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.amber,
-            foregroundColor: Colors.black87,
-          ),
-          onPressed: () {
-            Navigator.pop(context);
-            showDialog(
-              context: context,
-              builder: (ctx) => DayNoteDialog(
-                appState: widget.appState,
-                date: _normalizedDate,
-                editMode: true,
+              onPressed: () {
+                Navigator.pop(context);
+                showDialog(
+                  context: context,
+                  builder: (ctx) => DayNoteDialog(
+                    appState: widget.appState,
+                    date: _normalizedDate,
+                    editMode: true,
+                  ),
+                );
+              },
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit, size: 14),
+                  SizedBox(width: 4),
+                  Text('Düzenle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                ],
               ),
-            );
-          },
+            ),
+          ],
         ),
       ],
     );
@@ -473,74 +482,83 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
         ),
       ),
       actions: [
-        if (hasNote)
-          TextButton(
-            onPressed: () {
-              final backupText = _existingNote?.note ?? '';
-              final backupRating = _existingNote?.rating;
-              final backupEmoji = _existingNote?.emoji;
-              widget.appState.addOrUpdateDayNote(_normalizedDate, '');
-              Navigator.pop(context);
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (hasNote) ...[
+              TextButton(
+                onPressed: () {
+                  final backupText = _existingNote?.note ?? '';
+                  final backupRating = _existingNote?.rating;
+                  final backupEmoji = _existingNote?.emoji;
+                  widget.appState.addOrUpdateDayNote(_normalizedDate, '');
+                  Navigator.pop(context);
 
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Not silindi'),
-                  duration: const Duration(seconds: 10),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  showCloseIcon: true,
-                  closeIconColor: Colors.white70,
-                  action: SnackBarAction(
-                    label: 'Geri Al',
-                    textColor: Colors.amber,
-                    onPressed: () => widget.appState.addOrUpdateDayNote(
-                      _normalizedDate,
-                      backupText,
-                      rating: backupRating,
-                      emoji: backupEmoji,
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Not silindi'),
+                      duration: const Duration(seconds: 10),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      showCloseIcon: true,
+                      closeIconColor: Colors.white70,
+                      action: SnackBarAction(
+                        label: 'Geri Al',
+                        textColor: Colors.amber,
+                        onPressed: () => widget.appState.addOrUpdateDayNote(
+                          _normalizedDate,
+                          backupText,
+                          rating: backupRating,
+                          emoji: backupEmoji,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
-            child: const Text('Sil', style: TextStyle(color: Colors.red)),
-          ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('İptal'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            widget.appState.addOrUpdateDayNote(
-              _normalizedDate,
-              _controller.text,
-              rating: _rating,
-              emoji: _emoji,
-            );
-            Navigator.pop(context);
-
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Not kaydedildi'),
-                duration: const Duration(seconds: 4),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                showCloseIcon: true,
-                closeIconColor: Colors.white70,
+                  );
+                },
+                child: const Text('Sil', style: TextStyle(color: Colors.red)),
               ),
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.amber,
-            foregroundColor: Colors.black87,
-          ),
-          child: const Text('Kaydet'),
+              const Spacer(),
+            ],
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () {
+                widget.appState.addOrUpdateDayNote(
+                  _normalizedDate,
+                  _controller.text,
+                  rating: _rating,
+                  emoji: _emoji,
+                );
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Not kaydedildi'),
+                    duration: const Duration(seconds: 4),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    showCloseIcon: true,
+                    closeIconColor: Colors.white70,
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black87,
+                elevation: 0,
+              ),
+              child: const Text('Kaydet'),
+            ),
+          ],
         ),
       ],
     );

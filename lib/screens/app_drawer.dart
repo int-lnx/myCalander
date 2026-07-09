@@ -413,18 +413,20 @@ class _AppDrawerState extends State<AppDrawer> {
                                   ),
                                 ),
                                 if (subTags.isNotEmpty)
-                                  IconButton(
-                                    icon: Icon(
-                                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                      size: 18,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    onPressed: () {
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
                                       setState(() {
                                         _expandedCategories[tag] = !isExpanded;
                                       });
                                     },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                                      child: Icon(
+                                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                        size: 18,
+                                      ),
+                                    ),
                                   )
                               ],
                             ),
@@ -565,18 +567,20 @@ class _AppDrawerState extends State<AppDrawer> {
                                   ),
                                 ),
                                 if (subTags.isNotEmpty)
-                                  IconButton(
-                                    icon: Icon(
-                                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                      size: 18,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    onPressed: () {
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
                                       setState(() {
                                         _expandedCategories['task_$tag'] = !isExpanded;
                                       });
                                     },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                                      child: Icon(
+                                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                        size: 18,
+                                      ),
+                                    ),
                                   )
                               ],
                             ),

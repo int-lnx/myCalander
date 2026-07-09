@@ -151,91 +151,115 @@ class _TasksScreenState extends State<TasksScreen> {
             const SizedBox(height: 4),
             Row(
               children: [
-                Text(
-                  dateLabel,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
-                const SizedBox(width: 8),
-                if (relativeStr.isNotEmpty) ...[
-                  Icon(
-                    isOverdue
-                        ? Icons.warning_amber_rounded
-                        : Icons.calendar_today_outlined,
-                    size: 11,
-                    color: isOverdue
-                        ? Colors.red.shade700
-                        : Colors.blue.shade700,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    relativeStr,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isOverdue
-                          ? Colors.red.shade700
-                          : Colors.blue.shade700,
-                      fontWeight:
-                          isOverdue ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                ],
-                if (task.recurrenceRule != null &&
-                    task.recurrenceRule!.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Icon(Icons.autorenew, size: 11, color: Colors.green.shade700),
-                  const SizedBox(width: 2),
-                  Text(
-                    _getRecurrenceText(task.recurrenceRule!),
-                    style:
-                        TextStyle(fontSize: 11, color: Colors.green.shade700),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit_note, color: Colors.blueGrey),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TaskFormScreen(existingTask: task),
-                  ),
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Görevi Sil'),
-                    content: const Text(
-                        'Bu görevi silmek istediğinize emin misiniz?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Vazgeç'),
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        dateLabel,
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                       ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red),
-                        onPressed: () {
-                          appState.deleteTask(task.id);
-                          Navigator.pop(context);
-                        },
-                        child: const Text('Sil',
-                            style: TextStyle(color: Colors.white)),
-                      ),
+                      if (relativeStr.isNotEmpty) ...[
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isOverdue
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.calendar_today_outlined,
+                              size: 11,
+                              color: isOverdue
+                                  ? Colors.red.shade700
+                                  : Colors.blue.shade700,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              relativeStr,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isOverdue
+                                    ? Colors.red.shade700
+                                    : Colors.blue.shade700,
+                                fontWeight:
+                                    isOverdue ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (task.recurrenceRule != null &&
+                          task.recurrenceRule!.isNotEmpty) ...[
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.autorenew, size: 11, color: Colors.green.shade700),
+                            const SizedBox(width: 2),
+                            Text(
+                              _getRecurrenceText(task.recurrenceRule!),
+                              style:
+                                  TextStyle(fontSize: 11, color: Colors.green.shade700),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
-                );
-              },
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TaskFormScreen(existingTask: task),
+                          ),
+                        );
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                        child: Icon(Icons.edit_note, size: 18, color: Colors.blueGrey),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Görevi Sil'),
+                            content: const Text(
+                                'Bu görevi silmek istediğinize emin misiniz?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Vazgeç'),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red),
+                                onPressed: () {
+                                  appState.deleteTask(task.id);
+                                  Navigator.pop(context);
+                                },
+                                child: const Text('Sil',
+                                    style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                        child: Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         ),
