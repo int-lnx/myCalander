@@ -883,7 +883,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         notificationMinutesBefore: (_hasDate && _notificationOffsets.isNotEmpty)
             ? _notificationOffsets.first
             : null,
-        notificationOffsets: _hasDate ? _notificationOffsets : const [],
+        notificationOffsets: _hasDate ? _notificationOffsets : const [],
+        createdAt: widget.existingTask?.createdAt,
       );
 
       if (widget.existingTask == null ||

@@ -341,12 +341,14 @@ class _AppDrawerState extends State<AppDrawer> {
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 children: [
                   // Nav Items
-                  _buildNavItem(0, 'Takvim', Icons.calendar_today),
-                  _buildNavItem(1, 'Görevler', Icons.check_circle_outline),
-                  _buildNavItem(2, 'Projeler', Icons.rocket_launch),
-                  _buildNavItem(3, 'Analiz', Icons.bar_chart),
-                  _buildNavItem(4, 'Ayarlar', Icons.settings),
-                  const Divider(),
+                  if (widget.isSidebar) ...[
+                    _buildNavItem(0, 'Takvim', Icons.calendar_today),
+                    _buildNavItem(1, 'Görevler', Icons.check_circle_outline),
+                    _buildNavItem(2, 'Projeler', Icons.rocket_launch),
+                    _buildNavItem(3, 'Analiz', Icons.bar_chart),
+                    _buildNavItem(4, 'Notlar', Icons.note_alt),
+                    const Divider(),
+                  ],
 
                   // Etkinlik Kategorileri
                   _buildHeaderRow(

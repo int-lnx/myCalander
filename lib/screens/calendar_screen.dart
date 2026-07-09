@@ -287,6 +287,163 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  List<dynamic> _getShortMonthClones(List<Event> events, List<TaskItem> tasks) {
+    if (_visibleDates.isEmpty) return const [];
+    
+    final Set<int> visibleMonthsKey = {};
+    for (var date in _visibleDates) {
+      visibleMonthsKey.add(date.year * 100 + date.month);
+    }
+
+    final List<dynamic> clones = [];
+
+    int getMaxDays(int y, int m) {
+      if (m == 2) {
+        final isLeap = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+        return isLeap ? 29 : 28;
+      }
+      const days = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      return days[m];
+    }
+
+    bool isMonthMatch(String rrule, DateTime start, int y, int m, DateTime cloneDate) {
+      final lower = rrule.toLowerCase();
+      int interval = 1;
+      final intervalMatch = RegExp(r'interval=(\d+)').firstMatch(lower);
+      if (intervalMatch != null) {
+        interval = int.tryParse(intervalMatch.group(1) ?? '1') ?? 1;
+      }
+
+      final untilMatch = RegExp(r'until=(\d{8})').firstMatch(lower);
+      if (untilMatch != null) {
+        final dateStr = untilMatch.group(1)!;
+        final untilDate = DateTime(
+          int.parse(dateStr.substring(0, 4)),
+          int.parse(dateStr.substring(4, 6)),
+          int.parse(dateStr.substring(6, 8)),
+          23, 59, 59
+        );
+        if (cloneDate.isAfter(untilDate)) return false;
+      }
+
+      if (lower.contains('freq=monthly')) {
+        final diffMonths = (y - start.year) * 12 + (m - start.month);
+        if (diffMonths < 0) return false;
+        if (diffMonths % interval != 0) return false;
+        return true;
+      } else if (lower.contains('freq=yearly')) {
+        int targetMonth = start.month;
+        final byMonthMatch = RegExp(r'bymonth=(\d+)').firstMatch(lower);
+        if (byMonthMatch != null) {
+          targetMonth = int.tryParse(byMonthMatch.group(1) ?? '${start.month}') ?? start.month;
+        }
+        if (m != targetMonth) return false;
+
+        final diffYears = y - start.year;
+        if (diffYears < 0) return false;
+        if (diffYears % interval != 0) return false;
+        return true;
+      }
+      return false;
+    }
+
+    void processItem(dynamic item) {
+      final String? rrule = item.recurrenceRule;
+      if (rrule == null || rrule.isEmpty) return;
+
+      final DateTime start = item.from ?? DateTime.now();
+      final lower = rrule.toLowerCase();
+
+      if (!lower.contains('freq=monthly') && !lower.contains('freq=yearly')) return;
+
+      int targetDay = start.day;
+      final byMonthDayMatch = RegExp(r'bymonthday=([-\d]+)').firstMatch(lower);
+      if (byMonthDayMatch != null) {
+        final val = int.tryParse(byMonthDayMatch.group(1) ?? '${start.day}') ?? start.day;
+        if (val < 0) return;
+        targetDay = val;
+      }
+
+      if (targetDay < 29) return;
+
+      for (var key in visibleMonthsKey) {
+        final y = key ~/ 100;
+        final m = key % 100;
+        final maxDays = getMaxDays(y, m);
+
+        if (targetDay > maxDays) {
+          final cloneDateStart = DateTime(y, m, maxDays, start.hour, start.minute);
+          
+          if (!isMonthMatch(rrule, start, y, m, cloneDateStart)) continue;
+
+          final exceptions = item.recurrenceExceptionDates as List<DateTime>?;
+          final isExcluded = exceptions?.any((ex) =>
+              ex.year == cloneDateStart.year &&
+              ex.month == cloneDateStart.month &&
+              ex.day == cloneDateStart.day
+          ) ?? false;
+          if (isExcluded) continue;
+
+          if (item is Event) {
+            final duration = item.to.difference(item.from);
+            clones.add(
+              Event(
+                id: 'short_occ_${item.id}_${y}_${m}',
+                title: item.title,
+                description: item.description,
+                from: cloneDateStart,
+                to: cloneDateStart.add(duration),
+                isAllDay: item.isAllDay,
+                colorValue: item.colorValue,
+                tag: item.tag,
+                projectId: item.projectId,
+                seriesId: item.id,
+                recurrenceRule: null,
+                recurrenceExceptionDates: null,
+              ),
+            );
+          } else if (item is TaskItem) {
+            final duration = item.to != null
+                ? item.to!.difference(item.from!)
+                : const Duration(hours: 1);
+            clones.add(
+              TaskItem(
+                id: 'short_occ_${item.id}_${y}_${m}',
+                title: item.title,
+                details: item.details,
+                isCompleted: item.isCompleted,
+                from: cloneDateStart,
+                to: cloneDateStart.add(duration),
+                isAllDay: item.isAllDay,
+                colorValue: item.colorValue,
+                tag: item.tag,
+                subTag: item.subTag,
+                importance: item.importance,
+                projectId: item.projectId,
+                parentTaskId: item.parentTaskId,
+                superTaskId: item.superTaskId,
+                isHidden: item.isHidden,
+                projectTag: item.projectTag,
+                seriesId: item.id,
+                recurrenceRule: null,
+                recurrenceExceptionDates: null,
+              ),
+            );
+          }
+        }
+      }
+    }
+
+    for (var e in events) {
+      processItem(e);
+    }
+    for (var t in tasks) {
+      processItem(t);
+    }
+
+    return clones;
+  }
+
   List<dynamic> _getAllDayItemsForDate(DateTime date, AppState appState) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final List<dynamic> result = [];
@@ -509,6 +666,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
     });
 
     result.addAll(dayTasks);
+
+    // Inject short month clones
+    final events = appState.filteredEvents;
+    final tasksList = appState.filteredTasks.where((t) => t.from != null).toList();
+    final clones = _getShortMonthClones(events, tasksList);
+    for (var c in clones) {
+      if (c.isAllDay) {
+        final fromDate = c.from;
+        if (DateTime(fromDate.year, fromDate.month, fromDate.day) == normalizedDate) {
+          result.add(c);
+        }
+      }
+    }
 
     // Sort all items: first priority is high importance (importance == 2)
     result.sort((a, b) {
@@ -892,6 +1062,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     calendarItems.addAll(regularTimedTasks);
     calendarItems.addAll(eventReminders);
     calendarItems.addAll(taskReminders);
+
+    // Inject timed clones for short months
+    final shortMonthClones = _getShortMonthClones(events, tasks);
+    final timedClones = shortMonthClones.where((c) => !c.isAllDay).toList();
+    calendarItems.addAll(timedClones);
 
     if (appState.calendarView == CalendarView.schedule) {
       for (var note in appState.dayNotes) {
