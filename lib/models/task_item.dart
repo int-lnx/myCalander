@@ -23,6 +23,7 @@ class TaskItem {
   final bool hasNotification;           // Bildirim aktif mi?
   final int? notificationMinutesBefore; // Kaç dakika önce bildirim?
   final List<int> notificationOffsets;
+  final DateTime createdAt;
 
   TaskItem({
     required this.id,
@@ -48,7 +49,9 @@ class TaskItem {
     this.notificationMinutesBefore,
     this.notificationOffsets = const [],
     String? seriesId,
+    DateTime? createdAt,
   }) : seriesId = seriesId ?? id,
+       createdAt = createdAt ?? DateTime.now(),
        from = (isAllDay && from != null) ? DateTime(from.year, from.month, from.day) : from,
        to = (isAllDay && to != null) ? DateTime(to.year, to.month, to.day) : to;
 
@@ -78,6 +81,7 @@ class TaskItem {
     bool clearRecurrenceRule = false,
     bool clearRecurrenceExceptionDates = false,
     String? seriesId,
+    DateTime? createdAt,
   }) {
     return TaskItem(
       id: id ?? this.id,
@@ -103,6 +107,7 @@ class TaskItem {
       notificationMinutesBefore: notificationMinutesBefore ?? this.notificationMinutesBefore,
       notificationOffsets: notificationOffsets ?? this.notificationOffsets,
       seriesId: seriesId ?? this.seriesId,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -131,6 +136,7 @@ class TaskItem {
       'hasNotification': hasNotification,
       'notificationMinutesBefore': notificationMinutesBefore,
       'notificationOffsets': notificationOffsets,
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
@@ -167,6 +173,7 @@ class TaskItem {
       notificationMinutesBefore: json['notificationMinutesBefore'],
       notificationOffsets: offsets,
       seriesId: json['seriesId'],
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
     );
   }
 }

@@ -13,7 +13,8 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   String _selectedTab = 'Tüm Tarihliler';
-  String _sortMode = 'CUSTOM'; // 'CUSTOM' (Benim sıralamam), 'DATE', 'IMPORTANCE'
+  String _sortMode = 'CUSTOM'; // 'CUSTOM' (Benim sıralamam), 'DATE', 'IMPORTANCE', 'CREATED_DATE'
+  final Set<String> _animatingTaskIds = {};
 
   String _getRelativeDateString(DateTime? date) {
     if (date == null) return '';
@@ -61,7 +62,9 @@ class _TasksScreenState extends State<TasksScreen> {
     bool isDark,
     AppState appState,
   ) {
-    final isCompleted = task.isCompleted;
+    final isCompleted = _animatingTaskIds.contains(task.id)
+        ? !task.isCompleted
+        : task.isCompleted;
     final dateLabel = task.from != null
         ? '${task.from!.day}/${task.from!.month}/${task.from!.year}'
         : 'Tarihsiz';
@@ -99,8 +102,22 @@ class _TasksScreenState extends State<TasksScreen> {
       ),
       child: ListTile(
         leading: GestureDetector(
-          onTap: () => appState.toggleTaskCompletion(task.id),
-          child: Container(
+          onTap: () async {
+            if (_animatingTaskIds.contains(task.id)) return;
+            setState(() {
+              _animatingTaskIds.add(task.id);
+            });
+            await Future.delayed(const Duration(milliseconds: 400));
+            if (mounted) {
+              appState.toggleTaskCompletion(task.id);
+              setState(() {
+                _animatingTaskIds.remove(task.id);
+              });
+            }
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
             width: 24,
             height: 24,
             decoration: BoxDecoration(
@@ -108,18 +125,23 @@ class _TasksScreenState extends State<TasksScreen> {
               border: Border.all(color: circleColor, width: 2),
               color: isCompleted ? circleColor : Colors.transparent,
             ),
-            child: isCompleted
-                ? const Icon(Icons.check, size: 16, color: Colors.white)
-                : null,
+            child: AnimatedScale(
+              scale: isCompleted ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutBack,
+              child: const Icon(Icons.check, size: 16, color: Colors.white),
+            ),
           ),
         ),
-        title: Text(
-          task.title,
+        title: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 250),
           style: TextStyle(
-            decoration: isCompleted ? TextDecoration.lineThrough : null,
-            color: isCompleted ? Colors.grey : null,
+            decoration: isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
+            color: isCompleted ? Colors.grey : (isDark ? Colors.white : Colors.black87),
             fontWeight: FontWeight.w600,
+            fontSize: 16,
           ),
+          child: Text(task.title),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,7 +305,10 @@ class _TasksScreenState extends State<TasksScreen> {
               final item = tasks.removeAt(oldIndex);
               tasks.insert(newIndex, item);
               final newOrderIds = tasks.map((t) => t.id as String).toList();
-              appState.updateTaskOrder(newOrderIds);
+              final currentOrder = List<String>.from(appState.customTaskOrder);
+              currentOrder.removeWhere((id) => newOrderIds.contains(id));
+              currentOrder.addAll(newOrderIds);
+              appState.updateTaskOrder(currentOrder);
             });
           },
         );
@@ -371,8 +396,45 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
         );
       }
-      for (final task in groupTasks) {
-        items.add(_buildTaskCard(context, task, isDark, appState));
+      if (_sortMode == 'CUSTOM') {
+        items.add(
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: groupTasks.length,
+            itemBuilder: (ctx, i) {
+              final task = groupTasks[i];
+              return Container(
+                key: ValueKey(task.id),
+                child: _buildTaskCard(ctx, task, isDark, appState),
+              );
+            },
+            onReorder: (oldIndex, newIndex) {
+              setState(() {
+                if (newIndex > oldIndex) {
+                  newIndex -= 1;
+                }
+                final item = groupTasks.removeAt(oldIndex);
+                groupTasks.insert(newIndex, item);
+                
+                final List<String> newOrderIds = [];
+                for (final k in sortedKeys) {
+                  final gTasks = (k == key) ? groupTasks : (groups[k] ?? []);
+                  newOrderIds.addAll(gTasks.map((t) => t.id as String));
+                }
+                
+                final currentOrder = List<String>.from(appState.customTaskOrder);
+                currentOrder.removeWhere((id) => newOrderIds.contains(id));
+                currentOrder.addAll(newOrderIds);
+                appState.updateTaskOrder(currentOrder);
+              });
+            },
+          ),
+        );
+      } else {
+        for (final task in groupTasks) {
+          items.add(_buildTaskCard(context, task, isDark, appState));
+        }
       }
     }
 
@@ -408,6 +470,11 @@ class _TasksScreenState extends State<TasksScreen> {
       displayedTasks.sort((a, b) {
         if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
         return b.importance.compareTo(a.importance);
+      });
+    } else if (_sortMode == 'CREATED_DATE') {
+      displayedTasks.sort((a, b) {
+        if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+        return a.createdAt.compareTo(b.createdAt);
       });
     } else {
       // CUSTOM order: Benim sıralamam
@@ -520,6 +587,8 @@ class _TasksScreenState extends State<TasksScreen> {
                 setState(() => _sortMode = 'DATE');
               } else if (val == 'SORT_IMPORTANCE') {
                 setState(() => _sortMode = 'IMPORTANCE');
+              } else if (val == 'SORT_CREATED_DATE') {
+                setState(() => _sortMode = 'CREATED_DATE');
               } else if (val == 'RENAME_LIST') {
                 _showRenameListDialog(context, appState, _selectedTab);
               } else if (val == 'DELETE_LIST') {
@@ -581,6 +650,20 @@ class _TasksScreenState extends State<TasksScreen> {
                       ),
                       const SizedBox(width: 8),
                       const Text('Önem seviyesi'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'SORT_CREATED_DATE',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check,
+                        color: _sortMode == 'CREATED_DATE' ? Colors.blue : Colors.transparent,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Eklenme tarihi'),
                     ],
                   ),
                 ),

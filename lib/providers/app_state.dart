@@ -44,7 +44,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '1.70';
+  static const String appVersion = '1.72';
   List<String> _deletedTaskIds = [];
   List<String> _deletedEventIds = [];
   List<String> _deletedDayNoteIds = [];
@@ -118,6 +118,9 @@ class AppState extends ChangeNotifier {
 
   bool _showPlanView = false;
   bool get showPlanView => _showPlanView;
+
+  bool _showRecentView = false;
+  bool get showRecentView => _showRecentView;
 
   List<Topic> _topics = [];
   List<Topic> get topics => _topics;
@@ -1958,7 +1961,7 @@ class AppState extends ChangeNotifier {
     _firestoreSaveEvaluation(evaluation);
   }
 
-  void addOrUpdateDayNote(DateTime date, String noteText) {
+  void addOrUpdateDayNote(DateTime date, String noteText, {int? rating, String? emoji}) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final idx = _dayNotes.indexWhere(
       (n) =>
@@ -1967,7 +1970,7 @@ class AppState extends ChangeNotifier {
           n.date.day == normalizedDate.day,
     );
 
-    if (noteText.trim().isEmpty) {
+    if (noteText.trim().isEmpty && rating == null && emoji == null) {
       if (idx != -1) {
         final existingId = _dayNotes[idx].id;
         _dayNotes.removeAt(idx);
@@ -1990,6 +1993,8 @@ class AppState extends ChangeNotifier {
             ),
       date: normalizedDate,
       note: noteText,
+      rating: rating,
+      emoji: emoji,
     );
 
     _deletedDayNoteIds.remove(newNote.id);
@@ -3399,6 +3404,8 @@ class AppState extends ChangeNotifier {
 
   void setCalendarView(CalendarView view) {
     _showSeritView = false;
+    _showPlanView = false;
+    _showRecentView = false;
     _calendarView = view;
     notifyListeners();
   }
@@ -3407,6 +3414,7 @@ class AppState extends ChangeNotifier {
     _showSeritView = value;
     if (value) {
       _showPlanView = false;
+      _showRecentView = false;
     }
     notifyListeners();
   }
@@ -3414,6 +3422,16 @@ class AppState extends ChangeNotifier {
   void setShowPlanView(bool value) {
     _showPlanView = value;
     if (value) {
+      _showSeritView = false;
+      _showRecentView = false;
+    }
+    notifyListeners();
+  }
+
+  void setShowRecentView(bool value) {
+    _showRecentView = value;
+    if (value) {
+      _showPlanView = false;
       _showSeritView = false;
     }
     notifyListeners();

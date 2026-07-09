@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
@@ -67,6 +68,18 @@ void main() async {
   );
 }
 
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -76,6 +89,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Plan-A',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const AppScrollBehavior(),
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
@@ -136,6 +150,11 @@ class _MainScreenState extends State<MainScreen> {
         'label': 'Program',
         'icon': Icons.view_agenda,
       },
+      {
+        'view': 'recent',
+        'label': 'Son Eklenenler',
+        'icon': Icons.history,
+      },
     ];
 
     return Container(
@@ -158,9 +177,12 @@ class _MainScreenState extends State<MainScreen> {
                   ? appState.showPlanView
                   : (view == 'serit'
                         ? appState.showSeritView
-                        : (!appState.showSeritView &&
-                              !appState.showPlanView &&
-                              currentView == view));
+                        : (view == 'recent'
+                            ? appState.showRecentView
+                            : (!appState.showSeritView &&
+                                  !appState.showPlanView &&
+                                  !appState.showRecentView &&
+                                  currentView == view)));
 
               return GestureDetector(
                 onTap: () {
@@ -168,9 +190,12 @@ class _MainScreenState extends State<MainScreen> {
                     appState.setShowPlanView(true);
                   } else if (view == 'serit') {
                     appState.setShowSeritView(true);
+                  } else if (view == 'recent') {
+                    appState.setShowRecentView(true);
                   } else {
                     appState.setShowPlanView(false);
                     appState.setShowSeritView(false);
+                    appState.setShowRecentView(false);
                     appState.setCalendarView(view as CalendarView);
                   }
                 },

@@ -18,8 +18,9 @@ class Event {
   final List<int> notificationOffsets;
   final DateTime? reminderTime;
   final String? seriesId;
+  final DateTime createdAt;
 
-  const Event({
+  Event({
     required this.id,
     required this.title,
     this.description = '',
@@ -39,7 +40,8 @@ class Event {
     this.notificationOffsets = const [],
     this.reminderTime,
     this.seriesId,
-  });
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
 
   Event copyWith({
     String? id,
@@ -61,6 +63,7 @@ class Event {
     List<int>? notificationOffsets,
     DateTime? reminderTime,
     String? seriesId,
+    DateTime? createdAt,
     bool clearRecurrenceRule = false,
     bool clearRecurrenceExceptionDates = false,
     bool clearProjectId = false,
@@ -89,6 +92,7 @@ class Event {
       notificationOffsets: notificationOffsets ?? this.notificationOffsets,
       reminderTime: clearReminderTime ? null : (reminderTime ?? this.reminderTime),
       seriesId: clearSeriesId ? null : (seriesId ?? this.seriesId),
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -115,6 +119,7 @@ class Event {
       'notificationOffsets': notificationOffsets,
       'reminderTime': reminderTime?.toIso8601String(),
       'seriesId': seriesId,
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
@@ -154,6 +159,7 @@ class Event {
       notificationOffsets: notifOffsets,
       reminderTime: json['reminderTime'] != null ? DateTime.parse(json['reminderTime'] as String) : null,
       seriesId: json['seriesId'] as String?,
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
     );
   }
 }

@@ -19,6 +19,7 @@ import 'event_form_screen.dart';
 import 'task_form_screen.dart';
 import 'project_form_screen.dart';
 import 'all_timeline_screen.dart';
+import 'recent_items_screen.dart';
 import 'package:my_plan/screens/plan_screen.dart' show PlanScreen;
 
 String? _sanitizeRRule(String? rule, DateTime startDate) {
@@ -729,6 +730,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
     if (appState.showSeritView) {
       return const AllTimelineScreen();
+    }
+    if (appState.showRecentView) {
+      return const RecentItemsScreen();
     }
     final calendarController = appState.calendarController;
     final List<Event> events = appState.filteredEvents;
@@ -2714,7 +2718,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
             final DayNote? dayNote = noteIndex != -1
                 ? appState.dayNotes[noteIndex]
                 : null;
-            final hasNote = dayNote != null && dayNote.note.trim().isNotEmpty;
+            final hasNote = dayNote != null &&
+                (dayNote.note.trim().isNotEmpty ||
+                    dayNote.rating != null ||
+                    dayNote.emoji != null);
 
             return Expanded(
               child: InkWell(
@@ -2745,19 +2752,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ? CrossAxisAlignment.center
                         : CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        hasNote ? Icons.note_alt : Icons.edit_note,
-                        size: isWeek ? 12 : 16,
-                        color: hasNote
-                            ? Colors.amber.shade800
-                            : Colors.grey.shade400,
-                      ),
-                      if (hasNote && !isWeek) ...[
+                      if (hasNote && dayNote.emoji != null && dayNote.emoji!.trim().isNotEmpty)
+                        Text(dayNote.emoji!, style: TextStyle(fontSize: isWeek ? 12 : 16))
+                      else
+                        Icon(
+                          hasNote ? Icons.note_alt : Icons.edit_note,
+                          size: isWeek ? 12 : 16,
+                          color: hasNote
+                              ? Colors.amber.shade800
+                              : Colors.grey.shade400,
+                        ),
+                      if (hasNote && dayNote.rating != null && dayNote.rating! > 0) ...[
+                        const SizedBox(width: 2),
+                        Text(
+                          '★${dayNote.rating}',
+                          style: TextStyle(
+                            fontSize: isWeek ? 10 : 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ],
+                      if (hasNote && !isWeek && dayNote.note.trim().isNotEmpty) ...[
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             dayNote.note,
-                            maxLines: 30,
+                            maxLines: MediaQuery.of(context).size.width < 600 ? 1 : 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 13,

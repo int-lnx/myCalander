@@ -25,13 +25,21 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <!-- Unregister Service Workers instantly on load to disable service worker caching -->
+  <!-- Unregister and block Service Workers to disable service worker caching -->
   <script>
     if ('serviceWorker' in navigator) {
+      // Overwrite register function to prevent future registrations
+      navigator.serviceWorker.register = function() {
+        return new Promise((resolve, reject) => {
+          reject(new Error('Service workers are disabled on this site to prevent caching.'));
+        });
+      };
+
+      // Unregister any existing service workers immediately
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for(let registration of registrations) {
           registration.unregister().then(function(boolean) {
-            console.log('ServiceWorker unregistered successfully:', boolean);
+            console.log('Existing ServiceWorker unregistered successfully:', boolean);
           });
         }
       });

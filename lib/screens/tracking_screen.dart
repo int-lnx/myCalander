@@ -394,9 +394,26 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                   // Format cell based on evaluation type and display mode
                                   String displayVal = '';
                                   if (ev.isSkipped) {
-                                    final skipCount = evaluations
-                                        .where((e) => e.projectId == p.id && e.isSkipped && !e.sessionDate.isAfter(day))
-                                        .length;
+                                    int skipCount = 0;
+                                    DateTime checkDate = DateTime(day.year, day.month, day.day);
+                                    while (true) {
+                                      ProjectEvaluation? checkEv;
+                                      for (final e in evaluations) {
+                                        if (e.projectId == p.id &&
+                                            e.sessionDate.year == checkDate.year &&
+                                            e.sessionDate.month == checkDate.month &&
+                                            e.sessionDate.day == checkDate.day) {
+                                          checkEv = e;
+                                          break;
+                                        }
+                                      }
+                                      if (checkEv != null && checkEv.isSkipped) {
+                                        skipCount++;
+                                        checkDate = checkDate.subtract(const Duration(days: 1));
+                                      } else {
+                                        break;
+                                      }
+                                    }
                                     displayVal = 'Pas $skipCount';
                                   } else {
                                     switch (_matrixDisplayMode) {
@@ -760,10 +777,27 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     // Calculate skip count if skipped
                     double finalScore = score;
                     if (isSkipped) {
-                      final priorSkips = appState.evaluations
-                          .where((e) => e.projectId == project.id && e.isSkipped && e.sessionDate.isBefore(normalizedDate))
-                          .length;
-                      finalScore = (priorSkips + 1).toDouble();
+                      int skipCount = 1; // starts at 1 for current day
+                      DateTime checkDate = normalizedDate.subtract(const Duration(days: 1));
+                      while (true) {
+                        ProjectEvaluation? checkEv;
+                        for (final e in appState.evaluations) {
+                          if (e.projectId == project.id &&
+                              e.sessionDate.year == checkDate.year &&
+                              e.sessionDate.month == checkDate.month &&
+                              e.sessionDate.day == checkDate.day) {
+                            checkEv = e;
+                            break;
+                          }
+                        }
+                        if (checkEv != null && checkEv.isSkipped) {
+                          skipCount++;
+                          checkDate = checkDate.subtract(const Duration(days: 1));
+                        } else {
+                          break;
+                        }
+                      }
+                      finalScore = skipCount.toDouble();
                     }
 
                     final eval = ProjectEvaluation(
