@@ -1149,6 +1149,75 @@ class _CalendarScreenState extends State<CalendarScreen> {
     };
   }
 
+  List<Serit> _getActiveStrips(AppState appState) {
+    final List<Serit> strips = appState.serits.where((s) => s.isVisible).toList();
+    strips.sort((a, b) {
+      final comp = a.startDate.compareTo(b.startDate);
+      if (comp != 0) return comp;
+      final aDur = a.endDate.difference(a.startDate);
+      final bDur = b.endDate.difference(b.startDate);
+      return bDur.compareTo(aDur);
+    });
+    return strips;
+  }
+
+  Map<String, int> _assignStripSlots(List<Serit> strips) {
+    final Map<String, int> slots = {};
+    for (var s in strips) {
+      final Set<int> takenSlots = {};
+      for (var assigned in slots.entries) {
+        final s2 = strips.firstWhere((x) => x.id == assigned.key);
+        if (s2.startDate.isBefore(s.endDate) && s2.endDate.isAfter(s.startDate)) {
+          takenSlots.add(assigned.value);
+        }
+      }
+      int slot = 0;
+      while (takenSlots.contains(slot)) {
+        slot++;
+      }
+      slots[s.id] = slot;
+    }
+    return slots;
+  }
+
+  Widget _buildStripWidget(Serit s, DateTime date, AppState appState) {
+    Color color = Colors.blue;
+    if (s.colorValue != 0) {
+      color = Color(s.colorValue);
+    }
+    final bool isStart = s.startDate.year == date.year && s.startDate.month == date.month && s.startDate.day == date.day;
+    final bool isEnd = s.endDate.year == date.year && s.endDate.month == date.month && s.endDate.day == date.day;
+    final bool showText = isStart || date.weekday == DateTime.monday;
+
+    return Container(
+      height: 14,
+      margin: const EdgeInsets.symmetric(vertical: 1.0),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.only(
+          topLeft: isStart ? const Radius.circular(4) : Radius.zero,
+          bottomLeft: isStart ? const Radius.circular(4) : Radius.zero,
+          topRight: isEnd ? const Radius.circular(4) : Radius.zero,
+          bottomRight: isEnd ? const Radius.circular(4) : Radius.zero,
+        ),
+      ),
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: showText
+          ? Text(
+              s.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
@@ -2662,8 +2731,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   .whereType<TaskItem>()
                                   .toList();
 
-                              final totalItems =
-                                  dayEvents.length + dayTasks.length;
+                              final allStrips = _getActiveStrips(appState);
+                              final stripSlots = _assignStripSlots(allStrips);
+                              
+                              final DateTime dateStart = DateTime(details.date.year, details.date.month, details.date.day);
+                              final DateTime dateEnd = dateStart.add(const Duration(days: 1));
+                              final dayStrips = allStrips.where((s) {
+                                return s.startDate.isBefore(dateEnd) && s.endDate.isAfter(dateStart);
+                              }).toList();
+                              
+                              int maxSlot = -1;
+                              for (var s in dayStrips) {
+                                final slot = stripSlots[s.id] ?? 0;
+                                if (slot > maxSlot) maxSlot = slot;
+                              }
+                              
+                              final bool hasStrips = appState.showSeritOverlay && dayStrips.isNotEmpty;
+                              final totalItems = dayEvents.length + dayTasks.length + (hasStrips ? dayStrips.length : 0);
 
                               final now = DateTime.now();
                               final isToday =
@@ -2798,8 +2882,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                           return impB.compareTo(impA);
                                         });
 
+                                        final int stripsHeight = (appState.showSeritOverlay && maxSlot >= 0)
+                                            ? (maxSlot + 1) * 16
+                                            : 0;
+
                                         final int availableHeight =
-                                            (constraints.maxHeight - 28)
+                                            (constraints.maxHeight - 28 - stripsHeight)
                                                 .toInt();
                                         final int maxLines = availableHeight > 0
                                             ? (availableHeight ~/ 14)
@@ -2870,102 +2958,127 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                               padding: const EdgeInsets.all(
                                                 4.0,
                                               ),
-                                              child: Builder(
-                                                builder: (context) {
-                                                  final dayText = Text(
-                                                    details.date.day.toString(),
-                                                    style: TextStyle(
-                                                      fontWeight: isToday
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                      color: isToday
-                                                          ? Theme.of(
-                                                              context,
-                                                            ).primaryColor
-                                                          : null,
-                                                    ),
-                                                  );
-
-                                                  if (highImportanceCount ==
-                                                      0) {
-                                                    return dayText;
-                                                  }
-
-                                                  final List<Widget>
-                                                  children = [
-                                                    Container(
-                                                      width: 26,
-                                                      height: 26,
-                                                      decoration: BoxDecoration(
-                                                        shape: BoxShape.circle,
-                                                        border: Border.all(
-                                                          color: Colors.red,
-                                                          width: 2,
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  Builder(
+                                                    builder: (context) {
+                                                      final dayText = Text(
+                                                        details.date.day.toString(),
+                                                        style: TextStyle(
+                                                          fontWeight: isToday
+                                                              ? FontWeight.bold
+                                                              : FontWeight.normal,
+                                                          color: isToday
+                                                              ? Theme.of(
+                                                                  context,
+                                                                ).primaryColor
+                                                              : null,
                                                         ),
-                                                      ),
-                                                      alignment:
-                                                          Alignment.center,
-                                                      child: dayText,
-                                                    ),
-                                                  ];
+                                                      );
 
-                                                  final double radius = 13.0;
-                                                  final double centerX = 13.0;
-                                                  final double centerY = 13.0;
-                                                  final double dotRadius = 2.0;
+                                                      if (highImportanceCount ==
+                                                          0) {
+                                                        return dayText;
+                                                      }
 
-                                                  for (
-                                                    int i = 0;
-                                                    i < highImportanceCount;
-                                                    i++
-                                                  ) {
-                                                    double angle =
-                                                        -3.1415926535 / 2 +
-                                                        (i *
-                                                            2 *
-                                                            3.1415926535 /
-                                                            highImportanceCount);
-                                                    double x =
-                                                        centerX +
-                                                        radius *
-                                                            math.cos(angle) -
-                                                        dotRadius;
-                                                    double y =
-                                                        centerY +
-                                                        radius *
-                                                            math.sin(angle) -
-                                                        dotRadius;
-
-                                                    children.add(
-                                                      Positioned(
-                                                        left: x,
-                                                        top: y,
-                                                        child: Container(
-                                                          width: dotRadius * 2,
-                                                          height: dotRadius * 2,
-                                                          decoration:
-                                                              const BoxDecoration(
-                                                                color:
-                                                                    Colors.red,
-                                                                shape: BoxShape
-                                                                    .circle,
-                                                              ),
+                                                      final List<Widget>
+                                                      children = [
+                                                        Container(
+                                                          width: 26,
+                                                          height: 26,
+                                                          decoration: BoxDecoration(
+                                                            shape: BoxShape.circle,
+                                                            border: Border.all(
+                                                              color: Colors.red,
+                                                              width: 2,
+                                                            ),
+                                                          ),
+                                                          alignment:
+                                                              Alignment.center,
+                                                          child: dayText,
                                                         ),
-                                                      ),
-                                                    );
-                                                  }
+                                                      ];
 
-                                                  return SizedBox(
-                                                    width: 26,
-                                                    height: 26,
-                                                    child: Stack(
-                                                      clipBehavior: Clip.none,
-                                                      children: children,
+                                                      final double radius = 13.0;
+                                                      final double centerX = 13.0;
+                                                      final double centerY = 13.0;
+                                                      final double dotRadius = 2.0;
+
+                                                      for (
+                                                        int i = 0;
+                                                        i < highImportanceCount;
+                                                        i++
+                                                      ) {
+                                                        double angle =
+                                                            -3.1415926535 / 2 +
+                                                            (i *
+                                                                2 *
+                                                                3.1415926535 /
+                                                                highImportanceCount);
+                                                        double x =
+                                                            centerX +
+                                                            radius *
+                                                                math.cos(angle) -
+                                                            dotRadius;
+                                                        double y =
+                                                            centerY +
+                                                            radius *
+                                                                math.sin(angle) -
+                                                            dotRadius;
+
+                                                        children.add(
+                                                          Positioned(
+                                                            left: x,
+                                                            top: y,
+                                                            child: Container(
+                                                              width: dotRadius * 2,
+                                                              height: dotRadius * 2,
+                                                              decoration:
+                                                                  const BoxDecoration(
+                                                                    color:
+                                                                        Colors.red,
+                                                                    shape: BoxShape
+                                                                        .circle,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+
+                                                      return SizedBox(
+                                                        width: 26,
+                                                        height: 26,
+                                                        child: Stack(
+                                                          clipBehavior: Clip.none,
+                                                          children: children,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                  if (hasNote)
+                                                    Icon(
+                                                      Icons.note_alt_outlined,
+                                                      size: 9,
+                                                      color: Colors.orange.shade700,
                                                     ),
-                                                  );
-                                                },
+                                                ],
                                               ),
                                             ),
+                                            if (appState.showSeritOverlay && maxSlot >= 0)
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                                child: Column(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: List.generate(maxSlot + 1, (slot) {
+                                                    final s = dayStrips.where((x) => stripSlots[x.id] == slot).firstOrNull;
+                                                    if (s == null) {
+                                                      return const SizedBox(height: 16);
+                                                    }
+                                                    return _buildStripWidget(s, details.date, appState);
+                                                  }),
+                                                ),
+                                              ),
                                             Expanded(
                                               child: Container(
                                                 alignment: Alignment.bottomLeft,
@@ -2991,16 +3104,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         );
                                       },
                                     ),
-                                    if (hasNote)
-                                      Positioned(
-                                        top: 4,
-                                        right: 4,
-                                        child: Icon(
-                                          Icons.note_alt_outlined,
-                                          size: 9,
-                                          color: Colors.orange.shade700,
-                                        ),
-                                      ),
                                   ],
                                 ),
                               );
@@ -3047,7 +3150,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         },
                       ),
                     ),
-                    if (appState.calendarView == CalendarView.day ||
+                     if (appState.calendarView == CalendarView.day ||
                         appState.calendarView == CalendarView.week)
                       Positioned(
                         left: 0,
@@ -3061,6 +3164,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           },
                         ),
                       ),
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      right: 0,
+                      height: 55.0,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () {
+                          appState.toggleSeritOverlay();
+                        },
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -3117,7 +3232,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ),
       child: Row(
         children: [
-          SizedBox(width: leftPadding),
+          Container(
+            width: leftPadding,
+            alignment: Alignment.center,
+            child: IconButton(
+              icon: Icon(
+                Icons.view_stream,
+                size: 16,
+                color: appState.isDarkMode ? Colors.white60 : Colors.black54,
+              ),
+              onPressed: () {
+                _showWeekStripsPopup(context, appState, dates);
+              },
+              tooltip: 'Haftalık Şeritler',
+            ),
+          ),
           Container(width: 1, color: Colors.grey.shade300),
           ...dates.map((date) {
             final normalizedDate = DateTime(date.year, date.month, date.day);
@@ -3220,6 +3349,158 @@ class _CalendarScreenState extends State<CalendarScreen> {
           }),
         ],
       ),
+    );
+  }
+
+  void _showWeekStripsPopup(BuildContext context, AppState appState, List<DateTime> visibleDates) {
+    if (visibleDates.isEmpty) return;
+    
+    // Find all active strips for the week
+    final allStrips = _getActiveStrips(appState);
+    final weekStart = DateTime(visibleDates.first.year, visibleDates.first.month, visibleDates.first.day);
+    final weekEnd = DateTime(visibleDates.last.year, visibleDates.last.month, visibleDates.last.day).add(const Duration(days: 1));
+    
+    final weekStrips = allStrips.where((s) {
+      return s.startDate.isBefore(weekEnd) && s.endDate.isAfter(weekStart);
+    }).toList();
+    
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent, // transparent background
+      builder: (BuildContext context) {
+        final isDark = appState.isDarkMode;
+        return Stack(
+          children: [
+            Positioned(
+              left: 45,
+              bottom: 45,
+              child: Material(
+                type: MaterialType.transparency,
+                child: Container(
+                  width: 280,
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark ? Colors.white10 : Colors.grey.shade300,
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                        offset: const Offset(2, -2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white10 : Colors.grey.shade100,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(8),
+                            topRight: Radius.circular(8),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Haftalık Şeritler',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => Navigator.pop(context),
+                              child: Icon(
+                                Icons.close,
+                                size: 14,
+                                color: isDark ? Colors.white60 : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (weekStrips.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'Bu haftaya ait şerit bulunmamaktadır.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isDark ? Colors.white38 : Colors.grey.shade500,
+                            ),
+                          ),
+                        )
+                      else
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            itemCount: weekStrips.length,
+                            itemBuilder: (context, index) {
+                              final s = weekStrips[index];
+                              Color color = Colors.blue;
+                              if (s.colorValue != 0) {
+                                color = Color(s.colorValue);
+                              }
+                              
+                              final fromStr = '${s.startDate.day}/${s.startDate.month} ${s.startDate.hour.toString().padLeft(2, '0')}:${s.startDate.minute.toString().padLeft(2, '0')}';
+                              final toStr = '${s.endDate.day}/${s.endDate.month} ${s.endDate.hour.toString().padLeft(2, '0')}:${s.endDate.minute.toString().padLeft(2, '0')}';
+
+                              return Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.15),
+                                  border: Border(
+                                    left: BorderSide(color: color, width: 4),
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      s.title,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark ? Colors.white : Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '$fromStr - $toStr',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: isDark ? Colors.white60 : Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
