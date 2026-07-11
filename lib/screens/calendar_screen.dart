@@ -952,6 +952,185 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return index >= 0 ? index : 0;
   }
 
+  Map<String, int> _getOverlapLayoutInfo({
+    required dynamic appointment,
+    required DateTime actualFrom,
+    required DateTime actualTo,
+    required AppState appState,
+  }) {
+    final actualFromLocal = actualFrom.toLocal();
+    final actualToLocal = actualTo.toLocal();
+
+    final dayStart = DateTime(
+      actualFromLocal.year,
+      actualFromLocal.month,
+      actualFromLocal.day,
+    );
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    final List<OccurrenceInfo> occurrences = [];
+
+    // Filter and expand events
+    for (var e in appState.filteredEvents) {
+      if (e.isAllDay) continue;
+      if (e.from.isAtSameMomentAs(e.to)) continue; // Reminder
+
+      if (e.recurrenceRule == null) {
+        final eFromLocal = e.from.toLocal();
+        final eToLocal = e.to.toLocal();
+        if (eFromLocal.isBefore(dayEnd) && eToLocal.isAfter(dayStart)) {
+          occurrences.add(
+            OccurrenceInfo(
+              originalItem: e,
+              id: e.id,
+              from: eFromLocal,
+              to: eToLocal,
+            ),
+          );
+        }
+      } else {
+        try {
+          final instances = RecurrenceHelper.getOccurrences(
+            rrule: e.recurrenceRule!,
+            startDate: e.from,
+            specificStartDate: e.from.isUtc
+                ? dayStart.toUtc()
+                : dayStart.toLocal(),
+            specificEndDate: e.from.isUtc
+                ? dayEnd.subtract(const Duration(milliseconds: 1)).toUtc()
+                : dayEnd.subtract(const Duration(milliseconds: 1)).toLocal(),
+          );
+          final duration = e.to.difference(e.from);
+          for (var date in instances) {
+            final dateLocal = date.toLocal();
+            final occStart = dateLocal;
+            final occEnd = dateLocal.add(duration);
+            if (occStart.isBefore(dayEnd) && occEnd.isAfter(dayStart)) {
+              occurrences.add(
+                OccurrenceInfo(
+                  originalItem: e,
+                  id: e.id,
+                  from: occStart,
+                  to: occEnd,
+                ),
+              );
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Filter and expand tasks
+    for (var t in appState.filteredTasks) {
+      if (t.from == null) continue;
+      if (t.isAllDay) continue;
+
+      if (t.recurrenceRule == null) {
+        final tFromLocal = t.from!.toLocal();
+        final tToLocal = (t.to ?? t.from!.add(const Duration(hours: 1))).toLocal();
+        if (tFromLocal.isBefore(dayEnd) && tToLocal.isAfter(dayStart)) {
+          occurrences.add(
+            OccurrenceInfo(
+              originalItem: t,
+              id: t.id,
+              from: tFromLocal,
+              to: tToLocal,
+            ),
+          );
+        }
+      } else {
+        try {
+          final instances = RecurrenceHelper.getOccurrences(
+            rrule: t.recurrenceRule!,
+            startDate: t.from!,
+            specificStartDate: t.from!.isUtc
+                ? dayStart.toUtc()
+                : dayStart.toLocal(),
+            specificEndDate: t.from!.isUtc
+                ? dayEnd.subtract(const Duration(milliseconds: 1)).toUtc()
+                : dayEnd.subtract(const Duration(milliseconds: 1)).toLocal(),
+          );
+          final duration = (t.to ?? t.from!.add(const Duration(hours: 1)))
+              .difference(t.from!);
+          for (var date in instances) {
+            final dateLocal = date.toLocal();
+            final occStart = dateLocal;
+            final occEnd = date.add(duration).toLocal();
+            if (occStart.isBefore(dayEnd) && occEnd.isAfter(dayStart)) {
+              occurrences.add(
+                OccurrenceInfo(
+                  originalItem: t,
+                  id: t.id,
+                  from: occStart,
+                  to: occEnd,
+                ),
+              );
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    final String currentId;
+    if (appointment is Event) {
+      currentId = appointment.id;
+    } else if (appointment is TaskItem) {
+      currentId = appointment.id;
+    } else if (appointment is Appointment) {
+      currentId = appointment.id?.toString() ?? '';
+    } else {
+      currentId = '';
+    }
+
+    OccurrenceInfo? currentOcc;
+    int minDiffMs = 999999999;
+    for (var occ in occurrences) {
+      final bool isMatch =
+          occ.id == currentId ||
+          (currentId.isNotEmpty && currentId.startsWith(occ.id)) ||
+          (occ.id.isNotEmpty && occ.id.startsWith(currentId));
+      if (isMatch) {
+        final diff = (occ.from.difference(
+          actualFromLocal,
+        )).inMilliseconds.abs();
+        if (diff < minDiffMs) {
+          minDiffMs = diff;
+          currentOcc = occ;
+        }
+      }
+    }
+
+    currentOcc ??= OccurrenceInfo(
+      originalItem: appointment,
+      id: currentId,
+      from: actualFromLocal,
+      to: actualToLocal,
+    );
+
+    final overlapping = occurrences.where((occ) {
+      return occ.from.isBefore(currentOcc!.to) &&
+          occ.to.isAfter(currentOcc.from);
+    }).toList();
+
+    overlapping.sort((a, b) {
+      int comp = a.from.compareTo(b.from);
+      if (comp != 0) return comp;
+
+      final durA = a.to.difference(a.from);
+      final durB = b.to.difference(b.from);
+      comp = durB.compareTo(durA);
+      if (comp != 0) return comp;
+
+      return a.id.compareTo(b.id);
+    });
+
+    int index = overlapping.indexOf(currentOcc);
+    return {
+      'index': index >= 0 ? index : 0,
+      'total': overlapping.length > 0 ? overlapping.length : 1,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
@@ -1930,40 +2109,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               final double colStart =
                                   timeRulerWidth + dayIndex * columnWidth;
 
-                              // Find slotIndexSf (the layout index within the day column assigned by SfCalendar)
-                              int slotIndexSf =
-                                  ((bounds.left - colStart) / bounds.width)
-                                      .round();
-                              if (slotIndexSf < 0) slotIndexSf = 0;
-                              if (slotIndexSf >= N) slotIndexSf = N - 1;
-
-                              // dayLeft / dayRight derived from bounds and slotIndexSf
-                              double dayLeft =
-                                  bounds.left - slotIndexSf * bounds.width;
-                              double dayRight = dayLeft + N * bounds.width;
-
-                              // Her günün kendi sınır çizgisini aşmaması için sağ sınırı kendi sütununun bitimi yapıyoruz
-                              final double maxRight = colStart + columnWidth;
-                              if (dayRight > maxRight) dayRight = maxRight;
-
-                              int slotIndex = _getSortedSlotIndex(
+                              final overlapInfo = _getOverlapLayoutInfo(
                                 appointment: appointment,
                                 actualFrom: from,
                                 actualTo: to,
                                 appState: appState,
                               );
+                              final int slotIndex = overlapInfo['index']!;
+                              final int totalOverlaps = overlapInfo['total']!;
 
-                              // Tiny fan offset per slot (barely visible sliver)
-                              double offsetStep = numDays == 1 ? 16.0 : 4.0;
-                              double fanOffset = slotIndex * offsetStep;
+                              final double startRatio = slotIndex / totalOverlaps;
+                              double cardLeft = colStart + startRatio * columnWidth;
+                              double cardWidth = columnWidth * (1.0 - startRatio);
 
-                              // Kart genişliğini Syncfusion'ın atadığı bounds.width yapıyoruz
-                              double cardWidth = bounds.width;
-                              double cardLeft = bounds.left + fanOffset;
-
-                              // Kartın sağ sınırı kendi gün sütun sınırını aşamaz
-                              if (cardLeft + cardWidth > maxRight) {
-                                cardWidth = maxRight - cardLeft;
+                              // Add a small right margin (e.g. 2px) to look clean
+                              if (cardWidth > 4.0) {
+                                cardWidth -= 2.0;
                               }
                               if (cardWidth < 10) cardWidth = 10;
 
