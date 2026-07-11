@@ -389,8 +389,9 @@ class _TasksScreenState extends State<TasksScreen> {
       });
 
     // Sadece tek bir grup ve adı "" ise (hiç subTag yok) → düz liste göster
-    final hasSubGroups = sortedKeys.length > 1 ||
-        (sortedKeys.length == 1 && sortedKeys.first.isNotEmpty);
+    // Ayrıca "Tüm Tarihliler" veya "Tüm Tarihsizler" sekmelerinde kategori gruplamayı kaldırıyoruz.
+    final hasSubGroups = (selectedTag != 'Tüm Tarihliler' && selectedTag != 'Tüm Tarihsizler') &&
+        (sortedKeys.length > 1 || (sortedKeys.length == 1 && sortedKeys.first.isNotEmpty));
 
     // Mevcut tab'ın tag değeri
     final currentTag = (selectedTag == 'Tüm Tarihliler' || selectedTag == 'Tüm Tarihsizler') ? null : selectedTag;
