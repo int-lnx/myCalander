@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '1.91';
+  static const String appVersion = '1.92';
   List<String> _deletedTaskIds = [];
   List<String> _deletedEventIds = [];
   List<String> _deletedDayNoteIds = [];

@@ -1003,6 +1003,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
           final duration = e.to.difference(e.from);
           for (var date in instances) {
             final dateLocal = date.toLocal();
+            if (e.recurrenceExceptionDates != null &&
+                e.recurrenceExceptionDates!.any(
+                  (d) =>
+                      d.toLocal().year == dateLocal.year &&
+                      d.toLocal().month == dateLocal.month &&
+                      d.toLocal().day == dateLocal.day,
+                )) {
+              continue;
+            }
             final occStart = dateLocal;
             final occEnd = dateLocal.add(duration);
             if (occStart.isBefore(dayEnd) && occEnd.isAfter(dayStart)) {
@@ -1054,6 +1063,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
               .difference(t.from!);
           for (var date in instances) {
             final dateLocal = date.toLocal();
+            if (t.recurrenceExceptionDates != null &&
+                t.recurrenceExceptionDates!.any(
+                  (d) =>
+                      d.toLocal().year == dateLocal.year &&
+                      d.toLocal().month == dateLocal.month &&
+                      d.toLocal().day == dateLocal.day,
+                )) {
+              continue;
+            }
             final occStart = dateLocal;
             final occEnd = date.add(duration).toLocal();
             if (occStart.isBefore(dayEnd) && occEnd.isAfter(dayStart)) {
