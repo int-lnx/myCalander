@@ -161,9 +161,12 @@ class Event {
       notificationOffsets: notifOffsets,
       reminderTime: json['reminderTime'] != null ? DateTime.parse(json['reminderTime'] as String) : null,
       seriesId: json['seriesId'] as String? ?? json['id'] as String?,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime(2020, 1, 1),
+      createdAt: (() {
+        final parsed = json['createdAt'] != null
+            ? DateTime.parse(json['createdAt'] as String)
+            : DateTime(2020, 1, 1);
+        return parsed.isAfter(DateTime.now()) ? DateTime(2020, 1, 1) : parsed;
+      })(),
     );
   }
 }

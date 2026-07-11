@@ -180,9 +180,12 @@ class TaskItem {
       notificationOffsets: offsets,
       isInProgress: json['isInProgress'] ?? false,
       seriesId: json['seriesId'],
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime(2020, 1, 1),
+      createdAt: (() {
+        final parsed = json['createdAt'] != null
+            ? DateTime.parse(json['createdAt'] as String)
+            : DateTime(2020, 1, 1);
+        return parsed.isAfter(DateTime.now()) ? DateTime(2020, 1, 1) : parsed;
+      })(),
     );
   }
 }
