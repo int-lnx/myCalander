@@ -209,260 +209,21 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   void _editNoteDialog(BuildContext context, AppState appState, Note note) {
-    final editTitleController = TextEditingController(text: note.title);
-    final editContentController = TextEditingController(text: note.content);
-    int editColorValue = note.colorValue;
-    bool editIsPinned = note.isPinned;
-    List<String> editTags = List.from(note.tags);
-
     showDialog(
       context: context,
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final isNoteDark = Color(editColorValue).computeLuminance() < 0.5;
-            return AlertDialog(
-              backgroundColor: Color(editColorValue),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              title: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: editTitleController,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: isNoteDark ? Colors.white : Colors.black87,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Başlık',
-                        border: InputBorder.none,
-                        hintStyle: TextStyle(
-                          color: isNoteDark ? Colors.white70 : Colors.black45,
-                        ),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      editIsPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                      color: isNoteDark ? Colors.white : Colors.black87,
-                    ),
-                    onPressed: () {
-                      setDialogState(() {
-                        editIsPinned = !editIsPinned;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: editContentController,
-                      maxLines: null,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isNoteDark ? Colors.white70 : Colors.black87,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Not alın...',
-                        border: InputBorder.none,
-                        hintStyle: TextStyle(
-                          color: isNoteDark ? Colors.white60 : Colors.black45,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (editTags.isNotEmpty)
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: editTags.map((tag) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isNoteDark ? Colors.white10 : Colors.black12,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              tag,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: isNoteDark ? Colors.white70 : Colors.black87,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                // Color Picker Button
-                IconButton(
-                  icon: Icon(
-                    Icons.palette_outlined,
-                    color: isNoteDark ? Colors.white70 : Colors.black87,
-                  ),
-                  onPressed: () {
-                    _showColorPickerBottomSheet(context, (color) {
-                      setDialogState(() {
-                        editColorValue = color;
-                      });
-                    });
-                  },
-                ),
-                // Tags Button
-                IconButton(
-                  icon: Icon(
-                    Icons.label_outline,
-                    color: isNoteDark ? Colors.white70 : Colors.black87,
-                  ),
-                  onPressed: () {
-                    _showTagsDialog(context, editTags, (updatedTags) {
-                      setDialogState(() {
-                        editTags = updatedTags;
-                      });
-                    });
-                  },
-                ),
-                // Delete Button
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () {
-                    appState.deleteNote(note.id);
-                    Navigator.pop(ctx);
-                  },
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(
-                    'İptal',
-                    style: TextStyle(
-                      color: isNoteDark ? Colors.white70 : Colors.black87,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () {
-                    final updatedNote = note.copyWith(
-                      title: editTitleController.text.trim(),
-                      content: editContentController.text.trim(),
-                      colorValue: editColorValue,
-                      isPinned: editIsPinned,
-                      tags: editTags,
-                    );
-                    appState.updateNote(updatedNote);
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text('Kaydet'),
-                ),
-              ],
-            );
+        return EditNoteDialog(
+          appState: appState,
+          note: note,
+          noteColors: _noteColors,
+          onTagsDialogRequested: (currentTags, onTagsUpdated) {
+            _showTagsDialog(context, currentTags, onTagsUpdated);
+          },
+          onColorPickerRequested: (onColorSelected) {
+            _showColorPickerBottomSheet(context, onColorSelected);
           },
         );
       },
-    );
-  }
-
-  Widget _buildNoteCard(AppState appState, Note note, bool isDarkTheme) {
-    final isNoteDark = Color(note.colorValue).computeLuminance() < 0.5;
-    final cardColor = Color(note.colorValue);
-
-    return Card(
-      elevation: 1.5,
-      color: cardColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: isDarkTheme ? Colors.grey.shade800 : Colors.grey.shade300,
-          width: note.colorValue == 0xFFFFFFFF ? 1.0 : 0.0,
-        ),
-      ),
-      child: InkWell(
-        onTap: () => _editNoteDialog(context, appState, note),
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      note.title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: isNoteDark ? Colors.white : Colors.black87,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: () {
-                      appState.updateNote(note.copyWith(isPinned: !note.isPinned));
-                    },
-                    child: Icon(
-                      note.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                      size: 16,
-                      color: isNoteDark ? Colors.white60 : Colors.black54,
-                    ),
-                  ),
-                ],
-              ),
-              if (note.title.isNotEmpty && note.content.isNotEmpty)
-                const SizedBox(height: 8),
-              if (note.content.isNotEmpty)
-                Text(
-                  note.content,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isNoteDark ? Colors.white70 : Colors.black87,
-                  ),
-                  maxLines: 12,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              if (note.tags.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
-                  children: note.tags.map((tag) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isNoteDark ? Colors.white10 : Colors.black12,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        tag,
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: isNoteDark ? Colors.white70 : Colors.black87,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -486,12 +247,11 @@ class _NotesScreenState extends State<NotesScreen> {
           },
           child: Column(
             children: [
-              // Top Write Area
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 child: Center(
                   child: Container(
-                    constraints: const BoxConstraints(maxWidth: 600),
+                    constraints: const BoxConstraints(maxWidth: 800),
                     decoration: BoxDecoration(
                       color: Color(_selectedColorValue),
                       borderRadius: BorderRadius.circular(8),
@@ -623,8 +383,6 @@ class _NotesScreenState extends State<NotesScreen> {
                   ),
                 ),
               ),
-
-              // Grid List of Notes
               Expanded(
                 child: allNotes.isEmpty
                     ? Center(
@@ -672,7 +430,12 @@ class _NotesScreenState extends State<NotesScreen> {
                                     ),
                                     itemCount: pinnedNotes.length,
                                     itemBuilder: (context, index) {
-                                      return _buildNoteCard(appState, pinnedNotes[index], isDark);
+                                      return NoteCard(
+                                        appState: appState,
+                                        note: pinnedNotes[index],
+                                        isDarkTheme: isDark,
+                                        onTap: () => _editNoteDialog(context, appState, pinnedNotes[index]),
+                                      );
                                     },
                                   ),
                                   const SizedBox(height: 24),
@@ -702,7 +465,12 @@ class _NotesScreenState extends State<NotesScreen> {
                                     ),
                                     itemCount: otherNotes.length,
                                     itemBuilder: (context, index) {
-                                      return _buildNoteCard(appState, otherNotes[index], isDark);
+                                      return NoteCard(
+                                        appState: appState,
+                                        note: otherNotes[index],
+                                        isDarkTheme: isDark,
+                                        onTap: () => _editNoteDialog(context, appState, otherNotes[index]),
+                                      );
                                     },
                                   ),
                                 ],
@@ -716,6 +484,353 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class NoteCard extends StatefulWidget {
+  final AppState appState;
+  final Note note;
+  final bool isDarkTheme;
+  final VoidCallback onTap;
+
+  const NoteCard({
+    super.key,
+    required this.appState,
+    required this.note,
+    required this.isDarkTheme,
+    required this.onTap,
+  });
+
+  @override
+  State<NoteCard> createState() => _NoteCardState();
+}
+
+class _NoteCardState extends State<NoteCard> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final note = widget.note;
+    final isNoteDark = Color(note.colorValue).computeLuminance() < 0.5;
+    final cardColor = Color(note.colorValue);
+
+    return Card(
+      elevation: 1.5,
+      color: cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: widget.isDarkTheme ? Colors.grey.shade800 : Colors.grey.shade300,
+          width: note.colorValue == 0xFFFFFFFF ? 1.0 : 0.0,
+        ),
+      ),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      note.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isNoteDark ? Colors.white : Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () {
+                      widget.appState.updateNote(note.copyWith(isPinned: !note.isPinned));
+                    },
+                    child: Icon(
+                      note.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      size: 16,
+                      color: isNoteDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+              if (note.title.isNotEmpty && note.content.isNotEmpty)
+                const SizedBox(height: 8),
+              if (note.content.isNotEmpty)
+                Expanded(
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: true,
+                    trackVisibility: true,
+                    thickness: 4,
+                    radius: const Radius.circular(2),
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.only(right: 6.0),
+                        child: Text(
+                          note.content,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isNoteDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (note.tags.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: note.tags.map((tag) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isNoteDark ? Colors.white10 : Colors.black12,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        tag,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: isNoteDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class EditNoteDialog extends StatefulWidget {
+  final AppState appState;
+  final Note note;
+  final List<int> noteColors;
+  final void Function(List<String> currentTags, ValueChanged<List<String>> onTagsUpdated) onTagsDialogRequested;
+  final void Function(ValueChanged<int> onColorSelected) onColorPickerRequested;
+
+  const EditNoteDialog({
+    super.key,
+    required this.appState,
+    required this.note,
+    required this.noteColors,
+    required this.onTagsDialogRequested,
+    required this.onColorPickerRequested,
+  });
+
+  @override
+  State<EditNoteDialog> createState() => _EditNoteDialogState();
+}
+
+class _EditNoteDialogState extends State<EditNoteDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _contentController;
+  late int _colorValue;
+  late bool _isPinned;
+  late List<String> _tags;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.note.title);
+    _contentController = TextEditingController(text: widget.note.content);
+    _colorValue = widget.note.colorValue;
+    _isPinned = widget.note.isPinned;
+    _tags = List.from(widget.note.tags);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isNoteDark = Color(_colorValue).computeLuminance() < 0.5;
+    return AlertDialog(
+      backgroundColor: Color(_colorValue),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      title: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _titleController,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: isNoteDark ? Colors.white : Colors.black87,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Başlık',
+                border: InputBorder.none,
+                hintStyle: TextStyle(
+                  color: isNoteDark ? Colors.white70 : Colors.black45,
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              _isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+              color: isNoteDark ? Colors.white : Colors.black87,
+            ),
+            onPressed: () {
+              setState(() {
+                _isPinned = !_isPinned;
+              });
+            },
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 750,
+        height: 500,
+        child: Scrollbar(
+          controller: _scrollController,
+          thumbVisibility: true,
+          trackVisibility: true,
+          thickness: 6,
+          radius: const Radius.circular(3),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _contentController,
+                    maxLines: null,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isNoteDark ? Colors.white70 : Colors.black87,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Not alın...',
+                      border: InputBorder.none,
+                      hintStyle: TextStyle(
+                        color: isNoteDark ? Colors.white60 : Colors.black45,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_tags.isNotEmpty)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _tags.map((tag) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isNoteDark ? Colors.white10 : Colors.black12,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            tag,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isNoteDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(
+            Icons.palette_outlined,
+            color: isNoteDark ? Colors.white70 : Colors.black87,
+          ),
+          onPressed: () {
+            widget.onColorPickerRequested((color) {
+              setState(() {
+                _colorValue = color;
+              });
+            });
+          },
+        ),
+        IconButton(
+          icon: Icon(
+            Icons.label_outline,
+            color: isNoteDark ? Colors.white70 : Colors.black87,
+          ),
+          onPressed: () {
+            widget.onTagsDialogRequested(_tags, (updatedTags) {
+              setState(() {
+                _tags = updatedTags;
+              });
+            });
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          onPressed: () {
+            widget.appState.deleteNote(widget.note.id);
+            Navigator.pop(context);
+          },
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'İptal',
+            style: TextStyle(
+              color: isNoteDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: () {
+            final updatedNote = widget.note.copyWith(
+              title: _titleController.text.trim(),
+              content: _contentController.text.trim(),
+              colorValue: _colorValue,
+              isPinned: _isPinned,
+              tags: _tags,
+            );
+            widget.appState.updateNote(updatedNote);
+            Navigator.pop(context);
+          },
+          child: const Text('Kaydet'),
+        ),
+      ],
     );
   }
 }

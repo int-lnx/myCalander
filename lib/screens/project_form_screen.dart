@@ -73,7 +73,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _evaluationType,
+              initialValue: _evaluationType,
               decoration: const InputDecoration(labelText: 'Değerlendirme Tipi'),
               items: const [
                 DropdownMenuItem(value: 'PERCENTAGE', child: Text('Yüzde (%)')),
@@ -102,7 +102,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: appState.eventTags.contains(_tag)
+              initialValue: appState.eventTags.contains(_tag)
                   ? _tag
                   : (appState.eventTags.isNotEmpty ? appState.eventTags.first : 'Genel'),
               decoration: const InputDecoration(labelText: 'Kategori'),
@@ -113,10 +113,28 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                 if (val != null) {
                   setState(() {
                     _tag = val;
+                    _subTag = null;
                   });
                 }
               },
             ),
+            if (_tag.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String?>(
+                key: ValueKey('project_subtag_$_tag'),
+                initialValue: (appState.eventSubTags[_tag] ?? []).contains(_subTag) ? _subTag : null,
+                decoration: const InputDecoration(labelText: 'Alt Kategori'),
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('Hiçbiri')),
+                  ...(appState.eventSubTags[_tag] ?? []).map((st) => DropdownMenuItem<String?>(value: st, child: Text(st))),
+                ],
+                onChanged: (val) {
+                  setState(() {
+                    _subTag = val;
+                  });
+                },
+              ),
+            ],
           ],
         ),
       ),

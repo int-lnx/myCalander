@@ -5,7 +5,6 @@ import '../providers/app_state.dart';
 import '../models/topic.dart';
 import '../models/topic_plan.dart';
 import '../utils/id_generator.dart';
-import 'plan_form_screen.dart';
 
 class PlanScreen extends StatefulWidget {
   final String? projectId;

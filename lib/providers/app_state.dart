@@ -45,11 +45,12 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '1.77';
+  static const String appVersion = '1.87';
   List<String> _deletedTaskIds = [];
   List<String> _deletedEventIds = [];
   List<String> _deletedDayNoteIds = [];
   List<String> _deletedProjectIds = [];
+  bool _selectedProjectIdsNeedsInit = false;
 
   Future<void> _saveDeletedIds() async {
     final prefs = await SharedPreferences.getInstance();
@@ -579,7 +580,10 @@ class AppState extends ChangeNotifier {
       if (oldJson != newJson) {
         _projects = filtered;
         await _saveProjects();
+        _initSelectedProjectIdsIfNeeded();
         notifyListeners();
+      } else {
+        _initSelectedProjectIdsIfNeeded();
       }
     });
 
@@ -737,12 +741,18 @@ class AppState extends ChangeNotifier {
     _quickNote = prefs.getString('quickNote') ?? '';
     _customTaskOrder = prefs.getStringList('customTaskOrder') ?? [];
     _firstDayOfWeek = prefs.getInt('firstDayOfWeek') ?? 1;
-    _selectedProjectIds =
-        prefs.getStringList('selectedProjectIds') ??
-        ['no_project', ..._projects.map((p) => p.id)];
+    final savedProjects = prefs.getStringList('selectedProjectIds');
+    if (savedProjects != null) {
+      _selectedProjectIds = savedProjects;
+      _selectedProjectIdsNeedsInit = false;
+    } else {
+      _selectedProjectIds = ['no_project', ..._projects.map((p) => p.id)];
+      _selectedProjectIdsNeedsInit = true;
+    }
     _showHiddenEvents = prefs.getBool('showHiddenEvents') ?? false;
     _fontSizeMultiplier = prefs.getDouble('fontSizeMultiplier') ?? 1.0;
     _isDarkMode = prefs.getBool('isDarkMode') ?? false;
+    _initSelectedProjectIdsIfNeeded();
 
     final eventExpandedJson = prefs.getString('eventTagsExpandedState');
     if (eventExpandedJson != null) {
@@ -1716,14 +1726,96 @@ class AppState extends ChangeNotifier {
 
     final index = _tasks.indexWhere((t) => t.id == id);
     if (index != -1) {
+      final newCompleted = !_tasks[index].isCompleted;
       _tasks[index] = _tasks[index].copyWith(
-        isCompleted: !_tasks[index].isCompleted,
+        isCompleted: newCompleted,
+        isInProgress: newCompleted ? false : _tasks[index].isInProgress,
       );
       if (_tasks[index].isCompleted) {
         NotificationService.cancelTaskNotifications(_tasks[index]);
       } else {
         NotificationService.scheduleTaskNotifications(_tasks[index]);
       }
+      notifyListeners();
+      _saveTasks();
+      _firestoreSaveTask(_tasks[index]);
+    }
+  }
+
+  void _initSelectedProjectIdsIfNeeded() {
+    if (_selectedProjectIdsNeedsInit && _projects.isNotEmpty) {
+      _selectedProjectIds = ['no_project', ..._projects.map((p) => p.id)];
+      _selectedProjectIdsNeedsInit = false;
+      _saveSelectedProjectIds();
+    }
+  }
+
+  void toggleTaskInProgress(String id) {
+    if (id.startsWith('rollover_')) {
+      id = id.substring(9);
+    }
+    if (id.startsWith('occ_')) {
+      final lastUnderscore = id.lastIndexOf('_');
+      if (lastUnderscore > 4) {
+        final parentId = id.substring(4, lastUnderscore);
+        final timestampStr = id.substring(lastUnderscore + 1);
+        final timestamp = int.tryParse(timestampStr);
+        if (timestamp != null) {
+          final occDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
+          final parentIndex = _tasks.indexWhere((t) => t.id == parentId);
+          if (parentIndex != -1) {
+            final parentTask = _tasks[parentIndex];
+            final exceptions = List<DateTime>.from(
+              parentTask.recurrenceExceptionDates ?? [],
+            );
+            exceptions.add(occDate);
+            _tasks[parentIndex] = parentTask.copyWith(
+              recurrenceExceptionDates: exceptions,
+            );
+
+            final uuid = const Uuid();
+            final duration = parentTask.to != null
+                ? parentTask.to!.difference(parentTask.from!)
+                : const Duration(hours: 1);
+            final occEnd = occDate.add(duration);
+
+            final clone = TaskItem(
+              id: uuid.v4(),
+              title: parentTask.title,
+              details: parentTask.details,
+              isCompleted: false,
+              isInProgress: true,
+              from: occDate,
+              to: occEnd,
+              isAllDay: parentTask.isAllDay,
+              colorValue: parentTask.colorValue,
+              tag: parentTask.tag,
+              importance: parentTask.importance,
+              projectId: parentTask.projectId,
+              recurrenceRule: null,
+              recurrenceExceptionDates: null,
+              seriesId: parentTask.seriesId,
+            );
+            _tasks.add(clone);
+            notifyListeners();
+            _saveTasks();
+            _firestoreSaveTask(
+              parentTask.copyWith(recurrenceExceptionDates: exceptions),
+            );
+            _firestoreSaveTask(clone);
+            return;
+          }
+        }
+      }
+    }
+
+    final index = _tasks.indexWhere((t) => t.id == id);
+    if (index != -1) {
+      final t = _tasks[index];
+      _tasks[index] = t.copyWith(
+        isInProgress: !t.isInProgress,
+        isCompleted: false,
+      );
       notifyListeners();
       _saveTasks();
       _firestoreSaveTask(_tasks[index]);
@@ -1789,7 +1881,8 @@ class AppState extends ChangeNotifier {
     _firestoreDeleteTask(id);
   }
 
-  void deleteCompletedTasksInSeries(String seriesId) {
+  void deleteCompletedTasksInSeries(String? seriesId) {
+    if (seriesId == null || seriesId.isEmpty) return;
     final toRemove = _tasks
         .where((t) => t.seriesId == seriesId && t.isCompleted)
         .toList();
@@ -1805,7 +1898,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void deleteTaskSeries(String seriesId) {
+  void deleteTaskSeries(String? seriesId) {
+    if (seriesId == null || seriesId.isEmpty) return;
     final toRemove = _tasks.where((t) => t.seriesId == seriesId).toList();
     for (final t in toRemove) {
       _tasks.remove(t);
@@ -1819,7 +1913,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void deleteEventSeries(String seriesId) {
+  void deleteEventSeries(String? seriesId) {
+    if (seriesId == null || seriesId.isEmpty) return;
     final toRemove = _events.where((e) => e.seriesId == seriesId).toList();
     for (final e in toRemove) {
       _events.remove(e);
@@ -2571,6 +2666,7 @@ class AppState extends ChangeNotifier {
         List<String> localTags,
         Map<String, List<String>> localSubTags,
         List<String> selectedTags,
+        List<String> selectedSubTags,
       ) {
         final List<dynamic>? remoteTags = remoteCats[tagsKey] as List<dynamic>?;
         final Map<String, dynamic>? remoteSubs =
@@ -2600,6 +2696,15 @@ class AppState extends ChangeNotifier {
             }
           });
         }
+        // Ensure all subtags are selected
+        localSubTags.forEach((tag, list) {
+          for (var sub in list) {
+            final key = '$tag:$sub';
+            if (!selectedSubTags.contains(key)) {
+              selectedSubTags.add(key);
+            }
+          }
+        });
       }
 
       final remoteEventCats = await _firestoreService.getEventCategories(
@@ -2613,6 +2718,7 @@ class AppState extends ChangeNotifier {
           _eventTags,
           _eventSubTags,
           _selectedEventTags,
+          _selectedEventSubTags,
         );
       }
       final remoteTaskCats = await _firestoreService.getTaskCategories(userId);
@@ -2624,6 +2730,7 @@ class AppState extends ChangeNotifier {
           _taskTags,
           _taskSubTags,
           _selectedTaskTags,
+          _selectedTaskSubTags,
         );
       }
 
@@ -2639,6 +2746,7 @@ class AppState extends ChangeNotifier {
           _eventTags,
           _eventSubTags,
           _selectedEventTags,
+          _selectedEventSubTags,
         );
         mergeRemoteTags(
           remoteLegacyCats,
@@ -2647,6 +2755,7 @@ class AppState extends ChangeNotifier {
           _taskTags,
           _taskSubTags,
           _selectedTaskTags,
+          _selectedTaskSubTags,
         );
       }
 
@@ -3424,6 +3533,8 @@ class AppState extends ChangeNotifier {
     _saveCategories();
     _saveEvents();
   }
+
+
 
   // ---- Etkinlik kategori isim düzenleme ----
   void renameEventCategory(String oldName, String newName) {

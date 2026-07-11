@@ -23,6 +23,7 @@ class TaskItem {
   final bool hasNotification;           // Bildirim aktif mi?
   final int? notificationMinutesBefore; // Kaç dakika önce bildirim?
   final List<int> notificationOffsets;
+  final bool isInProgress;
   final DateTime createdAt;
 
   TaskItem({
@@ -48,6 +49,7 @@ class TaskItem {
     this.hasNotification = false,
     this.notificationMinutesBefore,
     this.notificationOffsets = const [],
+    this.isInProgress = false,
     String? seriesId,
     DateTime? createdAt,
   }) : seriesId = seriesId ?? id,
@@ -78,8 +80,10 @@ class TaskItem {
     bool? hasNotification,
     int? notificationMinutesBefore,
     List<int>? notificationOffsets,
+    bool? isInProgress,
     bool clearRecurrenceRule = false,
     bool clearRecurrenceExceptionDates = false,
+    bool clearSubTag = false,
     String? seriesId,
     DateTime? createdAt,
   }) {
@@ -93,7 +97,7 @@ class TaskItem {
       isAllDay: isAllDay ?? this.isAllDay,
       colorValue: colorValue ?? this.colorValue,
       tag: tag ?? this.tag,
-      subTag: subTag ?? this.subTag,
+      subTag: clearSubTag ? null : (subTag ?? this.subTag),
       importance: importance ?? this.importance,
       recurrenceRule: clearRecurrenceRule ? null : (recurrenceRule ?? this.recurrenceRule),
       recurrenceExceptionDates: clearRecurrenceExceptionDates ? null : (recurrenceExceptionDates ?? this.recurrenceExceptionDates),
@@ -106,6 +110,7 @@ class TaskItem {
       hasNotification: hasNotification ?? this.hasNotification,
       notificationMinutesBefore: notificationMinutesBefore ?? this.notificationMinutesBefore,
       notificationOffsets: notificationOffsets ?? this.notificationOffsets,
+      isInProgress: isInProgress ?? this.isInProgress,
       seriesId: seriesId ?? this.seriesId,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -118,6 +123,7 @@ class TaskItem {
       'title': title,
       'details': details,
       'isCompleted': isCompleted,
+      'isInProgress': isInProgress,
       'from': from?.toIso8601String(),
       'to': to?.toIso8601String(),
       'isAllDay': isAllDay,
@@ -172,8 +178,11 @@ class TaskItem {
       hasNotification: json['hasNotification'] ?? false,
       notificationMinutesBefore: json['notificationMinutesBefore'],
       notificationOffsets: offsets,
+      isInProgress: json['isInProgress'] ?? false,
       seriesId: json['seriesId'],
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : (json['from'] != null ? DateTime.parse(json['from'] as String) : DateTime.now()),
     );
   }
 }

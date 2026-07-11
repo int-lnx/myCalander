@@ -18,7 +18,7 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
   late String _freq; // 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'
   late int _interval;
   late Set<String> _selectedDays; // e.g. {'MO', 'TU'}
-  
+
   // End options
   String _endType = 'NEVER'; // 'NEVER', 'DATE', 'COUNT'
   DateTime _untilDate = DateTime.now().add(const Duration(days: 90));
@@ -99,7 +99,10 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
     final primaryColor = Colors.blue;
 
     return AlertDialog(
-      title: const Text('Özel yineleme', style: TextStyle(fontWeight: FontWeight.bold)),
+      title: const Text(
+        'Özel yineleme',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       content: SizedBox(
         width: 320,
@@ -111,7 +114,10 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
               // Interval selector
               Row(
                 children: [
-                  const Text('Yineleme sıklığı: ', style: TextStyle(fontSize: 14)),
+                  const Text(
+                    'Yineleme sıklığı: ',
+                    style: TextStyle(fontSize: 14),
+                  ),
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 50,
@@ -153,7 +159,14 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
 
               // Weekdays (Only if WEEKLY)
               if (_freq == 'WEEKLY') ...[
-                const Text('Şu günlerde yinele:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const Text(
+                  'Şu günlerde yinele:',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -181,7 +194,9 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
                           shape: BoxShape.circle,
                           color: isSelected
                               ? primaryColor
-                              : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                              : (isDark
+                                    ? Colors.grey.shade800
+                                    : Colors.grey.shade200),
                         ),
                         alignment: Alignment.center,
                         child: Text(
@@ -202,7 +217,14 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
               ],
 
               // Ends selector ("Bitiş")
-              const Text('Bitiş', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey)),
+              const Text(
+                'Bitiş',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
               const SizedBox(height: 8),
 
               // Radio option 1: Never
@@ -237,16 +259,25 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
                       final picked = await showDatePicker(
                         context: context,
                         initialDate: _untilDate,
-                        firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                        lastDate: DateTime.now().add(const Duration(days: 3650)),
+                        firstDate: DateTime.now().subtract(
+                          const Duration(days: 365),
+                        ),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 3650),
+                        ),
                       );
                       if (picked != null) {
                         setState(() => _untilDate = picked);
                       }
                     },
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: Text(
                       '${_untilDate.day} ${_getMonthsTurkish(_untilDate.month - 1)} ${_untilDate.year}',
@@ -266,7 +297,10 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
                       if (val != null) setState(() => _endType = val);
                     },
                   ),
-                  const Text('Yinelenme sayısı: ', style: TextStyle(fontSize: 14)),
+                  const Text(
+                    'Yinelenme sayısı: ',
+                    style: TextStyle(fontSize: 14),
+                  ),
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 50,
@@ -309,13 +343,14 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
         ElevatedButton(
           onPressed: () {
             String rule = 'FREQ=$_freq;INTERVAL=$_interval';
-            
+
             if (_freq == 'WEEKLY') {
               rule += ';BYDAY=${_selectedDays.join(',')}';
             } else if (_freq == 'MONTHLY') {
               rule += ';BYMONTHDAY=${widget.eventDate.day}';
             } else if (_freq == 'YEARLY') {
-              rule += ';BYMONTH=${widget.eventDate.month};BYMONTHDAY=${widget.eventDate.day}';
+              rule +=
+                  ';BYMONTH=${widget.eventDate.month};BYMONTHDAY=${widget.eventDate.day}';
             }
 
             if (_endType == 'COUNT') {
@@ -324,7 +359,7 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
               final yStr = _untilDate.year.toString().padLeft(4, '0');
               final mStr = _untilDate.month.toString().padLeft(2, '0');
               final dStr = _untilDate.day.toString().padLeft(2, '0');
-              rule += ';UNTIL=${yStr}${mStr}${dStr}T235959Z';
+              rule += ';UNTIL=$yStr$mStr${dStr}T235959Z';
             }
 
             Navigator.pop(context, rule);
@@ -332,7 +367,9 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryColor,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
           ),
           child: const Text('Bitti'),
         ),
@@ -342,8 +379,18 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
 
   String _getMonthsTurkish(int idx) {
     const months = [
-      'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
+      'Oca',
+      'Şub',
+      'Mar',
+      'Nis',
+      'May',
+      'Haz',
+      'Tem',
+      'Ağu',
+      'Eyl',
+      'Eki',
+      'Kas',
+      'Ara',
     ];
     if (idx >= 0 && idx < 12) return months[idx];
     return '';

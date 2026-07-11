@@ -11,11 +11,15 @@ class EventFormScreen extends StatefulWidget {
   final Event? existingEvent;
   final DateTime? initialDate;
   final bool isSingleOccurrenceEdit;
+  final String? initialTag;
+  final String? initialSubTag;
   const EventFormScreen({
     super.key,
     this.existingEvent,
     this.initialDate,
     this.isSingleOccurrenceEdit = false,
+    this.initialTag,
+    this.initialSubTag,
   });
 
   @override
@@ -39,12 +43,21 @@ class _EventFormScreenState extends State<EventFormScreen> {
   String? _projectTag;
   List<int> _notificationOffsets = [];
 
-  final List<int> _colors = [
+  final List<int> _colors = const [
     0xFF2196F3, // Blue
     0xFFF44336, // Red
     0xFF4CAF50, // Green
     0xFFFF9800, // Orange
     0xFF9C27B0, // Purple
+    0xFF009688, // Teal
+    0xFFE91E63, // Pink
+    0xFFFFC107, // Amber
+    0xFF00BCD4, // Cyan
+    0xFF8BC34A, // Light Green
+    0xFFE040FB, // Orchid
+    0xFFFF5722, // Deep Orange
+    0xFF607D8B, // Blue Grey
+    0xFF795548, // Brown
   ];
 
   @override
@@ -59,8 +72,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
             ? widget.initialDate!.add(const Duration(hours: 1))
             : DateTime.now().add(const Duration(hours: 1)));
     _colorValue = event?.colorValue ?? _colors[0];
-    _tag = event?.tag ?? 'Genel';
-    _subTag = event?.subTag;
+    _tag = event?.tag ?? widget.initialTag ?? 'Genel';
+    _subTag = event?.subTag ?? widget.initialSubTag;
     _importance = event?.importance ?? 0;
     _isAllDay = event?.isAllDay ?? false;
     _recurrenceRule = event?.recurrenceRule;
@@ -276,10 +289,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
       setState(() {
         if (isStart) {
           _from = DateTime(picked.year, picked.month, picked.day, _from.hour, _from.minute);
-          if (_to.isBefore(_from)) _to = _from.add(const Duration(hours: 1));
         } else {
           _to = DateTime(picked.year, picked.month, picked.day, _to.hour, _to.minute);
-          if (_to.isBefore(_from)) _from = _to.subtract(const Duration(hours: 1));
         }
       });
     }
@@ -295,10 +306,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
       setState(() {
         if (isStart) {
           _from = DateTime(_from.year, _from.month, _from.day, picked.hour, picked.minute);
-          if (_to.isBefore(_from)) _to = _from.add(const Duration(hours: 1));
         } else {
           _to = DateTime(_to.year, _to.month, _to.day, picked.hour, picked.minute);
-          if (_to.isBefore(_from)) _from = _to.subtract(const Duration(hours: 1));
         }
       });
     }
@@ -362,7 +371,18 @@ class _EventFormScreenState extends State<EventFormScreen> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   void _saveForm(BuildContext context, AppState appState) {
+    if (_to.isBefore(_from)) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen zaman aralığına dikkat edin'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     if (_formKey.currentState!.validate()) {
+      final resolvedColor = appState.getEventTagColor(_tag) ?? _colors[0];
       final event = Event(
         id: widget.existingEvent?.id ?? IdGenerator.generate(_titleController.text),
         title: _titleController.text,
@@ -370,7 +390,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
         from: _from,
         to: _to,
         isAllDay: _isAllDay,
-        colorValue: _colorValue,
+        colorValue: resolvedColor,
         tag: _tag,
         subTag: _subTag,
         importance: _importance,
@@ -380,6 +400,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
         isTrackingEnabled: _isTrackingEnabled,
         projectTag: _projectId != null ? _projectTag : null,
         notificationOffsets: _notificationOffsets,
+        createdAt: widget.existingEvent?.createdAt,
       );
 
       if (widget.existingEvent == null || !appState.events.any((e) => e.id == event.id)) {
@@ -548,27 +569,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   ],
                   const SizedBox(height: 16),
 
-                  // ── Renk ───────────────────────────────────────────────
-                  const Text('Renk Seçimi',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: _colors.map((c) {
-                      return GestureDetector(
-                        onTap: () => setState(() => _colorValue = c),
-                        child: CircleAvatar(
-                          radius: 20,
-                          backgroundColor: Color(c),
-                          child: _colorValue == c
-                              ? const Icon(Icons.check, color: Colors.white)
-                              : null,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-
                   // ── Proje & Proje Etiketi ──────────────────────────────
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -604,11 +604,20 @@ class _EventFormScreenState extends State<EventFormScreen> {
                               setState(() {
                                 _projectId = np?.id;
                                 _projectTag = null;
+                                if (np != null) {
+                                  _tag = np.tag;
+                                  _subTag = np.subTag;
+                                }
                               });
                             } else {
                               setState(() {
                                 _projectId = val;
                                 _projectTag = null;
+                                if (val != null) {
+                                  final p = projects.firstWhere((p) => p.id == val);
+                                  _tag = p.tag;
+                                  _subTag = p.subTag;
+                                }
                               });
                             }
                           },
@@ -665,79 +674,113 @@ class _EventFormScreenState extends State<EventFormScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // ── Kategori (Tag) ──────────────────────────────────────
-                  DropdownButtonFormField<String>(
-                    initialValue: eventTags.contains(_tag)
-                        ? _tag
-                        : (eventTags.isNotEmpty ? eventTags.first : null),
-                    decoration: const InputDecoration(labelText: 'Kategori'),
-                    items: [
-                      ...eventTags.map((t) =>
-                          DropdownMenuItem<String>(value: t, child: Text(t))),
-                      const DropdownMenuItem<String>(
-                        value: 'add_new_tag',
-                        child: Text('+ Yeni Kategori Ekle...',
-                            style: TextStyle(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold)),
+ 
+                  // ── Kategori (Tag) & Alt Kategori (SubTag) ───────────────
+                  GestureDetector(
+                    onTap: _projectId == null
+                        ? null
+                        : () {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Projenin bağlı olduğu kategoriyi değiştiremezsiniz.'),
+                                backgroundColor: Colors.amber,
+                              ),
+                            );
+                          },
+                    child: AbsorbPointer(
+                      absorbing: _projectId != null,
+                      child: DropdownButtonFormField<String>(
+                        initialValue: eventTags.contains(_tag)
+                            ? _tag
+                            : (eventTags.isNotEmpty ? eventTags.first : null),
+                        decoration: InputDecoration(
+                          labelText: 'Kategori',
+                          enabled: _projectId == null,
+                        ),
+                        items: [
+                          ...eventTags.map((t) =>
+                              DropdownMenuItem<String>(value: t, child: Text(t))),
+                          const DropdownMenuItem<String>(
+                            value: 'add_new_tag',
+                            child: Text('+ Yeni Kategori Ekle...',
+                                style: TextStyle(
+                                    color: Colors.blue,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                        onChanged: _projectId != null ? null : (val) async {
+                          if (val == 'add_new_tag') {
+                            final nt =
+                                await _showCreateTagDialog(context, appState);
+                            if (nt != null) {
+                              setState(() {
+                                _tag = nt;
+                                _subTag = null;
+                              });
+                            } else {
+                              setState(() {
+                                _tag = eventTags.isNotEmpty ? eventTags.first : '';
+                                _subTag = null;
+                              });
+                            }
+                          } else if (val != null) {
+                            setState(() {
+                              _tag = val;
+                              _subTag = null;
+                            });
+                          }
+                        },
                       ),
-                    ],
-                    onChanged: (val) async {
-                      if (val == 'add_new_tag') {
-                        final nt =
-                            await _showCreateTagDialog(context, appState);
-                        if (nt != null) {
-                          setState(() {
-                            _tag = nt;
-                            _subTag = null;
-                          });
-                        } else {
-                          setState(() {
-                            _tag = eventTags.isNotEmpty ? eventTags.first : '';
-                            _subTag = null;
-                          });
-                        }
-                      } else if (val != null) {
-                        setState(() {
-                          _tag = val;
-                          _subTag = null;
-                        });
-                      }
-                    },
+                    ),
                   ),
-
-                  // ── Alt Kategori (SubTag) ───────────────────────────────
                   if (_tag.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<String?>(
-                      key: ValueKey('event_subtag_$_tag'),
-                      initialValue:
-                          eventSubTags.contains(_subTag) ? _subTag : null,
-                      decoration:
-                          const InputDecoration(labelText: 'Alt Kategori'),
-                      items: [
-                        const DropdownMenuItem<String?>(
-                            value: null, child: Text('Hiçbiri')),
-                        ...eventSubTags.map((st) => DropdownMenuItem<String?>(
-                            value: st, child: Text(st))),
-                        const DropdownMenuItem<String?>(
-                          value: 'add_new_subtag',
-                          child: Text('+ Yeni Alt Kategori Ekle...',
-                              style: TextStyle(
-                                  color: Colors.blue,
-                                  fontWeight: FontWeight.bold)),
+                    GestureDetector(
+                      onTap: _projectId == null
+                          ? null
+                          : () {
+                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Projenin bağlı olduğu alt kategoriyi değiştiremezsiniz.'),
+                                  backgroundColor: Colors.amber,
+                                ),
+                              );
+                            },
+                      child: AbsorbPointer(
+                        absorbing: _projectId != null,
+                        child: DropdownButtonFormField<String?>(
+                          key: ValueKey('event_subtag_$_tag'),
+                          initialValue: eventSubTags.contains(_subTag) ? _subTag : null,
+                          decoration: InputDecoration(
+                            labelText: 'Alt Kategori',
+                            enabled: _projectId == null,
+                          ),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                                value: null, child: Text('Hiçbiri')),
+                            ...eventSubTags.map((st) => DropdownMenuItem<String?>(
+                                value: st, child: Text(st))),
+                            const DropdownMenuItem<String?>(
+                              value: 'add_new_subtag',
+                              child: Text('+ Yeni Alt Kategori Ekle...',
+                                  style: TextStyle(
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                          onChanged: _projectId != null ? null : (val) async {
+                            if (val == 'add_new_subtag') {
+                              final ns = await _showCreateSubTagDialog(
+                                  context, appState, _tag);
+                              setState(() => _subTag = ns);
+                            } else {
+                              setState(() => _subTag = val);
+                            }
+                          },
                         ),
-                      ],
-                      onChanged: (val) async {
-                        if (val == 'add_new_subtag') {
-                          final ns = await _showCreateSubTagDialog(
-                              context, appState, _tag);
-                          setState(() => _subTag = ns);
-                        } else {
-                          setState(() => _subTag = val);
-                        }
-                      },
+                      ),
                     ),
                   ],
                   const SizedBox(height: 16),

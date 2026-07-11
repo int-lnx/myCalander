@@ -39,9 +39,11 @@ class Event {
     this.isHidden = false,
     this.notificationOffsets = const [],
     this.reminderTime,
-    this.seriesId,
+    String? seriesId,
     DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
+  })  : seriesId = seriesId ?? id,
+        createdAt = createdAt ?? DateTime.now();
+
 
   Event copyWith({
     String? id,
@@ -158,8 +160,10 @@ class Event {
       isHidden: json['isHidden'] as bool? ?? false,
       notificationOffsets: notifOffsets,
       reminderTime: json['reminderTime'] != null ? DateTime.parse(json['reminderTime'] as String) : null,
-      seriesId: json['seriesId'] as String?,
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
+      seriesId: json['seriesId'] as String? ?? json['id'] as String?,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : (json['from'] != null ? DateTime.parse(json['from'] as String) : DateTime.now()),
     );
   }
 }

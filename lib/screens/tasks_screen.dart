@@ -97,54 +97,92 @@ class _TasksScreenState extends State<TasksScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade800 : Colors.white,
+        color: isDark ? Colors.grey.shade900 : Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: isSelectedResult
-            ? Border.all(color: Colors.blue.shade500, width: 2.5)
-            : null,
+        border: task.isInProgress
+            ? Border.all(color: Colors.amber.shade700, width: 2.0)
+            : (isSelectedResult
+                ? Border.all(color: Colors.blue.shade500, width: 2.5)
+                : Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 1.0)),
         boxShadow: [
           BoxShadow(
-            color: isSelectedResult
-                ? Colors.blue.withValues(alpha: 0.2)
-                : Colors.black.withValues(alpha: 0.03),
-            blurRadius: isSelectedResult ? 8 : 4,
-            spreadRadius: isSelectedResult ? 2 : 0,
-            offset: isSelectedResult ? const Offset(0, 0) : const Offset(0, 2),
+            color: task.isInProgress
+                ? Colors.amber.withOpacity(0.15)
+                : (isSelectedResult
+                    ? Colors.blue.withOpacity(0.2)
+                    : Colors.black.withOpacity(0.03)),
+            blurRadius: (task.isInProgress || isSelectedResult) ? 8 : 4,
+            spreadRadius: (task.isInProgress || isSelectedResult) ? 2 : 0,
+            offset: (task.isInProgress || isSelectedResult) ? const Offset(0, 0) : const Offset(0, 2),
           ),
         ],
       ),
       child: ListTile(
-        leading: GestureDetector(
-          onTap: () async {
-            if (_animatingTaskIds.contains(task.id)) return;
-            setState(() {
-              _animatingTaskIds.add(task.id);
-            });
-            await Future.delayed(const Duration(milliseconds: 400));
-            if (mounted) {
-              appState.toggleTaskCompletion(task.id);
-              setState(() {
-                _animatingTaskIds.remove(task.id);
-              });
-            }
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: circleColor, width: 2),
-              color: isCompleted ? circleColor : Colors.transparent,
+        leading: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: () async {
+                if (_animatingTaskIds.contains(task.id)) return;
+                setState(() {
+                  _animatingTaskIds.add(task.id);
+                });
+                await Future.delayed(const Duration(milliseconds: 400));
+                final hasRecurrence = task.recurrenceRule != null &&
+                    task.recurrenceRule!.isNotEmpty;
+                if (hasRecurrence && !task.isCompleted && task.from != null) {
+                  final toggleId =
+                      'occ_${task.id}_${task.from!.millisecondsSinceEpoch}';
+                  appState.toggleTaskCompletion(toggleId);
+                  setState(() {
+                    _animatingTaskIds.remove(task.id);
+                  });
+                } else {
+                  appState.toggleTaskCompletion(task.id);
+                  setState(() {
+                    _animatingTaskIds.remove(task.id);
+                  });
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: circleColor, width: 2),
+                  color: isCompleted ? circleColor : Colors.transparent,
+                ),
+                child: AnimatedScale(
+                  scale: isCompleted ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutBack,
+                  child: const Icon(Icons.check, size: 14, color: Colors.white),
+                ),
+              ),
             ),
-            child: AnimatedScale(
-              scale: isCompleted ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutBack,
-              child: const Icon(Icons.check, size: 16, color: Colors.white),
+            const SizedBox(height: 6),
+            InkWell(
+              onTap: () {
+                final hasRecurrence = task.recurrenceRule != null &&
+                    task.recurrenceRule!.isNotEmpty;
+                if (hasRecurrence && !task.isInProgress && task.from != null) {
+                  final toggleId =
+                      'occ_${task.id}_${task.from!.millisecondsSinceEpoch}';
+                  appState.toggleTaskInProgress(toggleId);
+                } else {
+                  appState.toggleTaskInProgress(task.id);
+                }
+              },
+              child: Icon(
+                task.isInProgress ? Icons.hourglass_full : Icons.hourglass_empty,
+                size: 16,
+                color: task.isInProgress ? Colors.amber.shade700 : Colors.blueGrey,
+              ),
             ),
-          ),
+          ],
         ),
         title: AnimatedDefaultTextStyle(
           duration: const Duration(milliseconds: 250),
@@ -240,30 +278,40 @@ class _TasksScreenState extends State<TasksScreen> {
                     const SizedBox(width: 4),
                     InkWell(
                       onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Görevi Sil'),
-                            content: const Text(
-                                'Bu görevi silmek istediğinize emin misiniz?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Vazgeç'),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red),
-                                onPressed: () {
-                                  appState.deleteTask(task.id);
-                                  Navigator.pop(context);
-                                },
-                                child: const Text('Sil',
-                                    style: TextStyle(color: Colors.white)),
-                              ),
-                            ],
-                          ),
-                        );
+                        final hasRecurrence = task.recurrenceRule != null &&
+                            task.recurrenceRule!.isNotEmpty;
+                        if (hasRecurrence) {
+                          _showRecurringTaskDeleteDialog(context, appState, task);
+                        } else {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Görevi Sil'),
+                              content: const Text(
+                                  'Bu görevi silmek istediğinize emin misiniz?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Vazgeç'),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red),
+                                  onPressed: () {
+                                    final deleted = task;
+                                    appState.deleteTask(task.id);
+                                    Navigator.pop(context);
+                                    _showUndoSnackBar(context, '"${deleted.title}" silindi', () {
+                                      appState.addTask(deleted);
+                                    });
+                                  },
+                                  child: const Text('Sil',
+                                      style: TextStyle(color: Colors.white)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
                       },
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
@@ -366,19 +414,18 @@ class _TasksScreenState extends State<TasksScreen> {
         // subTag başlık satırı — tıklanınca görev oluşturma formu açılır
         items.add(
           GestureDetector(
-            onTap: currentTag != null
-                ? () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TaskFormScreen(
-                          initialTag: currentTag,
-                          initialSubTag: key,
-                        ),
-                      ),
-                    );
-                  }
-                : null,
+            onTap: () {
+              final resolvedTag = currentTag ?? (groupTasks.isNotEmpty ? groupTasks.first.tag : null);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TaskFormScreen(
+                    initialTag: resolvedTag,
+                    initialSubTag: key,
+                  ),
+                ),
+              );
+            },
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Row(
@@ -421,34 +468,33 @@ class _TasksScreenState extends State<TasksScreen> {
                     ),
                   ),
                   const Spacer(),
-                  if (currentTag != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.shade200, width: 0.8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.add,
-                            size: 12,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200, width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add,
+                          size: 12,
+                          color: Colors.blue.shade700,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Görev Ekle',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
                             color: Colors.blue.shade700,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Görev Ekle',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade700,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),
@@ -865,12 +911,18 @@ class _TasksScreenState extends State<TasksScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                for (var t in displayedTasks) {
-                  if (t.isCompleted) {
-                    appState.deleteTask(t.id);
-                  }
+                final deletedTasks = displayedTasks.where((t) => t.isCompleted).toList();
+                for (var t in deletedTasks) {
+                  appState.deleteTask(t.id);
                 }
                 Navigator.pop(context);
+                if (deletedTasks.isNotEmpty) {
+                  _showUndoSnackBar(context, 'Tamamlanan tüm görevler silindi', () {
+                    for (var t in deletedTasks) {
+                      appState.addTask(t);
+                    }
+                  });
+                }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Sil', style: TextStyle(color: Colors.white)),
@@ -878,6 +930,113 @@ class _TasksScreenState extends State<TasksScreen> {
           ],
         );
       },
+    );
+  }
+
+  void _showRecurringTaskDeleteDialog(
+      BuildContext context, AppState appState, TaskItem task) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Tekrarlayan Görevi Sil'),
+          content: const Text(
+              'Bu tekrarlayan bir görev. Nasıl silmek istersiniz?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Vazgeç'),
+            ),
+            TextButton(
+              onPressed: () {
+                final originalParent = task;
+                final deleteId = 'occ_${task.id}_${task.from != null ? task.from!.millisecondsSinceEpoch : DateTime.now().millisecondsSinceEpoch}';
+                appState.deleteTask(deleteId);
+                Navigator.pop(context);
+                _showUndoSnackBar(context, '"${task.title}" bugünkü tekrarı silindi', () {
+                  appState.updateTask(originalParent);
+                });
+              },
+              child: const Text('Sadece Bugün'),
+            ),
+            TextButton(
+              onPressed: () {
+                final originalParent = task;
+                final dateRef = task.from ?? DateTime.now();
+                DateTime untilDate = dateRef.subtract(const Duration(days: 1));
+                String untilStr =
+                    "${untilDate.year}${untilDate.month.toString().padLeft(2, '0')}${untilDate.day.toString().padLeft(2, '0')}T235959Z";
+                
+                List<String> parts = task.recurrenceRule!.split(';');
+                parts.removeWhere((p) => p.startsWith('UNTIL='));
+                parts.add('UNTIL=$untilStr');
+                String limitedRule = parts.join(';');
+                
+                final updatedOriginal = task.copyWith(
+                  recurrenceRule: limitedRule,
+                );
+                appState.updateTask(updatedOriginal);
+                Navigator.pop(context);
+                _showUndoSnackBar(context, '"${task.title}" sonraki tekrarlar silindi', () {
+                  appState.updateTask(originalParent);
+                });
+              },
+              child: const Text('Bugün ve Sonrası'),
+            ),
+            TextButton(
+              onPressed: () {
+                final deletedClones = appState.tasks
+                    .where((t) => t.seriesId == task.seriesId && t.isCompleted)
+                    .toList();
+                appState.deleteCompletedTasksInSeries(task.seriesId);
+                Navigator.pop(context);
+                _showUndoSnackBar(context, '"${task.title}" serideki tamamlanmış görevler silindi', () {
+                  for (var tc in deletedClones) {
+                    appState.addTask(tc);
+                  }
+                });
+              },
+              child: const Text('Tamamlananları Sil'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                final deletedTasks = appState.tasks
+                    .where((t) => t.seriesId == task.seriesId)
+                    .toList();
+                appState.deleteTaskSeries(task.seriesId);
+                Navigator.pop(context);
+                _showUndoSnackBar(context, '"${task.title}" tüm serisi silindi', () {
+                  for (var t in deletedTasks) {
+                    appState.addTask(t);
+                  }
+                });
+              },
+              child: const Text('Tüm Seri', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showUndoSnackBar(BuildContext context, String message, VoidCallback onUndo) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 10),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        showCloseIcon: true,
+        closeIconColor: Colors.white70,
+        action: SnackBarAction(
+          label: 'Geri Al',
+          textColor: Colors.amber,
+          onPressed: onUndo,
+        ),
+      ),
     );
   }
 }

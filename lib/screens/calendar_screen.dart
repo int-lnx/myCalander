@@ -289,7 +289,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   List<dynamic> _getShortMonthClones(List<Event> events, List<TaskItem> tasks) {
     if (_visibleDates.isEmpty) return const [];
-    
+
     final Set<int> visibleMonthsKey = {};
     for (var date in _visibleDates) {
       visibleMonthsKey.add(date.year * 100 + date.month);
@@ -306,7 +306,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
       return days[m];
     }
 
-    bool isMonthMatch(String rrule, DateTime start, int y, int m, DateTime cloneDate) {
+    bool isMonthMatch(
+      String rrule,
+      DateTime start,
+      int y,
+      int m,
+      DateTime cloneDate,
+    ) {
       final lower = rrule.toLowerCase();
       int interval = 1;
       final intervalMatch = RegExp(r'interval=(\d+)').firstMatch(lower);
@@ -321,7 +327,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
           int.parse(dateStr.substring(0, 4)),
           int.parse(dateStr.substring(4, 6)),
           int.parse(dateStr.substring(6, 8)),
-          23, 59, 59
+          23,
+          59,
+          59,
         );
         if (cloneDate.isAfter(untilDate)) return false;
       }
@@ -335,7 +343,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         int targetMonth = start.month;
         final byMonthMatch = RegExp(r'bymonth=(\d+)').firstMatch(lower);
         if (byMonthMatch != null) {
-          targetMonth = int.tryParse(byMonthMatch.group(1) ?? '${start.month}') ?? start.month;
+          targetMonth =
+              int.tryParse(byMonthMatch.group(1) ?? '${start.month}') ??
+              start.month;
         }
         if (m != targetMonth) return false;
 
@@ -354,12 +364,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final DateTime start = item.from ?? DateTime.now();
       final lower = rrule.toLowerCase();
 
-      if (!lower.contains('freq=monthly') && !lower.contains('freq=yearly')) return;
+      if (!lower.contains('freq=monthly') && !lower.contains('freq=yearly'))
+        return;
 
       int targetDay = start.day;
       final byMonthDayMatch = RegExp(r'bymonthday=([-\d]+)').firstMatch(lower);
       if (byMonthDayMatch != null) {
-        final val = int.tryParse(byMonthDayMatch.group(1) ?? '${start.day}') ?? start.day;
+        final val =
+            int.tryParse(byMonthDayMatch.group(1) ?? '${start.day}') ??
+            start.day;
         if (val < 0) return;
         targetDay = val;
       }
@@ -372,23 +385,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final maxDays = getMaxDays(y, m);
 
         if (targetDay > maxDays) {
-          final cloneDateStart = DateTime(y, m, maxDays, start.hour, start.minute);
-          
+          final cloneDateStart = DateTime(
+            y,
+            m,
+            maxDays,
+            start.hour,
+            start.minute,
+          );
+
           if (!isMonthMatch(rrule, start, y, m, cloneDateStart)) continue;
 
           final exceptions = item.recurrenceExceptionDates as List<DateTime>?;
-          final isExcluded = exceptions?.any((ex) =>
-              ex.year == cloneDateStart.year &&
-              ex.month == cloneDateStart.month &&
-              ex.day == cloneDateStart.day
-          ) ?? false;
+          final isExcluded =
+              exceptions?.any(
+                (ex) =>
+                    ex.year == cloneDateStart.year &&
+                    ex.month == cloneDateStart.month &&
+                    ex.day == cloneDateStart.day,
+              ) ??
+              false;
           if (isExcluded) continue;
 
           if (item is Event) {
             final duration = item.to.difference(item.from);
             clones.add(
               Event(
-                id: 'short_occ_${item.id}_${y}_${m}',
+                id: 'short_occ_${item.id}_${y}_$m',
                 title: item.title,
                 description: item.description,
                 from: cloneDateStart,
@@ -408,7 +430,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 : const Duration(hours: 1);
             clones.add(
               TaskItem(
-                id: 'short_occ_${item.id}_${y}_${m}',
+                id: 'short_occ_${item.id}_${y}_$m',
                 title: item.title,
                 details: item.details,
                 isCompleted: item.isCompleted,
@@ -669,12 +691,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     // Inject short month clones
     final events = appState.filteredEvents;
-    final tasksList = appState.filteredTasks.where((t) => t.from != null).toList();
+    final tasksList = appState.filteredTasks
+        .where((t) => t.from != null)
+        .toList();
     final clones = _getShortMonthClones(events, tasksList);
     for (var c in clones) {
       if (c.isAllDay) {
         final fromDate = c.from;
-        if (DateTime(fromDate.year, fromDate.month, fromDate.day) == normalizedDate) {
+        if (DateTime(fromDate.year, fromDate.month, fromDate.day) ==
+            normalizedDate) {
           result.add(c);
         }
       }
@@ -2893,7 +2918,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
             final DayNote? dayNote = noteIndex != -1
                 ? appState.dayNotes[noteIndex]
                 : null;
-            final hasNote = dayNote != null &&
+            final hasNote =
+                dayNote != null &&
                 (dayNote.note.trim().isNotEmpty ||
                     dayNote.rating != null ||
                     dayNote.emoji != null);
@@ -2927,8 +2953,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ? CrossAxisAlignment.center
                         : CrossAxisAlignment.start,
                     children: [
-                      if (hasNote && dayNote.emoji != null && dayNote.emoji!.trim().isNotEmpty)
-                        Text(dayNote.emoji!, style: TextStyle(fontSize: isWeek ? 12 : 16))
+                      if (hasNote &&
+                          dayNote.emoji != null &&
+                          dayNote.emoji!.trim().isNotEmpty)
+                        Text(
+                          dayNote.emoji!,
+                          style: TextStyle(fontSize: isWeek ? 12 : 16),
+                        )
                       else
                         Icon(
                           hasNote ? Icons.note_alt : Icons.edit_note,
@@ -2937,7 +2968,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               ? Colors.amber.shade800
                               : Colors.grey.shade400,
                         ),
-                      if (hasNote && dayNote.rating != null && dayNote.rating! > 0) ...[
+                      if (hasNote &&
+                          dayNote.rating != null &&
+                          dayNote.rating! > 0) ...[
                         const SizedBox(width: 2),
                         Text(
                           '★${dayNote.rating}',
@@ -2948,12 +2981,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           ),
                         ),
                       ],
-                      if (hasNote && !isWeek && dayNote.note.trim().isNotEmpty) ...[
+                      if (hasNote &&
+                          !isWeek &&
+                          dayNote.note.trim().isNotEmpty) ...[
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             dayNote.note,
-                            maxLines: MediaQuery.of(context).size.width < 600 ? 1 : 2,
+                            maxLines: MediaQuery.of(context).size.width < 600
+                                ? 1
+                                : 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 13,
@@ -3894,6 +3931,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
           tag = 'Performans Logu';
         }
 
+        String dateInfo = '';
+        if (item is Event) {
+          final startStr = "${item.from.day}/${item.from.month}/${item.from.year}${item.isAllDay ? '' : ' ' + item.from.hour.toString().padLeft(2, '0') + ':' + item.from.minute.toString().padLeft(2, '0')}";
+          final endStr = "${item.to.day}/${item.to.month}/${item.to.year}${item.isAllDay ? '' : ' ' + item.to.hour.toString().padLeft(2, '0') + ':' + item.to.minute.toString().padLeft(2, '0')}";
+          dateInfo = item.isAllDay ? "Tüm Gün: ${item.from.day}/${item.from.month}/${item.from.year}" : "$startStr - $endStr";
+        } else if (item is TaskItem && item.from != null) {
+          final toDate = item.to ?? item.from!;
+          final startStr = "${item.from!.day}/${item.from!.month}/${item.from!.year}${item.isAllDay ? '' : ' ' + item.from!.hour.toString().padLeft(2, '0') + ':' + item.from!.minute.toString().padLeft(2, '0')}";
+          final endStr = "${toDate.day}/${toDate.month}/${toDate.year}${item.isAllDay ? '' : ' ' + toDate.hour.toString().padLeft(2, '0') + ':' + toDate.minute.toString().padLeft(2, '0')}";
+          dateInfo = item.isAllDay ? "Tüm Gün: ${item.from!.day}/${item.from!.month}/${item.from!.year}" : "$startStr - $endStr";
+        }
+
         return AlertDialog(
           title: Text(title),
           content: Column(
@@ -3908,6 +3957,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   item.note != null &&
                   item.note!.isNotEmpty)
                 Text('Detay/Not: ${item.note}'),
+              if (dateInfo.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time_outlined, size: 14, color: Colors.blueGrey),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        dateInfo,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.blueGrey),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 8),
               Text('Etiket: $tag'),
               if (linkedProject != null) ...[
@@ -4035,7 +4099,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ],
           ),
           actions: [
-            if (item is TaskItem)
+            if (item is TaskItem) ...[
+              TextButton(
+                onPressed: () {
+                  String toggleId = item.id;
+                  final hasRecurrence =
+                      item.recurrenceRule != null &&
+                      item.recurrenceRule!.isNotEmpty;
+                  if (hasRecurrence && tappedDate != null) {
+                    toggleId =
+                        'occ_${item.id}_${tappedDate.millisecondsSinceEpoch}';
+                  }
+                  appState.toggleTaskInProgress(toggleId);
+                  Navigator.pop(context);
+                },
+                child: Text(
+                  item.isInProgress ? 'Yapılmıyor Yap' : 'Yapılıyor Yap',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: item.isInProgress ? Colors.blueGrey : Colors.amber.shade700,
+                  ),
+                ),
+              ),
               TextButton(
                 onPressed: () {
                   String toggleId = item.id;
@@ -4054,6 +4139,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
+            ],
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -4500,7 +4586,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   );
                 },
               ),
-              if (isDelete)
+              if (isDelete && isTask)
                 ListTile(
                   title: Text(
                     isTask
@@ -4514,14 +4600,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       listen: false,
                     );
                     if (isTask) {
+                      final deletedTasks = appState.tasks
+                          .where((t) => t.seriesId == item.seriesId && t.isCompleted)
+                          .toList();
                       appState.deleteCompletedTasksInSeries(item.seriesId);
+                      _showUndoSnackBar(
+                        'Serideki tamamlanmış kopyalar silindi',
+                        () {
+                          for (var t in deletedTasks) {
+                            appState.addTask(t);
+                          }
+                        },
+                      );
                     } else {
+                      final deletedEvents = appState.events
+                          .where((e) => e.seriesId == item.seriesId)
+                          .toList();
                       appState.deleteEventSeries(item.seriesId);
+                      _showUndoSnackBar(
+                        'Serideki tüm kopyalar silindi',
+                        () {
+                          for (var e in deletedEvents) {
+                            appState.addEvent(e);
+                          }
+                        },
+                      );
                     }
-                    _showUndoSnackBar(
-                      'Serideki tamamlanmış kopyalar silindi',
-                      null,
-                    );
                   },
                 ),
               ListTile(
@@ -4582,14 +4686,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
         if (item is Event) {
           final deleted = item;
           if (item.seriesId != null) {
+            final deletedEvents = appState.events
+                .where((e) => e.seriesId == item.seriesId)
+                .toList();
             appState.deleteEventSeries(item.seriesId!);
+            _showUndoSnackBar('"${deleted.title}" tüm serisi silindi', () {
+              for (var e in deletedEvents) {
+                appState.addEvent(e);
+              }
+            });
           }
-          _showUndoSnackBar('"${deleted.title}" tüm serisi silindi', null);
         }
         if (item is TaskItem) {
           final deleted = item;
-          appState.deleteTaskSeries(item.seriesId!);
-          _showUndoSnackBar('"${deleted.title}" tüm serisi silindi', null);
+          final deletedTasks = appState.tasks
+              .where((t) => t.seriesId == item.seriesId)
+              .toList();
+          appState.deleteTaskSeries(item.seriesId);
+          _showUndoSnackBar('"${deleted.title}" tüm serisi silindi', () {
+            for (var t in deletedTasks) {
+              appState.addTask(t);
+            }
+          });
         }
       } else {
         if (item is Event) {

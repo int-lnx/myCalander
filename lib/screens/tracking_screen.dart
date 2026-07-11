@@ -739,6 +739,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     showDialog(
       context: context,
       builder: (context) {
+        DateTime selectedDate = normalizedDate;
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
@@ -747,9 +748,38 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      '${normalizedDate.day}/${normalizedDate.month}/${normalizedDate.year} tarihli oturum',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            selectedDate = DateTime(picked.year, picked.month, picked.day);
+                          });
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.calendar_month, size: 16, color: Colors.blue),
+                            const SizedBox(width: 6),
+                            Text(
+                              "${selectedDate.day}/${selectedDate.month}/${selectedDate.year} tarihli oturum",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     SwitchListTile(
@@ -858,15 +888,26 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       finalScore = skipCount.toDouble();
                     }
 
+                    // If date changed, delete the old evaluation
+                    if (existingEval.id.isNotEmpty &&
+                        (selectedDate.year != normalizedDate.year ||
+                         selectedDate.month != normalizedDate.month ||
+                         selectedDate.day != normalizedDate.day)) {
+                      appState.deleteEvaluation(project.id, normalizedDate);
+                    }
+
                     final eval = ProjectEvaluation(
-                      id: existingEval.id.isNotEmpty
+                      id: existingEval.id.isNotEmpty &&
+                          (selectedDate.year == normalizedDate.year &&
+                           selectedDate.month == normalizedDate.month &&
+                           selectedDate.day == normalizedDate.day)
                           ? existingEval.id
                           : IdGenerator.generate(
-                              'degerlendirme_${project.title}',
-                              date: normalizedDate,
+                              "degerlendirme_${project.title}",
+                              date: selectedDate,
                             ),
                       projectId: project.id,
-                      sessionDate: normalizedDate,
+                      sessionDate: selectedDate,
                       score: isSkipped ? finalScore : score,
                       isSkipped: isSkipped,
                       durationHours: isSkipped ? 0.0 : duration,

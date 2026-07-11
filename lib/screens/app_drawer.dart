@@ -253,16 +253,60 @@ class _AppDrawerState extends State<AppDrawer> {
                       title: Text(sub, style: const TextStyle(fontSize: 12)),
                       dense: true,
                       visualDensity: VisualDensity.compact,
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red, size: 16),
-                        onPressed: () {
-                          if (isEvent) {
-                            appState.deleteEventSubTag(currentCat, sub);
-                          } else {
-                            appState.deleteTaskSubTag(currentCat, sub);
-                          }
-                          setDialogState(() {});
-                        },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blue, size: 16),
+                            onPressed: () {
+                              final editCtrl = TextEditingController(text: sub);
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Alt Kategoriyi Yeniden Adlandır'),
+                                  content: TextField(
+                                    controller: editCtrl,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Yeni ad',
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: const Text('İptal'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        final newName = editCtrl.text.trim();
+                                        if (newName.isNotEmpty) {
+                                          if (isEvent) {
+                                            appState.renameEventSubTag(currentCat, sub, newName);
+                                          } else {
+                                            appState.renameTaskSubTag(currentCat, sub, newName);
+                                          }
+                                        }
+                                        Navigator.pop(ctx);
+                                        setDialogState(() {});
+                                      },
+                                      child: const Text('Kaydet'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red, size: 16),
+                            onPressed: () {
+                              if (isEvent) {
+                                appState.deleteEventSubTag(currentCat, sub);
+                              } else {
+                                appState.deleteTaskSubTag(currentCat, sub);
+                              }
+                              setDialogState(() {});
+                            },
+                          ),
+                        ],
                       ),
                     );
                   }),
@@ -964,8 +1008,8 @@ class _AppDrawerState extends State<AppDrawer> {
           backgroundColor: Colors.transparent,
           elevation: 8,
           child: Container(
-            width: 320,
-            height: 320,
+            width: 480,
+            height: 480,
             decoration: BoxDecoration(
               color: const Color(0xFFFFFDE7), // Light yellow sticky note color
               borderRadius: BorderRadius.circular(12),

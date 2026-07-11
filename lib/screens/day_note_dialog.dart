@@ -25,7 +25,8 @@ class DayNoteDialog extends StatefulWidget {
           n.date.month == normalizedDate.month &&
           n.date.day == normalizedDate.day,
     );
-    final hasNote = idx != -1 &&
+    final hasNote =
+        idx != -1 &&
         (notes[idx].note.trim().isNotEmpty ||
             notes[idx].rating != null ||
             notes[idx].emoji != null);
@@ -44,11 +45,8 @@ class DayNoteDialog extends StatefulWidget {
   static void showEdit(BuildContext context, AppState appState, DateTime date) {
     showDialog(
       context: context,
-      builder: (context) => DayNoteDialog(
-        appState: appState,
-        date: date,
-        editMode: true,
-      ),
+      builder: (context) =>
+          DayNoteDialog(appState: appState, date: date, editMode: true),
     );
   }
 
@@ -63,6 +61,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
   late bool _isEditMode;
   int? _rating;
   String? _emoji;
+  bool _showEmojiPicker = false;
 
   @override
   void initState() {
@@ -102,13 +101,16 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
     final isDark = widget.appState.isDarkMode;
 
     // Filter project evaluations for this day
-    final projectEvals = widget.appState.evaluations.where((e) =>
-        e.sessionDate.year == _normalizedDate.year &&
-        e.sessionDate.month == _normalizedDate.month &&
-        e.sessionDate.day == _normalizedDate.day &&
-        e.note != null &&
-        e.note!.trim().isNotEmpty
-    ).toList();
+    final projectEvals = widget.appState.evaluations
+        .where(
+          (e) =>
+              e.sessionDate.year == _normalizedDate.year &&
+              e.sessionDate.month == _normalizedDate.month &&
+              e.sessionDate.day == _normalizedDate.day &&
+              e.note != null &&
+              e.note!.trim().isNotEmpty,
+        )
+        .toList();
 
     return AlertDialog(
       title: Row(
@@ -125,21 +127,19 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
         ],
       ),
       content: SizedBox(
-        width: 380,
+        width: 450,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Emoji and Rating Display
-              if ((_emoji != null && _emoji!.isNotEmpty) || (_rating != null && _rating! > 0)) ...[
+              if ((_emoji != null && _emoji!.isNotEmpty) ||
+                  (_rating != null && _rating! > 0)) ...[
                 Row(
                   children: [
                     if (_emoji != null && _emoji!.isNotEmpty) ...[
-                      Text(
-                        _emoji!,
-                        style: const TextStyle(fontSize: 28),
-                      ),
+                      Text(_emoji!, style: const TextStyle(fontSize: 28)),
                       const SizedBox(width: 12),
                     ],
                     if (_rating != null && _rating! > 0) ...[
@@ -169,7 +169,8 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               ],
 
               // Daily Note Text
-              if (_existingNote?.note != null && _existingNote!.note.trim().isNotEmpty) ...[
+              if (_existingNote?.note != null &&
+                  _existingNote!.note.trim().isNotEmpty) ...[
                 Text(
                   _existingNote!.note,
                   style: const TextStyle(fontSize: 15, height: 1.6),
@@ -188,7 +189,11 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.rocket_launch, size: 18, color: Colors.purple),
+                  const Icon(
+                    Icons.rocket_launch,
+                    size: 18,
+                    color: Colors.purple,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Bugünün Proje Notları',
@@ -204,15 +209,22 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               if (projectEvals.isEmpty)
                 Text(
                   'Bugün için girilmiş proje notu bulunmuyor.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontStyle: FontStyle.italic,
+                  ),
                 )
               else
                 ...projectEvals.map((eval) {
                   final project = widget.appState.projects.firstWhere(
                     (p) => p.id == eval.projectId,
                     orElse: () => const Project(
-                      id: '', title: 'Bilinmeyen Proje', colorValue: 0xFF9E9E9E,
-                      evaluationType: 'PERCENTAGE', targetValue: 100.0,
+                      id: '',
+                      title: 'Bilinmeyen Proje',
+                      colorValue: 0xFF9E9E9E,
+                      evaluationType: 'PERCENTAGE',
+                      targetValue: 100.0,
                     ),
                   );
                   return Container(
@@ -220,9 +232,16 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.purple.shade50.withValues(alpha: isDark ? 0.1 : 0.3),
+                      color: Colors.purple.shade50.withValues(
+                        alpha: isDark ? 0.1 : 0.3,
+                      ),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: isDark ? Colors.purple.shade900 : Colors.purple.shade100, width: 0.5),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.purple.shade900
+                            : Colors.purple.shade100,
+                        width: 0.5,
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,12 +270,14 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                               eval.isSkipped
                                   ? 'Pas'
                                   : (project.evaluationType == 'PERCENTAGE'
-                                      ? '%${eval.score.toStringAsFixed(0)}'
-                                      : '${eval.score.toStringAsFixed(0)} Puan'),
+                                        ? '%${eval.score.toStringAsFixed(0)}'
+                                        : '${eval.score.toStringAsFixed(0)} Puan'),
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: eval.isSkipped ? Colors.red : Colors.green.shade700,
+                                color: eval.isSkipped
+                                    ? Colors.red
+                                    : Colors.green.shade700,
                               ),
                             ),
                           ],
@@ -265,7 +286,10 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                           const SizedBox(height: 4),
                           Text(
                             'Süre: ${eval.durationHours.toStringAsFixed(1)} saat',
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
                         ],
                         const SizedBox(height: 6),
@@ -276,7 +300,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                       ],
                     ),
                   );
-                }).toList(),
+                }),
             ],
           ),
         ),
@@ -307,13 +331,12 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                     action: SnackBarAction(
                       label: 'Geri Al',
                       textColor: Colors.amber,
-                      onPressed: () =>
-                          widget.appState.addOrUpdateDayNote(
-                            _normalizedDate,
-                            backupText,
-                            rating: backupRating,
-                            emoji: backupEmoji,
-                          ),
+                      onPressed: () => widget.appState.addOrUpdateDayNote(
+                        _normalizedDate,
+                        backupText,
+                        rating: backupRating,
+                        emoji: backupEmoji,
+                      ),
                     ),
                   ),
                 );
@@ -345,7 +368,10 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                 children: [
                   Icon(Icons.edit, size: 14),
                   SizedBox(width: 4),
-                  Text('Düzenle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  Text(
+                    'Düzenle',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
@@ -357,7 +383,8 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
 
   // ─── Düzenleme görünümü ───────────────────────────────────────────────────
   Widget _buildEditView() {
-    final hasNote = _existingNote != null &&
+    final hasNote =
+        _existingNote != null &&
         (_existingNote!.note.trim().isNotEmpty ||
             _existingNote!.rating != null ||
             _existingNote!.emoji != null);
@@ -377,99 +404,194 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
         ],
       ),
       content: SizedBox(
-        width: 340,
+        width: 450,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Emoji Selector
-              const Text(
-                'Bugünün Duygusu / Emoji:',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              // Emoji Selector & Rating Selector Side-by-Side
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ...['😊', '😐', '😢', '😡', '🎉', '💪', '🔥', '😴', '🥳', '😭', '❤️', '🌟', '🎯', '💼', '🏠', '✈️'].map((emo) {
-                    final isSelected = _emoji == emo;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _emoji = isSelected ? null : emo;
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: isSelected ? Colors.amber.shade100 : Colors.transparent,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? Colors.amber : Colors.transparent,
-                            width: 1.5,
+                  // Emoji Selector (Left)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Bugünün Duygusu:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _showEmojiPicker = !_showEmojiPicker;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(_emoji ?? '😊', style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 4),
+                              Icon(
+                                _showEmojiPicker ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                                size: 18,
+                                color: Colors.grey.shade600,
+                              ),
+                            ],
                           ),
                         ),
-                        child: Text(
-                          emo,
-                          style: const TextStyle(fontSize: 20),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 24),
+                  // Rating Selector (Right)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Günün Puanı:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey,
+                          ),
                         ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Rating Selector (1-5 stars)
-              const Text(
-                'Günün Puanı:',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  ...List.generate(5, (index) {
-                    final starVal = index + 1;
-                    final isSelected = _rating != null && _rating! >= starVal;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _rating = (_rating == starVal) ? null : starVal;
-                        });
-                      },
-                      child: Icon(
-                        isSelected ? Icons.star : Icons.star_border,
-                        color: Colors.amber,
-                        size: 32,
-                      ),
-                    );
-                  }),
-                  if (_rating != null) ...[
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.clear, size: 18, color: Colors.red),
-                      onPressed: () {
-                        setState(() {
-                          _rating = null;
-                        });
-                      },
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            ...List.generate(5, (index) {
+                              final starVal = index + 1;
+                              final isSelected = _rating != null && _rating! >= starVal;
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _rating = (_rating == starVal) ? null : starVal;
+                                  });
+                                },
+                                child: Icon(
+                                  isSelected ? Icons.star : Icons.star_border,
+                                  color: Colors.amber,
+                                  size: 28,
+                                ),
+                              );
+                            }),
+                            if (_rating != null) ...[
+                              const SizedBox(width: 4),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _rating = null;
+                                  });
+                                },
+                                child: const Icon(
+                                  Icons.clear,
+                                  size: 18,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+
+              // Collapsible Emoji Selector List
+              if (_showEmojiPicker) ...[
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50.withValues(
+                      alpha: widget.appState.isDarkMode ? 0.15 : 0.95,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...[
+                        '😊',
+                        '😐',
+                        '😢',
+                        '😡',
+                        '🎉',
+                        '💪',
+                        '🔥',
+                        '😴',
+                        '🥳',
+                        '😭',
+                        '❤️',
+                        '🌟',
+                        '🎯',
+                        '💼',
+                        '🏠',
+                        '✈️',
+                      ].map((emo) {
+                        final isSelected = _emoji == emo;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _emoji = isSelected ? null : emo;
+                              _showEmojiPicker = false; // Selection closes picker
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.amber.shade100
+                                  : Colors.transparent,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.amber
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(emo, style: const TextStyle(fontSize: 20)),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
 
               // Note Text
               const Text(
                 'Günlük Not:',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
+                ),
               ),
               const SizedBox(height: 6),
               TextField(
                 controller: _controller,
-                maxLines: 4,
+                minLines: 8,
+                maxLines: 15,
                 decoration: const InputDecoration(
                   hintText: 'Bugün için notlarınızı buraya yazın...',
                   border: OutlineInputBorder(),
