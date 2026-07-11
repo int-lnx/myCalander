@@ -2080,9 +2080,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               from != null &&
                               to != null) {
                             final bounds = calendarAppointmentDetails.bounds;
-                            final double screenWidth = MediaQuery.of(
-                              context,
-                            ).size.width;
+                            final double calendarWidth = constraints.maxWidth;
                             final int numDays =
                                 appState.calendarView == CalendarView.week
                                 ? 7
@@ -2092,7 +2090,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             // Compute exact day-column width — do NOT subtract scrollbar here;
                             // doing so breaks N and slotIndexSf calculations.
                             final double columnWidth =
-                                (screenWidth - timeRulerWidth) / numDays;
+                                (calendarWidth - timeRulerWidth) / numDays;
 
                             // Find N (overlap count) exactly
                             int N = (columnWidth / bounds.width).round();
