@@ -182,7 +182,7 @@ class TaskItem {
       seriesId: json['seriesId'],
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
-          : (json['from'] != null ? DateTime.parse(json['from'] as String) : DateTime.now()),
+          : DateTime(2020, 1, 1),
     );
   }
 }

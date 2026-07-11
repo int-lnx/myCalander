@@ -163,7 +163,7 @@ class Event {
       seriesId: json['seriesId'] as String? ?? json['id'] as String?,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
-          : (json['from'] != null ? DateTime.parse(json['from'] as String) : DateTime.now()),
+          : DateTime(2020, 1, 1),
     );
   }
 }
