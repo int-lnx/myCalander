@@ -679,12 +679,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
     }
 
-    // Sort tasks chronologically by 'from' date
+    // Sort tasks chronologically by 'from' date, fallback to createdAt descending
     dayTasks.sort((a, b) {
-      if (a.from == null && b.from == null) return 0;
+      if (a.from == null && b.from == null) return b.createdAt.compareTo(a.createdAt);
       if (a.from == null) return 1;
       if (b.from == null) return -1;
-      return a.from!.compareTo(b.from!);
+      final dateCompare = a.from!.compareTo(b.from!);
+      if (dateCompare == 0) {
+        return b.createdAt.compareTo(a.createdAt);
+      }
+      return dateCompare;
     });
 
     result.addAll(dayTasks);
@@ -705,7 +709,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
     }
 
-    // Sort all items: first priority is high importance (importance == 2)
+    // Sort all items: first priority is high importance (importance == 2),
+    // then chronological order, then creation date descending
     result.sort((a, b) {
       int importanceA = 0;
       if (a is Event) importanceA = a.importance;
@@ -720,7 +725,37 @@ class _CalendarScreenState extends State<CalendarScreen> {
         return importanceB.compareTo(importanceA);
       }
 
-      // If importance is same, keep chronological or original order
+      // Chronological sort
+      DateTime? fromA;
+      if (a is Event) fromA = a.from;
+      if (a is TaskItem) fromA = a.from;
+
+      DateTime? fromB;
+      if (b is Event) fromB = b.from;
+      if (b is TaskItem) fromB = b.from;
+
+      if (fromA != null && fromB != null) {
+        final dateCompare = fromA.compareTo(fromB);
+        if (dateCompare != 0) return dateCompare;
+      } else if (fromA == null && fromB != null) {
+        return 1;
+      } else if (fromB == null && fromA != null) {
+        return -1;
+      }
+
+      // Fallback: creation date descending (newest first)
+      DateTime? createdA;
+      if (a is Event) createdA = a.createdAt;
+      if (a is TaskItem) createdA = a.createdAt;
+
+      DateTime? createdB;
+      if (b is Event) createdB = b.createdAt;
+      if (b is TaskItem) createdB = b.createdAt;
+
+      if (createdA != null && createdB != null) {
+        return createdB.compareTo(createdA);
+      }
+
       return 0;
     });
 

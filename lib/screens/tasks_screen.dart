@@ -346,11 +346,36 @@ class _TasksScreenState extends State<TasksScreen> {
       groups.putIfAbsent(sub, () => []).add(task);
     }
 
-    // Her grupta tamamlananları en alta taşı
+    // Her grupta tamamlananları en alta taşı ve sıralamayı koru/uygula
     groups.forEach((key, list) {
       list.sort((a, b) {
-        if (a.isCompleted == b.isCompleted) return 0;
-        return a.isCompleted ? 1 : -1;
+        if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+        // if completion status is the same, use the selected sortMode
+        if (_sortMode == 'DATE') {
+          if (a.from == null && b.from == null) return b.createdAt.compareTo(a.createdAt);
+          if (a.from == null) return 1;
+          if (b.from == null) return -1;
+          final dateCompare = a.from!.compareTo(b.from!);
+          if (dateCompare == 0) return b.createdAt.compareTo(a.createdAt);
+          return dateCompare;
+        } else if (_sortMode == 'IMPORTANCE') {
+          final impCompare = b.importance.compareTo(a.importance);
+          if (impCompare == 0) return b.createdAt.compareTo(a.createdAt);
+          return impCompare;
+        } else if (_sortMode == 'CREATED_DATE') {
+          return b.createdAt.compareTo(a.createdAt);
+        } else {
+          // CUSTOM
+          final orderMap = {
+            for (var i = 0; i < appState.customTaskOrder.length; i++)
+              appState.customTaskOrder[i]: i
+          };
+          final indexA = orderMap[a.id] ?? 999999;
+          final indexB = orderMap[b.id] ?? 999999;
+          final customCompare = indexA.compareTo(indexB);
+          if (customCompare == 0) return b.createdAt.compareTo(a.createdAt);
+          return customCompare;
+        }
       });
     });
 
@@ -566,15 +591,19 @@ class _TasksScreenState extends State<TasksScreen> {
     if (_sortMode == 'DATE') {
       displayedTasks.sort((a, b) {
         if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
-        if (a.from == null && b.from == null) return 0;
+        if (a.from == null && b.from == null) return b.createdAt.compareTo(a.createdAt);
         if (a.from == null) return 1;
         if (b.from == null) return -1;
-        return a.from!.compareTo(b.from!);
+        final dateCompare = a.from!.compareTo(b.from!);
+        if (dateCompare == 0) return b.createdAt.compareTo(a.createdAt);
+        return dateCompare;
       });
     } else if (_sortMode == 'IMPORTANCE') {
       displayedTasks.sort((a, b) {
         if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
-        return b.importance.compareTo(a.importance);
+        final impCompare = b.importance.compareTo(a.importance);
+        if (impCompare == 0) return b.createdAt.compareTo(a.createdAt);
+        return impCompare;
       });
     } else if (_sortMode == 'CREATED_DATE') {
       displayedTasks.sort((a, b) {
@@ -591,7 +620,9 @@ class _TasksScreenState extends State<TasksScreen> {
         if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
         final indexA = orderMap[a.id] ?? 999999;
         final indexB = orderMap[b.id] ?? 999999;
-        return indexA.compareTo(indexB);
+        final customCompare = indexA.compareTo(indexB);
+        if (customCompare == 0) return b.createdAt.compareTo(a.createdAt);
+        return customCompare;
       });
     }
 
