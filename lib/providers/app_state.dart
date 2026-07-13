@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.04';
+  static const String appVersion = '2.05';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -3382,6 +3382,16 @@ class AppState extends ChangeNotifier {
     _saveCategories();
   }
 
+  void reorderEventCategories(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final String item = _eventTags.removeAt(oldIndex);
+    _eventTags.insert(newIndex, item);
+    notifyListeners();
+    _saveCategories();
+  }
+
   void addEventSubTag(String tag, String subTag) {
     if (_eventSubTags.containsKey(tag)) {
       if (!_eventSubTags[tag]!.contains(subTag)) {
@@ -3419,6 +3429,16 @@ class AppState extends ChangeNotifier {
     _taskTags.remove(category);
     _selectedTaskTags.remove(category);
     _taskSubTags.remove(category);
+    notifyListeners();
+    _saveCategories();
+  }
+
+  void reorderTaskCategories(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final String item = _taskTags.removeAt(oldIndex);
+    _taskTags.insert(newIndex, item);
     notifyListeners();
     _saveCategories();
   }

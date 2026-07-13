@@ -95,8 +95,16 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   const SizedBox(height: 12),
                   Expanded(
-                    child: ListView.builder(
+                    child: ReorderableListView.builder(
                       itemCount: categories.length,
+                      onReorder: (oldIndex, newIndex) {
+                        if (isEvent) {
+                          appState.reorderEventCategories(oldIndex, newIndex);
+                        } else {
+                          appState.reorderTaskCategories(oldIndex, newIndex);
+                        }
+                        setDialogState(() {});
+                      },
                       itemBuilder: (context, idx) {
                         final cat = categories[idx];
                         final catColor = isEvent
@@ -104,9 +112,17 @@ class _AppDrawerState extends State<AppDrawer> {
                             : (appState.getTaskTagColor(cat) ?? 0xFF2196F3);
 
                         return ListTile(
-                          leading: CircleAvatar(
-                            radius: 8,
-                            backgroundColor: Color(catColor),
+                          key: ValueKey(cat),
+                          leading: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.drag_handle, size: 20, color: Colors.grey),
+                              const SizedBox(width: 8),
+                              CircleAvatar(
+                                radius: 8,
+                                backgroundColor: Color(catColor),
+                              ),
+                            ],
                           ),
                           title: Text(cat),
                           dense: true,
