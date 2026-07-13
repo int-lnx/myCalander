@@ -3350,6 +3350,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     
     final hasEmoji = dayNote != null && dayNote.emoji != null && dayNote.emoji!.trim().isNotEmpty;
     final hasRating = dayNote != null && dayNote.rating != null && dayNote.rating! > 0;
+    final hasNote = dayNote != null &&
+        (dayNote.note.trim().isNotEmpty ||
+            hasEmoji ||
+            hasRating);
     
     final daysOfWeekTr = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     final String dayLetter = daysOfWeekTr[date.weekday - 1][0];
@@ -3364,7 +3368,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         height: 55.0,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          color: hasNote
+              ? (isDark ? Colors.amber.shade900.withValues(alpha: 0.15) : Colors.amber.shade50.withValues(alpha: 0.5))
+              : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
           border: Border(
             bottom: BorderSide(
               color: isDark ? Colors.white12 : Colors.grey.shade300,
@@ -3377,16 +3383,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (hasEmoji)
-              Padding(
-                padding: const EdgeInsets.only(right: 4.0),
-                child: Text(
-                  dayNote.emoji!,
-                  style: const TextStyle(fontSize: 12),
-                ),
+            Expanded(
+              child: Align(
+                alignment: Alignment.center,
+                child: hasEmoji
+                    ? Text(
+                        dayNote.emoji!,
+                        style: const TextStyle(fontSize: 12),
+                      )
+                    : const SizedBox.shrink(),
               ),
+            ),
             Text(
               dayLetter,
               style: TextStyle(
@@ -3395,18 +3403,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 color: isDark ? Colors.white70 : Colors.black87,
               ),
             ),
-            if (hasRating)
-              Padding(
-                padding: const EdgeInsets.only(left: 4.0),
-                child: Text(
-                  '★${dayNote.rating}',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.amber.shade800,
-                  ),
-                ),
+            Expanded(
+              child: Align(
+                alignment: Alignment.center,
+                child: hasRating
+                    ? Text(
+                        '★${dayNote.rating}',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber.shade800,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
+            ),
           ],
         ),
       ),
