@@ -72,6 +72,7 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   late EventDataSource _dataSource;
   List<DateTime> _visibleDates = [];
+  bool _showWeekStrips = false;
 
   final Map<int, Offset> _activePointers = {};
   double _baseTimeIntervalHeight = 60.0;
@@ -3312,6 +3313,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         },
                       ),
                     ),
+                    if (_showWeekStrips)
+                      _buildWeekStripsPanel(context, appState, constraints),
                   ],
                 ),
               ),
@@ -3378,7 +3381,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 color: appState.isDarkMode ? Colors.white60 : Colors.black54,
               ),
               onPressed: () {
-                _showWeekStripsPopup(context, appState, dates);
+                setState(() {
+                  _showWeekStrips = !_showWeekStrips;
+                });
               },
               tooltip: 'Haftalık Şeritler',
             ),
@@ -3482,176 +3487,201 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
               ),
             );
-          }),
+          }).toList(),
         ],
       ),
     );
   }
 
-  void _showWeekStripsPopup(BuildContext context, AppState appState, List<DateTime> visibleDates) {
-    if (visibleDates.isEmpty) return;
+  Widget _buildWeekStripsPanel(BuildContext context, AppState appState, BoxConstraints constraints) {
+    final isWeek = appState.calendarView == CalendarView.week;
+    if (!isWeek || _visibleDates.isEmpty) return const SizedBox.shrink();
     
     // Find all active strips for the week
     final allStrips = _getActiveStrips(appState);
-    final weekStart = DateTime(visibleDates.first.year, visibleDates.first.month, visibleDates.first.day);
-    final weekEnd = DateTime(visibleDates.last.year, visibleDates.last.month, visibleDates.last.day).add(const Duration(days: 1));
+    final weekStart = DateTime(_visibleDates.first.year, _visibleDates.first.month, _visibleDates.first.day);
+    final weekEnd = DateTime(_visibleDates.last.year, _visibleDates.last.month, _visibleDates.last.day).add(const Duration(days: 1));
     
     final weekStrips = allStrips.where((s) {
       return s.startDate.isBefore(weekEnd) && s.endDate.isAfter(weekStart);
     }).toList();
     
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent, // transparent background
-      builder: (BuildContext context) {
-        final isDark = appState.isDarkMode;
-        return Stack(
-          children: [
-            Positioned(
-              left: 45,
-              bottom: 45,
-              child: Material(
-                type: MaterialType.transparency,
-                child: Container(
-                  width: 280,
-                  constraints: const BoxConstraints(maxHeight: 300),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isDark ? Colors.white10 : Colors.grey.shade300,
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                        offset: const Offset(2, -2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.white10 : Colors.grey.shade100,
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(8),
-                            topRight: Radius.circular(8),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Haftalık Şeritler',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : Colors.black87,
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => Navigator.pop(context),
-                              child: Icon(
-                                Icons.close,
-                                size: 14,
-                                color: isDark ? Colors.white60 : Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (weekStrips.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Text(
-                            'Bu haftaya ait şerit bulunmamaktadır.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: isDark ? Colors.white38 : Colors.grey.shade500,
-                            ),
-                          ),
-                        )
-                      else
-                        Flexible(
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            itemCount: weekStrips.length,
-                            itemBuilder: (context, index) {
-                              final s = weekStrips[index];
-                              final Color color = s.color;
-                              
-                              final fromStr = '${s.startDate.day}/${s.startDate.month} ${s.startDate.hour.toString().padLeft(2, '0')}:${s.startDate.minute.toString().padLeft(2, '0')}';
-                              final toStr = '${s.endDate.day}/${s.endDate.month} ${s.endDate.hour.toString().padLeft(2, '0')}:${s.endDate.minute.toString().padLeft(2, '0')}';
-
-                              return InkWell(
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  if (s.originalItem is Serit) {
-                                    AllTimelineScreen.showSeritFormDialog(
-                                      context,
-                                      appState,
-                                      existingSerit: s.originalItem,
-                                    );
-                                  } else {
-                                    _showItemDetailsDialog(
-                                      context,
-                                      s.originalItem,
-                                      tappedDate: s.startDate,
-                                    );
-                                  }
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: color.withValues(alpha: 0.15),
-                                    border: Border(
-                                      left: BorderSide(color: color, width: 4),
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        s.title,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: isDark ? Colors.white : Colors.black87,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '$fromStr - $toStr',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          color: isDark ? Colors.white60 : Colors.black54,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                    ],
+    if (weekStrips.isEmpty) {
+      return Positioned(
+        bottom: 0,
+        left: 0,
+        right: 0,
+        child: Container(
+          height: 50,
+          color: appState.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: appState.isDarkMode ? Colors.white10 : Colors.grey.shade300)),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 12.0),
+                child: Text(
+                  'Bu haftaya ait şerit bulunmamaktadır.',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: appState.isDarkMode ? Colors.white60 : Colors.black54,
                   ),
                 ),
               ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 14),
+                onPressed: () {
+                  setState(() {
+                    _showWeekStrips = false;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    final stripSlots = _assignStripSlots(weekStrips);
+    int maxSlot = -1;
+    for (var s in weekStrips) {
+      final slot = stripSlots[s.id] ?? 0;
+      if (slot > maxSlot) maxSlot = slot;
+    }
+    
+    final double panelHeight = (maxSlot + 1) * 20.0 + 36.0;
+    final double columnWidth = (constraints.maxWidth - 40.0) / 7;
+    final isDark = appState.isDarkMode;
+    
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: panelHeight,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? Colors.white10 : Colors.grey.shade300,
+              width: 1.0,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 5,
+              offset: const Offset(0, -2),
             ),
           ],
-        );
-      },
+        ),
+        child: Column(
+          children: [
+            Container(
+              height: 24,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              color: isDark ? Colors.white10 : Colors.grey.shade100,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Haftalık Şeritler',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _showWeekStrips = false;
+                      });
+                    },
+                    child: Icon(
+                      Icons.close,
+                      size: 14,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Stack(
+                children: weekStrips.map((s) {
+                  final slot = stripSlots[s.id] ?? 0;
+                  
+                  // Calculate start column
+                  int startCol = 0;
+                  if (s.startDate.isAfter(weekStart)) {
+                    startCol = (s.startDate.weekday - appState.firstDayOfWeek) % 7;
+                  }
+                  
+                  // Calculate end column
+                  int endCol = 6;
+                  if (s.endDate.isBefore(weekEnd)) {
+                    endCol = (s.endDate.weekday - appState.firstDayOfWeek) % 7;
+                  }
+                  
+                  if (startCol < 0) startCol = 0;
+                  if (endCol > 6) endCol = 6;
+                  if (endCol < startCol) endCol = startCol;
+                  
+                  final double left = 40.0 + startCol * columnWidth;
+                  final double width = (endCol - startCol + 1) * columnWidth;
+                  
+                  return Positioned(
+                    left: left,
+                    width: width,
+                    top: slot * 20.0 + 2.0,
+                    height: 16.0,
+                    child: GestureDetector(
+                      onTap: () {
+                        if (s.originalItem is Serit) {
+                          AllTimelineScreen.showSeritFormDialog(
+                            context,
+                            appState,
+                            existingSerit: s.originalItem,
+                          );
+                        } else {
+                          _showItemDetailsDialog(
+                            context,
+                            s.originalItem,
+                            tappedDate: s.startDate,
+                          );
+                        }
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          color: s.color.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: Text(
+                          s.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 9.0,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
