@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.00';
+  static const String appVersion = '2.01';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -2113,10 +2113,12 @@ class AppState extends ChangeNotifier {
   void addOrUpdateDayNote(DateTime date, String noteText, {int? rating, String? emoji}) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final idx = _dayNotes.indexWhere(
-      (n) =>
-          n.date.year == normalizedDate.year &&
-          n.date.month == normalizedDate.month &&
-          n.date.day == normalizedDate.day,
+      (n) {
+        final localDate = n.date.toLocal();
+        return localDate.year == normalizedDate.year &&
+               localDate.month == normalizedDate.month &&
+               localDate.day == normalizedDate.day;
+      },
     );
 
     if (noteText.trim().isEmpty && rating == null && emoji == null) {

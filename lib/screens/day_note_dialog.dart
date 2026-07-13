@@ -75,10 +75,12 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
 
     final notes = widget.appState.dayNotes;
     final idx = notes.indexWhere(
-      (n) =>
-          n.date.year == _normalizedDate.year &&
-          n.date.month == _normalizedDate.month &&
-          n.date.day == _normalizedDate.day,
+      (n) {
+        final localDate = n.date.toLocal();
+        return localDate.year == _normalizedDate.year &&
+               localDate.month == _normalizedDate.month &&
+               localDate.day == _normalizedDate.day;
+      },
     );
 
     _existingNote = idx != -1 ? notes[idx] : null;

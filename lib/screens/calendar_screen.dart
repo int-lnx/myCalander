@@ -2912,11 +2912,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   details.date.day == now.day;
 
                               final hasNote = appState.dayNotes.any(
-                                (n) =>
-                                    n.date.year == details.date.year &&
-                                    n.date.month == details.date.month &&
-                                    n.date.day == details.date.day &&
-                                    n.note.trim().isNotEmpty,
+                                (n) {
+                                  final localDate = n.date.toLocal();
+                                  return localDate.year == details.date.year &&
+                                         localDate.month == details.date.month &&
+                                         localDate.day == details.date.day &&
+                                         n.note.trim().isNotEmpty;
+                                },
                               );
 
                               if (totalItems == 0) {
@@ -3337,10 +3339,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget _buildCustomHeaderCell(DateTime date, AppState appState, bool isWeek, double width) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final noteIndex = appState.dayNotes.indexWhere(
-      (n) =>
-          n.date.year == normalizedDate.year &&
-          n.date.month == normalizedDate.month &&
-          n.date.day == normalizedDate.day,
+      (n) {
+        final localDate = n.date.toLocal();
+        return localDate.year == normalizedDate.year &&
+               localDate.month == normalizedDate.month &&
+               localDate.day == normalizedDate.day;
+      },
     );
     final DayNote? dayNote = noteIndex != -1 ? appState.dayNotes[noteIndex] : null;
     
