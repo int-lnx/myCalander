@@ -1189,7 +1189,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     // 2. Add regular Events > 24 hours
     for (var e in appState.filteredEvents) {
-      if (e.isAllDay) continue;
       if (e.to.difference(e.from).inMinutes > 1440) {
         Color color = Colors.blue;
         if (e.colorValue != 0) {
@@ -1562,6 +1561,45 @@ class _CalendarScreenState extends State<CalendarScreen> {
       finalItems.add(item);
     }
 
+    if (isDayOrWeek) {
+      final allStrips = _getActiveStrips(appState);
+      for (var date in datesToProcess) {
+        final DateTime dateStart = DateTime(date.year, date.month, date.day);
+        final DateTime dateEnd = dateStart.add(const Duration(days: 1));
+        final hasStripOnDay = allStrips.any((s) => s.startDate.isBefore(dateEnd) && s.endDate.isAfter(dateStart));
+        
+        if (hasStripOnDay) {
+          final hasOtherAllDay = finalItems.any((item) {
+            if (item is Event && item.isAllDay && !item.id.startsWith('dummy_')) {
+              final itemStart = DateTime(item.from.year, item.from.month, item.from.day);
+              return itemStart == dateStart;
+            }
+            if (item is TaskItem && item.isAllDay && !item.id.startsWith('dummy_')) {
+              if (item.from != null) {
+                final itemStart = DateTime(item.from!.year, item.from!.month, item.from!.day);
+                return itemStart == dateStart;
+              }
+            }
+            return false;
+          });
+          
+          if (!hasOtherAllDay) {
+            finalItems.add(
+              Event(
+                id: 'dummy_all_day_placeholder_${dateStart.millisecondsSinceEpoch}',
+                title: '',
+                description: '',
+                from: dateStart,
+                to: dateStart.add(const Duration(minutes: 15)),
+                isAllDay: true,
+                colorValue: Colors.transparent.value,
+              ),
+            );
+          }
+        }
+      }
+    }
+
     _dataSource.appState = appState;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1809,6 +1847,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             rawAppointment,
                             appState,
                           );
+                          if (appointment is Event &&
+                              appointment.id.startsWith('dummy_all_day_placeholder_')) {
+                            return const SizedBox.shrink();
+                          }
                           DateTime? occurrenceFrom;
                           if (rawAppointment is Appointment) {
                             occurrenceFrom = rawAppointment.startTime;
@@ -3549,36 +3591,54 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               final fromStr = '${s.startDate.day}/${s.startDate.month} ${s.startDate.hour.toString().padLeft(2, '0')}:${s.startDate.minute.toString().padLeft(2, '0')}';
                               final toStr = '${s.endDate.day}/${s.endDate.month} ${s.endDate.hour.toString().padLeft(2, '0')}:${s.endDate.minute.toString().padLeft(2, '0')}';
 
-                              return Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.15),
-                                  border: Border(
-                                    left: BorderSide(color: color, width: 4),
+                              return InkWell(
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  if (s.originalItem is Serit) {
+                                    AllTimelineScreen.showSeritFormDialog(
+                                      context,
+                                      appState,
+                                      existingSerit: s.originalItem,
+                                    );
+                                  } else {
+                                    _showItemDetailsDialog(
+                                      context,
+                                      s.originalItem,
+                                      tappedDate: s.startDate,
+                                    );
+                                  }
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.15),
+                                    border: Border(
+                                      left: BorderSide(color: color, width: 4),
+                                    ),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      s.title,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: isDark ? Colors.white : Colors.black87,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        s.title,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? Colors.white : Colors.black87,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '$fromStr - $toStr',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: isDark ? Colors.white60 : Colors.black54,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '$fromStr - $toStr',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          color: isDark ? Colors.white60 : Colors.black54,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               );
                             },
