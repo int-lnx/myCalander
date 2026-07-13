@@ -1643,17 +1643,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
               Expanded(
                 child: Stack(
                   children: [
-                    Listener(
-                      onPointerDown: _handlePointerDown,
-                      onPointerMove: _handlePointerMove,
-                      onPointerUp: _handlePointerUp,
-                      onPointerCancel: _handlePointerUp,
-                      child: SfCalendar(
-                        controller: calendarController,
-                        view: appState.calendarView,
-                        firstDayOfWeek: appState.firstDayOfWeek,
-                        headerHeight: 0,
-                        viewHeaderHeight: 55.0,
+                    Padding(
+                      padding: EdgeInsets.only(
+                        top: (appState.calendarView == CalendarView.day ||
+                                appState.calendarView == CalendarView.week)
+                            ? 55.0
+                            : 0.0,
+                      ),
+                      child: Listener(
+                        onPointerDown: _handlePointerDown,
+                        onPointerMove: _handlePointerMove,
+                        onPointerUp: _handlePointerUp,
+                        onPointerCancel: _handlePointerUp,
+                        child: SfCalendar(
+                          controller: calendarController,
+                          view: appState.calendarView,
+                          firstDayOfWeek: appState.firstDayOfWeek,
+                          headerHeight: 0,
+                          viewHeaderHeight: (appState.calendarView == CalendarView.day ||
+                                  appState.calendarView == CalendarView.week)
+                              ? 0.0
+                              : 55.0,
                         showWeekNumber:
                             appState.calendarView == CalendarView.week,
 
@@ -1817,6 +1827,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               details.date != null) {
                             calendarController.displayDate = details.date;
                             appState.setCalendarView(CalendarView.day);
+                          } else if ((appState.calendarView == CalendarView.day ||
+                                  appState.calendarView == CalendarView.week) &&
+                              details.targetElement ==
+                                  CalendarElement.calendarCell &&
+                              details.date != null) {
+                            _showAddSelection(
+                              context,
+                              initialDate: details.date,
+                            );
                           } else if (details.targetElement ==
                               CalendarElement.allDayPanel) {
                             final targetDate =
@@ -3287,6 +3306,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         },
                       ),
                     ),
+                    ),
                      if (appState.calendarView == CalendarView.day ||
                         appState.calendarView == CalendarView.week)
                       Positioned(
@@ -3301,26 +3321,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           },
                         ),
                       ),
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      right: 0,
-                      height: 55.0,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () {
-                          appState.toggleSeritOverlay();
-                        },
-                      ),
-                    ),
+                    _buildCustomHeaderRow(context, appState, constraints),
                     if (_showWeekStrips)
                       _buildWeekStripsPanel(context, appState, constraints),
                   ],
                 ),
               ),
-              if (appState.calendarView == CalendarView.day ||
-                  appState.calendarView == CalendarView.week)
-                _buildBelowHoursNotesArea(context, appState),
             ],
           );
         },
@@ -3328,169 +3334,165 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildBelowHoursNotesArea(BuildContext context, AppState appState) {
-    final double rawScreenWidth = MediaQuery.of(context).size.width;
-    // Sol taraftaki menü (sidebar) geniş ekranlarda 300px yer kaplar
-    final double sidebarWidth = rawScreenWidth >= 1000 ? 300.0 : 0.0;
-    final double screenWidth = rawScreenWidth - sidebarWidth;
-
-    final bool isWeek = appState.calendarView == CalendarView.week;
-
-    // SfCalendar sol saat sütunu genişlikleri
-    final double leftPadding = 40.0;
-
-    final List<DateTime> dates;
-    if (isWeek) {
-      if (_visibleDates.length == 7) {
-        dates = _visibleDates;
-      } else {
-        final displayDate =
-            appState.calendarController.displayDate ?? DateTime.now();
-        final int daysOffset =
-            (displayDate.weekday - appState.firstDayOfWeek) % 7;
-        final DateTime startOfWeek = displayDate.subtract(
-          Duration(days: daysOffset),
-        );
-        dates = List.generate(7, (i) => startOfWeek.add(Duration(days: i)));
-      }
-    } else {
-      dates = [appState.calendarController.displayDate ?? DateTime.now()];
-    }
-
-    return Container(
-      height: isWeek ? 38 : null,
-      padding: isWeek
-          ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade300, width: 1.0),
-          bottom: BorderSide(color: Colors.grey.shade300, width: 1.0),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: leftPadding,
-            alignment: Alignment.center,
-            child: IconButton(
-              icon: Icon(
-                Icons.view_stream,
-                size: 16,
-                color: appState.isDarkMode ? Colors.white60 : Colors.black54,
-              ),
-              onPressed: () {
-                setState(() {
-                  _showWeekStrips = !_showWeekStrips;
-                });
-              },
-              tooltip: 'Haftalık Şeritler',
+  Widget _buildCustomHeaderCell(DateTime date, AppState appState, bool isWeek, double width) {
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    final noteIndex = appState.dayNotes.indexWhere(
+      (n) =>
+          n.date.year == normalizedDate.year &&
+          n.date.month == normalizedDate.month &&
+          n.date.day == normalizedDate.day,
+    );
+    final DayNote? dayNote = noteIndex != -1 ? appState.dayNotes[noteIndex] : null;
+    
+    final hasEmoji = dayNote != null && dayNote.emoji != null && dayNote.emoji!.trim().isNotEmpty;
+    final hasRating = dayNote != null && dayNote.rating != null && dayNote.rating! > 0;
+    
+    final daysOfWeekTr = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    final String dayLetter = daysOfWeekTr[date.weekday - 1][0];
+    final isDark = appState.isDarkMode;
+    
+    return GestureDetector(
+      onTap: () {
+        DayNoteDialog.show(context, appState, normalizedDate);
+      },
+      child: Container(
+        width: width,
+        height: 55.0,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          border: Border(
+            bottom: BorderSide(
+              color: isDark ? Colors.white12 : Colors.grey.shade300,
+              width: 0.5,
+            ),
+            right: BorderSide(
+              color: isDark ? Colors.white12 : Colors.grey.shade300,
+              width: 0.5,
             ),
           ),
-          Container(width: 1, color: Colors.grey.shade300),
-          ...dates.map((date) {
-            final normalizedDate = DateTime(date.year, date.month, date.day);
-            final noteIndex = appState.dayNotes.indexWhere(
-              (n) =>
-                  n.date.year == normalizedDate.year &&
-                  n.date.month == normalizedDate.month &&
-                  n.date.day == normalizedDate.day,
-            );
-            final DayNote? dayNote = noteIndex != -1
-                ? appState.dayNotes[noteIndex]
-                : null;
-            final hasNote =
-                dayNote != null &&
-                (dayNote.note.trim().isNotEmpty ||
-                    dayNote.rating != null ||
-                    dayNote.emoji != null);
-
-            return Expanded(
-              child: InkWell(
-                onTap: () {
-                  DayNoteDialog.show(context, appState, normalizedDate);
-                },
-                child: Container(
-                  alignment: isWeek ? Alignment.center : Alignment.centerLeft,
-                  padding: isWeek
-                      ? EdgeInsets.zero
-                      : const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      right: BorderSide(
-                        color: Colors.grey.shade300,
-                        width: 1.0,
-                      ),
-                    ),
-                    color: hasNote
-                        ? Colors.amber.shade50.withValues(alpha: 0.5)
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: isWeek
-                        ? MainAxisAlignment.center
-                        : MainAxisAlignment.start,
-                    crossAxisAlignment: isWeek
-                        ? CrossAxisAlignment.center
-                        : CrossAxisAlignment.start,
-                    children: [
-                      if (hasNote &&
-                          dayNote.emoji != null &&
-                          dayNote.emoji!.trim().isNotEmpty)
-                        Text(
-                          dayNote.emoji!,
-                          style: TextStyle(fontSize: isWeek ? 12 : 16),
-                        )
-                      else
-                        Icon(
-                          hasNote ? Icons.note_alt : Icons.edit_note,
-                          size: isWeek ? 12 : 16,
-                          color: hasNote
-                              ? Colors.amber.shade800
-                              : Colors.grey.shade400,
-                        ),
-                      if (hasNote &&
-                          dayNote.rating != null &&
-                          dayNote.rating! > 0) ...[
-                        const SizedBox(width: 2),
-                        Text(
-                          '★${dayNote.rating}',
-                          style: TextStyle(
-                            fontSize: isWeek ? 10 : 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.amber.shade900,
-                          ),
-                        ),
-                      ],
-                      if (hasNote &&
-                          !isWeek &&
-                          dayNote.note.trim().isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            dayNote.note,
-                            maxLines: MediaQuery.of(context).size.width < 600
-                                ? 1
-                                : 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade800,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (hasEmoji)
+              Padding(
+                padding: const EdgeInsets.only(right: 4.0),
+                child: Text(
+                  dayNote.emoji!,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            Text(
+              '$dayLetter ${date.day}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
+            ),
+            if (hasRating)
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0),
+                child: Text(
+                  '★${dayNote.rating}',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber.shade800,
                   ),
                 ),
               ),
-            );
-          }).toList(),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildCustomHeaderRow(BuildContext context, AppState appState, BoxConstraints constraints) {
+    final isWeek = appState.calendarView == CalendarView.week;
+    final isDay = appState.calendarView == CalendarView.day;
+    if (!isWeek && !isDay) return const SizedBox.shrink();
+    
+    final double timeRulerWidth = 40.0;
+    
+    if (isWeek) {
+      if (_visibleDates.length < 7) return const SizedBox.shrink();
+      final double cellWidth = (constraints.maxWidth - timeRulerWidth) / 7;
+      
+      return Positioned(
+        left: 0,
+        top: 0,
+        right: 0,
+        height: 55.0,
+        child: Row(
+          children: [
+            Container(
+              width: timeRulerWidth,
+              height: 55.0,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: appState.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                border: Border(
+                  bottom: BorderSide(
+                    color: appState.isDarkMode ? Colors.white12 : Colors.grey.shade300,
+                    width: 0.5,
+                  ),
+                  right: BorderSide(
+                    color: appState.isDarkMode ? Colors.white12 : Colors.grey.shade300,
+                    width: 0.5,
+                  ),
+                ),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  Icons.view_stream,
+                  size: 16,
+                  color: appState.isDarkMode ? Colors.white60 : Colors.black54,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _showWeekStrips = !_showWeekStrips;
+                  });
+                },
+                tooltip: 'Haftalık Şeritler',
+              ),
+            ),
+            ..._visibleDates.map((date) {
+              return _buildCustomHeaderCell(date, appState, true, cellWidth);
+            }),
+          ],
+        ),
+      );
+    } else {
+      final DateTime date = appState.calendarController.displayDate ?? DateTime.now();
+      final double cellWidth = constraints.maxWidth - timeRulerWidth;
+      
+      return Positioned(
+        left: 0,
+        top: 0,
+        right: 0,
+        height: 55.0,
+        child: Row(
+          children: [
+            Container(
+              width: timeRulerWidth,
+              height: 55.0,
+              decoration: BoxDecoration(
+                color: appState.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                border: Border(
+                  bottom: BorderSide(
+                    color: appState.isDarkMode ? Colors.white12 : Colors.grey.shade300,
+                    width: 0.5,
+                  ),
+                ),
+              ),
+            ),
+            _buildCustomHeaderCell(date, appState, false, cellWidth),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildWeekStripsPanel(BuildContext context, AppState appState, BoxConstraints constraints) {
