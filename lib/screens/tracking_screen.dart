@@ -40,6 +40,74 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
   }
 
+  void _showArchivedProjectsDialog(BuildContext context, AppState appState) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final archived = appState.projects.where((p) => p.isArchived).toList();
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.archive_outlined, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('Arşivlenmiş Projeler'),
+                ],
+              ),
+              content: SizedBox(
+                width: 350,
+                height: 400,
+                child: archived.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Arşivlenmiş proje bulunamadı.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: archived.length,
+                        itemBuilder: (context, index) {
+                          final proj = archived[index];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(
+                              radius: 8,
+                              backgroundColor: Color(proj.colorValue),
+                            ),
+                            title: Text(proj.title),
+                            subtitle: Text(proj.tag),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.unarchive, color: Colors.green),
+                              tooltip: 'Arşivden Çıkar',
+                              onPressed: () {
+                                final updated = proj.copyWith(isArchived: false);
+                                appState.updateProject(updated);
+                                setDialogState(() {});
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('"${proj.title}" arşivden çıkarıldı.'),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Kapat'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
@@ -96,6 +164,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Zaman Takibi'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.archive_outlined),
+            tooltip: 'Arşivlenmiş Projeler',
+            onPressed: () => _showArchivedProjectsDialog(context, appState),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
