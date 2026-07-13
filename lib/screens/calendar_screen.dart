@@ -1542,24 +1542,83 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
     }
 
-    final isDayOrWeek = appState.calendarView == CalendarView.day || appState.calendarView == CalendarView.week;
+    final isWeek = appState.calendarView == CalendarView.week;
+    final isDay = appState.calendarView == CalendarView.day;
+    final isDayOrWeek = isDay || isWeek;
     final List<dynamic> finalItems = [];
     for (var item in calendarItems) {
-      if (isDayOrWeek) {
-        if (item is Event) {
-          if (item.to.difference(item.from).inMinutes > 1440) {
-            continue;
-          }
+      if (isWeek) {
+        if (item is Event && item.to.difference(item.from).inMinutes > 1440) {
+          continue;
         }
-        if (item is TaskItem) {
-          if (item.from != null && item.to != null) {
-            if (item.to!.difference(item.from!).inMinutes > 1440) {
-              continue;
-            }
+        if (item is TaskItem && item.from != null && item.to != null && item.to!.difference(item.from!).inMinutes > 1440) {
+          continue;
+        }
+      }
+      if (isDay) {
+        final displayDate = calendarController.displayDate ?? DateTime.now();
+        final dayStart = DateTime(displayDate.year, displayDate.month, displayDate.day);
+        final dayEnd = dayStart.add(const Duration(days: 1));
+        
+        if (item is Event && item.to.difference(item.from).inMinutes > 1440) {
+          if (item.from.isBefore(dayEnd) && item.to.isAfter(dayStart)) {
+            finalItems.add(
+              Event(
+                id: item.id,
+                title: item.title,
+                description: item.description,
+                from: dayStart,
+                to: dayStart.add(const Duration(minutes: 15)),
+                isAllDay: true,
+                colorValue: item.colorValue,
+                recurrenceRule: item.recurrenceRule,
+              ),
+            );
           }
+          continue;
+        }
+        if (item is TaskItem && item.from != null && item.to != null && item.to!.difference(item.from!).inMinutes > 1440) {
+          if (item.from!.isBefore(dayEnd) && item.to!.isAfter(dayStart)) {
+            finalItems.add(
+              TaskItem(
+                id: item.id,
+                title: item.title,
+                isCompleted: item.isCompleted,
+                from: dayStart,
+                to: dayStart.add(const Duration(minutes: 15)),
+                isAllDay: true,
+                colorValue: item.colorValue,
+                details: item.details,
+              ),
+            );
+          }
+          continue;
         }
       }
       finalItems.add(item);
+    }
+
+    if (isDay) {
+      final displayDate = calendarController.displayDate ?? DateTime.now();
+      final dayStart = DateTime(displayDate.year, displayDate.month, displayDate.day);
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      
+      for (var serit in appState.serits) {
+        if (!serit.isVisible) continue;
+        if (serit.startDate.isBefore(dayEnd) && serit.endDate.isAfter(dayStart)) {
+          finalItems.add(
+            Event(
+              id: serit.id,
+              title: serit.title,
+              description: serit.description,
+              from: dayStart,
+              to: dayStart.add(const Duration(minutes: 15)),
+              isAllDay: true,
+              colorValue: serit.colorValue,
+            ),
+          );
+        }
+      }
     }
 
     if (isDayOrWeek) {
@@ -3767,26 +3826,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
           heightFactor: 0.95,
           child: Consumer<AppState>(
             builder: (context, appState, child) {
-              final currentItems = _getAllDayItemsForDate(date, appState);
               final dayOnly = DateTime(date.year, date.month, date.day);
-              final daySerits = appState.serits.where((serit) {
-                if (!serit.isVisible) return false;
-                final startOnly = DateTime(
-                  serit.startDate.year,
-                  serit.startDate.month,
-                  serit.startDate.day,
-                );
-                final endOnly = DateTime(
-                  serit.endDate.year,
-                  serit.endDate.month,
-                  serit.endDate.day,
-                );
-                return (dayOnly.isAtSameMomentAs(startOnly) ||
-                        dayOnly.isAfter(startOnly)) &&
-                    (dayOnly.isAtSameMomentAs(endOnly) ||
-                        dayOnly.isBefore(endOnly));
+              final dayEnd = dayOnly.add(const Duration(days: 1));
+              
+              final allStrips = _getActiveStrips(appState);
+              final dayStrips = allStrips
+                  .where((s) => s.startDate.isBefore(dayEnd) && s.endDate.isAfter(dayOnly))
+                  .map((s) => s.originalItem)
+                  .toList();
+                  
+              final currentItems = _getAllDayItemsForDate(date, appState).where((item) {
+                if (item is Event) {
+                  return item.to.difference(item.from).inMinutes <= 1440;
+                }
+                if (item is TaskItem) {
+                  if (item.from != null && item.to != null) {
+                    return item.to!.difference(item.from!).inMinutes <= 1440;
+                  }
+                }
+                return true;
               }).toList();
-              final displayItems = [...currentItems, ...daySerits];
+              
+              final displayItems = [...currentItems, ...dayStrips];
               final remainingEvents = 0;
               final remainingTasks = 0;
 
