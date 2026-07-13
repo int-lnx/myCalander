@@ -728,6 +728,58 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
     }
 
+    if (appState.calendarView == CalendarView.day) {
+      final dayEnd = normalizedDate.add(const Duration(days: 1));
+      final allStrips = _getActiveStrips(appState);
+      
+      for (var s in allStrips) {
+        if (s.startDate.isBefore(dayEnd) && s.endDate.isAfter(normalizedDate)) {
+          if (s.originalItem is Event) {
+            final e = s.originalItem as Event;
+            result.add(
+              Event(
+                id: e.id,
+                title: e.title,
+                description: e.description,
+                from: normalizedDate,
+                to: normalizedDate.add(const Duration(minutes: 15)),
+                isAllDay: true,
+                colorValue: e.colorValue,
+                recurrenceRule: e.recurrenceRule,
+              ),
+            );
+          } else if (s.originalItem is TaskItem) {
+            final t = s.originalItem as TaskItem;
+            result.add(
+              TaskItem(
+                id: t.id,
+                title: t.title,
+                isCompleted: t.isCompleted,
+                from: normalizedDate,
+                to: normalizedDate.add(const Duration(minutes: 15)),
+                isAllDay: true,
+                colorValue: t.colorValue,
+                details: t.details,
+              ),
+            );
+          } else if (s.originalItem is Serit) {
+            final sr = s.originalItem as Serit;
+            result.add(
+              Event(
+                id: sr.id,
+                title: sr.title,
+                description: sr.description,
+                from: normalizedDate,
+                to: normalizedDate.add(const Duration(minutes: 15)),
+                isAllDay: true,
+                colorValue: sr.colorValue,
+              ),
+            );
+          }
+        }
+      }
+    }
+
     // Sort all items: first priority is high importance (importance == 2),
     // then chronological order, then creation date descending
     result.sort((a, b) {
@@ -1547,51 +1599,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final isDayOrWeek = isDay || isWeek;
     final List<dynamic> finalItems = [];
     for (var item in calendarItems) {
-      if (isWeek) {
+      if (isDayOrWeek) {
         if (item is Event && item.to.difference(item.from).inMinutes > 1440) {
           continue;
         }
         if (item is TaskItem && item.from != null && item.to != null && item.to!.difference(item.from!).inMinutes > 1440) {
-          continue;
-        }
-      }
-      if (isDay) {
-        final displayDate = calendarController.displayDate ?? DateTime.now();
-        final dayStart = DateTime(displayDate.year, displayDate.month, displayDate.day);
-        final dayEnd = dayStart.add(const Duration(days: 1));
-        
-        if (item is Event && item.to.difference(item.from).inMinutes > 1440) {
-          if (item.from.isBefore(dayEnd) && item.to.isAfter(dayStart)) {
-            finalItems.add(
-              Event(
-                id: item.id,
-                title: item.title,
-                description: item.description,
-                from: dayStart,
-                to: dayStart.add(const Duration(minutes: 15)),
-                isAllDay: true,
-                colorValue: item.colorValue,
-                recurrenceRule: item.recurrenceRule,
-              ),
-            );
-          }
-          continue;
-        }
-        if (item is TaskItem && item.from != null && item.to != null && item.to!.difference(item.from!).inMinutes > 1440) {
-          if (item.from!.isBefore(dayEnd) && item.to!.isAfter(dayStart)) {
-            finalItems.add(
-              TaskItem(
-                id: item.id,
-                title: item.title,
-                isCompleted: item.isCompleted,
-                from: dayStart,
-                to: dayStart.add(const Duration(minutes: 15)),
-                isAllDay: true,
-                colorValue: item.colorValue,
-                details: item.details,
-              ),
-            );
-          }
           continue;
         }
       }
@@ -3826,28 +3838,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
           heightFactor: 0.95,
           child: Consumer<AppState>(
             builder: (context, appState, child) {
-              final dayOnly = DateTime(date.year, date.month, date.day);
-              final dayEnd = dayOnly.add(const Duration(days: 1));
-              
-              final allStrips = _getActiveStrips(appState);
-              final dayStrips = allStrips
-                  .where((s) => s.startDate.isBefore(dayEnd) && s.endDate.isAfter(dayOnly))
-                  .map((s) => s.originalItem)
-                  .toList();
-                  
-              final currentItems = _getAllDayItemsForDate(date, appState).where((item) {
-                if (item is Event) {
-                  return item.to.difference(item.from).inMinutes <= 1440;
+              final rawItems = _getAllDayItemsForDate(date, appState);
+              final List<dynamic> displayItems = [];
+              final seenIds = <String>{};
+              for (var raw in rawItems) {
+                final original = _getOriginalItem(raw, appState);
+                String idKey = '';
+                if (original is Event) idKey = original.id;
+                else if (original is TaskItem) idKey = original.id;
+                else if (original is Serit) idKey = original.id;
+                else if (original is ProjectEvaluation) idKey = original.id;
+                
+                if (idKey.isEmpty || !seenIds.contains(idKey)) {
+                  if (idKey.isNotEmpty) seenIds.add(idKey);
+                  displayItems.add(original);
                 }
-                if (item is TaskItem) {
-                  if (item.from != null && item.to != null) {
-                    return item.to!.difference(item.from!).inMinutes <= 1440;
-                  }
-                }
-                return true;
-              }).toList();
-              
-              final displayItems = [...currentItems, ...dayStrips];
+              }
               final remainingEvents = 0;
               final remainingTasks = 0;
 
