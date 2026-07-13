@@ -643,6 +643,24 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
         title: Text(widget.project.title),
         actions: [
           IconButton(
+            icon: Icon(widget.project.isArchived ? Icons.unarchive : Icons.archive),
+            tooltip: widget.project.isArchived ? 'Arşivden Çıkar' : 'Arşive Kaldır',
+            onPressed: () {
+              final updated = widget.project.copyWith(isArchived: !widget.project.isArchived);
+              appState.updateProject(updated);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    widget.project.isArchived
+                        ? 'Proje arşivden çıkarıldı.'
+                        : 'Proje arşive kaldırıldı.',
+                  ),
+                ),
+              );
+              Navigator.pop(context);
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
               Navigator.push(

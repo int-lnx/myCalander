@@ -43,7 +43,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    final projects = appState.projects;
+    final projects = appState.projects.where((p) => !p.isArchived).toList();
     final evaluations = appState.evaluations;
     final isDark = appState.isDarkMode;
 

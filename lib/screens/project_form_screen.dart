@@ -21,6 +21,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   String? _subTag;
   late String _evaluationType;
   late double _targetValue;
+  bool _isArchived = false;
 
   @override
   void initState() {
@@ -32,6 +33,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     _subTag = proj?.subTag;
     _evaluationType = proj?.evaluationType ?? 'PERCENTAGE';
     _targetValue = proj?.targetValue ?? 100.0;
+    _isArchived = proj?.isArchived ?? false;
   }
 
   @override
@@ -135,6 +137,19 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                 },
               ),
             ],
+            if (widget.existingProject != null) ...[
+              const SizedBox(height: 16),
+              SwitchListTile(
+                title: const Text('Projeyi Arşivle'),
+                subtitle: const Text('Arşivlenen projeler matriste görüntülenmez.'),
+                value: _isArchived,
+                onChanged: (val) {
+                  setState(() {
+                    _isArchived = val;
+                  });
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -155,6 +170,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         subTag: _subTag,
         evaluationType: _evaluationType,
         targetValue: _targetValue,
+        isArchived: _isArchived,
       );
 
       if (widget.existingProject == null) {
