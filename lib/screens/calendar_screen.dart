@@ -44,6 +44,24 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
   return sanitized;
 }
 
+class StripItem {
+  final String id;
+  final String title;
+  final DateTime startDate;
+  final DateTime endDate;
+  final Color color;
+  final dynamic originalItem;
+
+  StripItem({
+    required this.id,
+    required this.title,
+    required this.startDate,
+    required this.endDate,
+    required this.color,
+    required this.originalItem,
+  });
+}
+
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
 
@@ -1149,8 +1167,67 @@ class _CalendarScreenState extends State<CalendarScreen> {
     };
   }
 
-  List<Serit> _getActiveStrips(AppState appState) {
-    final List<Serit> strips = appState.serits.where((s) => s.isVisible).toList();
+  List<StripItem> _getActiveStrips(AppState appState) {
+    final List<StripItem> strips = [];
+
+    // 1. Add Serit models
+    for (var s in appState.serits) {
+      if (!s.isVisible) continue;
+      Color color = Colors.blue;
+      if (s.colorValue != 0) {
+        color = Color(s.colorValue);
+      }
+      strips.add(StripItem(
+        id: s.id,
+        title: s.title,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        color: color,
+        originalItem: s,
+      ));
+    }
+
+    // 2. Add regular Events > 24 hours
+    for (var e in appState.filteredEvents) {
+      if (e.isAllDay) continue;
+      if (e.to.difference(e.from).inMinutes > 1440) {
+        Color color = Colors.blue;
+        if (e.colorValue != 0) {
+          color = Color(e.colorValue);
+        }
+        strips.add(StripItem(
+          id: e.id,
+          title: e.title,
+          startDate: e.from,
+          endDate: e.to,
+          color: color,
+          originalItem: e,
+        ));
+      }
+    }
+
+    // 3. Add regular Tasks > 24 hours
+    for (var t in appState.filteredTasks) {
+      if (t.from != null && t.to != null) {
+        if (t.to!.difference(t.from!).inMinutes > 1440) {
+          Color color = Colors.orange;
+          final project = appState.projects.where((p) => p.id == t.projectId).firstOrNull;
+          if (project != null) {
+            color = Color(project.colorValue);
+          }
+          strips.add(StripItem(
+            id: t.id,
+            title: t.title,
+            startDate: t.from!,
+            endDate: t.to!,
+            color: color,
+            originalItem: t,
+          ));
+        }
+      }
+    }
+
+    // Sort by startDate, then duration descending
     strips.sort((a, b) {
       final comp = a.startDate.compareTo(b.startDate);
       if (comp != 0) return comp;
@@ -1158,10 +1235,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final bDur = b.endDate.difference(b.startDate);
       return bDur.compareTo(aDur);
     });
+
     return strips;
   }
 
-  Map<String, int> _assignStripSlots(List<Serit> strips) {
+  Map<String, int> _assignStripSlots(List<StripItem> strips) {
     final Map<String, int> slots = {};
     for (var s in strips) {
       final Set<int> takenSlots = {};
@@ -1180,11 +1258,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return slots;
   }
 
-  Widget _buildStripWidget(Serit s, DateTime date, AppState appState) {
-    Color color = Colors.blue;
-    if (s.colorValue != 0) {
-      color = Color(s.colorValue);
-    }
+  Widget _buildStripWidget(StripItem s, DateTime date, AppState appState) {
     final bool isStart = s.startDate.year == date.year && s.startDate.month == date.month && s.startDate.day == date.day;
     final bool isEnd = s.endDate.year == date.year && s.endDate.month == date.month && s.endDate.day == date.day;
     final bool showText = isStart || date.weekday == DateTime.monday;
@@ -1193,7 +1267,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       height: 14,
       margin: const EdgeInsets.symmetric(vertical: 1.0),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.85),
+        color: s.color.withValues(alpha: 0.85),
         borderRadius: BorderRadius.only(
           topLeft: isStart ? const Radius.circular(4) : Radius.zero,
           bottomLeft: isStart ? const Radius.circular(4) : Radius.zero,
@@ -1468,14 +1542,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
     }
 
+    final isDayOrWeek = appState.calendarView == CalendarView.day || appState.calendarView == CalendarView.week;
+    final List<dynamic> finalItems = [];
+    for (var item in calendarItems) {
+      if (isDayOrWeek) {
+        if (item is Event) {
+          if (item.to.difference(item.from).inMinutes > 1440) {
+            continue;
+          }
+        }
+        if (item is TaskItem) {
+          if (item.from != null && item.to != null) {
+            if (item.to!.difference(item.from!).inMinutes > 1440) {
+              continue;
+            }
+          }
+        }
+      }
+      finalItems.add(item);
+    }
+
     _dataSource.appState = appState;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _dataSource.appointments = calendarItems;
+        _dataSource.appointments = finalItems;
         _dataSource.notifyListeners(
           CalendarDataSourceAction.reset,
-          calendarItems,
+          finalItems,
         );
       }
     });
@@ -3450,10 +3544,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             itemCount: weekStrips.length,
                             itemBuilder: (context, index) {
                               final s = weekStrips[index];
-                              Color color = Colors.blue;
-                              if (s.colorValue != 0) {
-                                color = Color(s.colorValue);
-                              }
+                              final Color color = s.color;
                               
                               final fromStr = '${s.startDate.day}/${s.startDate.month} ${s.startDate.hour.toString().padLeft(2, '0')}:${s.startDate.minute.toString().padLeft(2, '0')}';
                               final toStr = '${s.endDate.day}/${s.endDate.month} ${s.endDate.hour.toString().padLeft(2, '0')}:${s.endDate.minute.toString().padLeft(2, '0')}';
