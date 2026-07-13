@@ -3384,7 +3384,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
               ),
             Text(
-              '$dayLetter ${date.day}',
+              dayLetter,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
