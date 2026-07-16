@@ -8,6 +8,7 @@ import '../models/topic_plan.dart';
 import 'project_form_screen.dart';
 import 'plan_screen.dart';
 import 'plan_form_screen.dart';
+import 'step_logs_screen.dart';
 
 class ProjectDetailsScreen extends StatefulWidget {
   final Project project;
@@ -486,24 +487,34 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
 
                               // Content Info
                               Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      plan.title,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Başlangıç: ${plan.startDate.day}/${plan.startDate.month}/${plan.startDate.year} (${plan.status == 'Yapılanlar' ? 'Tamamlandı' : plan.status})',
-                                      style: const TextStyle(color: Colors.purple, fontSize: 11, fontWeight: FontWeight.w500),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Süre: ${workedHours.toStringAsFixed(1)} / ${plan.targetHours.toStringAsFixed(1)} sa',
-                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                                    ),
-                                  ],
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => StepLogsScreen(planId: plan.id),
+                                      ),
+                                    );
+                                  },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        plan.title,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Başlangıç: ${plan.startDate.day}/${plan.startDate.month}/${plan.startDate.year} (${plan.status == 'Yapılanlar' ? 'Tamamlandı' : plan.status})',
+                                        style: const TextStyle(color: Colors.purple, fontSize: 11, fontWeight: FontWeight.w500),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Süre: ${workedHours.toStringAsFixed(1)} / ${plan.targetHours.toStringAsFixed(1)} sa',
+                                        style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
 
@@ -529,10 +540,26 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
                                           );
                                         }).toList(),
                                         onChanged: (newVal) {
-                                          if (newVal != null) {
-                                            appState.updateTopicPlan(plan.copyWith(status: newVal));
-                                          }
-                                        },
+                                           if (newVal != null) {
+                                             DateTime completionDate = plan.endDate;
+                                             if (newVal == 'Yapılanlar') {
+                                               DateTime? maxDate;
+                                               for (var key in plan.dayReports.keys) {
+                                                 try {
+                                                   final parsed = DateTime.parse(key);
+                                                   if (maxDate == null || parsed.isAfter(maxDate)) {
+                                                     maxDate = parsed;
+                                                   }
+                                                 } catch (_) {}
+                                               }
+                                               completionDate = maxDate ?? DateTime.now();
+                                             }
+                                             appState.updateTopicPlan(plan.copyWith(
+                                               status: newVal,
+                                               endDate: newVal == 'Yapılanlar' ? completionDate : plan.endDate,
+                                             ));
+                                           }
+                                         },
                                       ),
                                     ),
                                   ),

@@ -769,66 +769,100 @@ class _EditNoteDialogState extends State<EditNoteDialog> {
           ),
         ),
       ),
+      actionsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       actions: [
-        IconButton(
-          icon: Icon(
-            Icons.palette_outlined,
-            color: isNoteDark ? Colors.white70 : Colors.black87,
-          ),
-          onPressed: () {
-            widget.onColorPickerRequested((color) {
-              setState(() {
-                _colorValue = color;
-              });
-            });
-          },
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.label_outline,
-            color: isNoteDark ? Colors.white70 : Colors.black87,
-          ),
-          onPressed: () {
-            widget.onTagsDialogRequested(_tags, (updatedTags) {
-              setState(() {
-                _tags = updatedTags;
-              });
-            });
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
-          onPressed: () {
-            widget.appState.deleteNote(widget.note.id);
-            Navigator.pop(context);
-          },
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
-            'İptal',
-            style: TextStyle(
-              color: isNoteDark ? Colors.white70 : Colors.black87,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    Icons.palette_outlined,
+                    color: isNoteDark ? Colors.white70 : Colors.black87,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    widget.onColorPickerRequested((color) {
+                      setState(() {
+                        _colorValue = color;
+                      });
+                    });
+                  },
+                ),
+                IconButton(
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    Icons.label_outline,
+                    color: isNoteDark ? Colors.white70 : Colors.black87,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    widget.onTagsDialogRequested(_tags, (updatedTags) {
+                      setState(() {
+                        _tags = updatedTags;
+                      });
+                    });
+                  },
+                ),
+                IconButton(
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                  onPressed: () {
+                    widget.appState.deleteNote(widget.note.id);
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
             ),
-          ),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () {
-            final updatedNote = widget.note.copyWith(
-              title: _titleController.text.trim(),
-              content: _contentController.text.trim(),
-              colorValue: _colorValue,
-              isPinned: _isPinned,
-              tags: _tags,
-            );
-            widget.appState.updateNote(updatedNote);
-            Navigator.pop(context);
-          },
-          child: const Text('Kaydet'),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'İptal',
+                    style: TextStyle(
+                      color: isNoteDark ? Colors.white70 : Colors.black87,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () {
+                    final updatedNote = widget.note.copyWith(
+                      title: _titleController.text.trim(),
+                      content: _contentController.text.trim(),
+                      colorValue: _colorValue,
+                      isPinned: _isPinned,
+                      tags: _tags,
+                    );
+                    widget.appState.updateNote(updatedNote);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Kaydet', style: TextStyle(fontSize: 13)),
+                ),
+              ],
+            ),
+          ],
         ),
       ],
     );

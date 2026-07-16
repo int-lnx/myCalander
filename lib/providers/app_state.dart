@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.07';
+  static const String appVersion = '2.32';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -4431,37 +4431,15 @@ class AppState extends ChangeNotifier {
       final today = DateTime(now.year, now.month, now.day);
 
       DateTime endA;
-      if (a.status == 'Tamamlandı') {
-        DateTime? lastEntryDate;
-        for (var entry in a.dayReports.entries) {
-          if (entry.value.hoursWorked > 0) {
-            try {
-              final entryDate = DateTime.parse(entry.key);
-              if (lastEntryDate == null || entryDate.isAfter(lastEntryDate)) {
-                lastEntryDate = entryDate;
-              }
-            } catch (_) {}
-          }
-        }
-        endA = lastEntryDate ?? a.endDate;
+      if (a.status == 'Tamamlandı' || a.status == 'Yapılanlar') {
+        endA = DateTime(a.endDate.year, a.endDate.month, a.endDate.day);
       } else {
         endA = today.isBefore(startB) ? startB : today;
       }
 
       DateTime endB;
-      if (b.status == 'Tamamlandı') {
-        DateTime? lastEntryDate;
-        for (var entry in b.dayReports.entries) {
-          if (entry.value.hoursWorked > 0) {
-            try {
-              final entryDate = DateTime.parse(entry.key);
-              if (lastEntryDate == null || entryDate.isAfter(lastEntryDate)) {
-                lastEntryDate = entryDate;
-              }
-            } catch (_) {}
-          }
-        }
-        endB = lastEntryDate ?? b.endDate;
+      if (b.status == 'Tamamlandı' || b.status == 'Yapılanlar') {
+        endB = DateTime(b.endDate.year, b.endDate.month, b.endDate.day);
       } else {
         endB = today.isBefore(startA) ? startA : today;
       }

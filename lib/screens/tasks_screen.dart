@@ -1,9 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:syncfusion_flutter_calendar/calendar.dart';
 import '../providers/app_state.dart';
 import '../models/project.dart';
 import '../models/task_item.dart';
 import 'task_form_screen.dart';
+
+String? _sanitizeRRule(String? rule, DateTime startDate) {
+  if (rule == null || rule.isEmpty) return rule;
+  String sanitized = rule;
+  if (sanitized.contains('FREQ=WEEKLY') && !sanitized.contains('BYDAY=')) {
+    const days = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+    final weekday = startDate.weekday;
+    if (weekday >= 1 && weekday <= 7) {
+      sanitized = '$sanitized;BYDAY=${days[weekday - 1]}';
+    }
+  }
+  if (sanitized.contains('FREQ=MONTHLY') &&
+      !sanitized.contains('BYMONTHDAY=') &&
+      !sanitized.contains('BYDAY=')) {
+    sanitized = '$sanitized;BYMONTHDAY=${startDate.day}';
+  }
+  if (sanitized.contains('FREQ=YEARLY') && !sanitized.contains('BYMONTH=')) {
+    sanitized =
+        '$sanitized;BYMONTH=${startDate.month};BYMONTHDAY=${startDate.day}';
+  }
+  return sanitized;
+}
+
+DateTime? _getNextActiveOccurrenceDate(dynamic task) {
+  if (task is! TaskItem) return task.from;
+  if (task.recurrenceRule == null || task.recurrenceRule!.isEmpty || task.from == null) {
+    return task.from;
+  }
+  try {
+    final searchStart = task.from!;
+    final searchEnd = searchStart.add(const Duration(days: 366));
+    final sanitizedRule = _sanitizeRRule(task.recurrenceRule, task.from!);
+    if (sanitizedRule == null) return task.from;
+    
+    final occurrences = SfCalendar.getRecurrenceDateTimeCollection(
+      sanitizedRule,
+      task.from!,
+      specificStartDate: searchStart,
+      specificEndDate: searchEnd,
+    );
+    
+    for (var occ in occurrences) {
+      final occDate = occ.toLocal();
+      bool isException = task.recurrenceExceptionDates?.any(
+        (ex) => ex.year == occDate.year && ex.month == occDate.month && ex.day == occDate.day
+      ) ?? false;
+      if (!isException) {
+        return occDate;
+      }
+    }
+  } catch (_) {}
+  return task.from;
+}
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
@@ -66,12 +120,13 @@ class _TasksScreenState extends State<TasksScreen> {
     final isCompleted = _animatingTaskIds.contains(task.id)
         ? !task.isCompleted
         : task.isCompleted;
-    final dateLabel = task.from != null
-        ? '${task.from!.day}/${task.from!.month}/${task.from!.year}'
+    final taskFrom = _getNextActiveOccurrenceDate(task);
+    final dateLabel = taskFrom != null
+        ? '${taskFrom.day}/${taskFrom.month}/${taskFrom.year}'
         : 'Tarihsiz';
-    final relativeStr = _getRelativeDateString(task.from);
-    final isOverdue = task.from != null &&
-        task.from!.isBefore(DateTime.now()) &&
+    final relativeStr = _getRelativeDateString(taskFrom);
+    final isOverdue = taskFrom != null &&
+        taskFrom.isBefore(DateTime.now()) &&
         !isCompleted &&
         relativeStr.contains('önce');
 
@@ -131,9 +186,9 @@ class _TasksScreenState extends State<TasksScreen> {
                 await Future.delayed(const Duration(milliseconds: 400));
                 final hasRecurrence = task.recurrenceRule != null &&
                     task.recurrenceRule!.isNotEmpty;
-                if (hasRecurrence && !task.isCompleted && task.from != null) {
+                if (hasRecurrence && !task.isCompleted && taskFrom != null) {
                   final toggleId =
-                      'occ_${task.id}_${task.from!.millisecondsSinceEpoch}';
+                      'occ_${task.id}_${taskFrom.millisecondsSinceEpoch}';
                   appState.toggleTaskCompletion(toggleId);
                   setState(() {
                     _animatingTaskIds.remove(task.id);
@@ -168,9 +223,9 @@ class _TasksScreenState extends State<TasksScreen> {
               onTap: () {
                 final hasRecurrence = task.recurrenceRule != null &&
                     task.recurrenceRule!.isNotEmpty;
-                if (hasRecurrence && !task.isInProgress && task.from != null) {
+                if (hasRecurrence && !task.isInProgress && taskFrom != null) {
                   final toggleId =
-                      'occ_${task.id}_${task.from!.millisecondsSinceEpoch}';
+                      'occ_${task.id}_${taskFrom.millisecondsSinceEpoch}';
                   appState.toggleTaskInProgress(toggleId);
                 } else {
                   appState.toggleTaskInProgress(task.id);
@@ -485,7 +540,7 @@ class _TasksScreenState extends State<TasksScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '${groupTasks.length}',
+                      '${groupTasks.where((t) => !t.isCompleted).length}',
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.blue.shade700,
@@ -592,10 +647,12 @@ class _TasksScreenState extends State<TasksScreen> {
     if (_sortMode == 'DATE') {
       displayedTasks.sort((a, b) {
         if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
-        if (a.from == null && b.from == null) return b.createdAt.compareTo(a.createdAt);
-        if (a.from == null) return 1;
-        if (b.from == null) return -1;
-        final dateCompare = a.from!.compareTo(b.from!);
+        final dateA = _getNextActiveOccurrenceDate(a);
+        final dateB = _getNextActiveOccurrenceDate(b);
+        if (dateA == null && dateB == null) return b.createdAt.compareTo(a.createdAt);
+        if (dateA == null) return 1;
+        if (dateB == null) return -1;
+        final dateCompare = dateA.compareTo(dateB);
         if (dateCompare == 0) return b.createdAt.compareTo(a.createdAt);
         return dateCompare;
       });
@@ -683,9 +740,14 @@ class _TasksScreenState extends State<TasksScreen> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: () {
+                    final isAllTab = _selectedTab == 'Tüm Tarihliler' || _selectedTab == 'Tüm Tarihsizler';
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const TaskFormScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => TaskFormScreen(
+                          initialTag: isAllTab ? null : _selectedTab,
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -851,12 +913,14 @@ class _TasksScreenState extends State<TasksScreen> {
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
                   )
-                : _buildGroupedTaskList(
-                    context,
-                    displayedTasks,
-                    isDark,
-                    appState,
-                    _selectedTab,
+                : SelectionArea(
+                    child: _buildGroupedTaskList(
+                      context,
+                      displayedTasks,
+                      isDark,
+                      appState,
+                      _selectedTab,
+                    ),
                   ),
           ),
         ],
@@ -982,7 +1046,8 @@ class _TasksScreenState extends State<TasksScreen> {
             TextButton(
               onPressed: () {
                 final originalParent = task;
-                final deleteId = 'occ_${task.id}_${task.from != null ? task.from!.millisecondsSinceEpoch : DateTime.now().millisecondsSinceEpoch}';
+                final taskFrom = _getNextActiveOccurrenceDate(task);
+                final deleteId = 'occ_${task.id}_${taskFrom != null ? taskFrom.millisecondsSinceEpoch : DateTime.now().millisecondsSinceEpoch}';
                 appState.deleteTask(deleteId);
                 Navigator.pop(context);
                 _showUndoSnackBar(context, '"${task.title}" bugünkü tekrarı silindi', () {
@@ -994,7 +1059,8 @@ class _TasksScreenState extends State<TasksScreen> {
             TextButton(
               onPressed: () {
                 final originalParent = task;
-                final dateRef = task.from ?? DateTime.now();
+                final taskFrom = _getNextActiveOccurrenceDate(task);
+                final dateRef = taskFrom ?? DateTime.now();
                 DateTime untilDate = dateRef.subtract(const Duration(days: 1));
                 String untilStr =
                     "${untilDate.year}${untilDate.month.toString().padLeft(2, '0')}${untilDate.day.toString().padLeft(2, '0')}T235959Z";

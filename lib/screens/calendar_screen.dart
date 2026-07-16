@@ -1672,6 +1672,45 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
     }
 
+    finalItems.sort((a, b) {
+      final startA = a is Event
+          ? a.from
+          : (a is TaskItem
+              ? (a.from ?? DateTime(1970))
+              : (a is ProjectEvaluation ? a.sessionDate : DateTime(1970)));
+      final startB = b is Event
+          ? b.from
+          : (b is TaskItem
+              ? (b.from ?? DateTime(1970))
+              : (b is ProjectEvaluation ? b.sessionDate : DateTime(1970)));
+
+      final startCompare = startA.compareTo(startB);
+      if (startCompare != 0) return startCompare;
+
+      final durA = a is Event
+          ? a.to.difference(a.from)
+          : (a is TaskItem && a.from != null && a.to != null
+              ? a.to!.difference(a.from!)
+              : const Duration(hours: 1));
+      final durB = b is Event
+          ? b.to.difference(b.from)
+          : (b is TaskItem && b.from != null && b.to != null
+              ? b.to!.difference(b.from!)
+              : const Duration(hours: 1));
+
+      final durCompare = durB.compareTo(durA); // Longer duration first (placed under/left)
+      if (durCompare != 0) return durCompare;
+
+      final createdA = a is Event
+          ? a.createdAt
+          : (a is TaskItem ? a.createdAt : DateTime(1970));
+      final createdB = b is Event
+          ? b.createdAt
+          : (b is TaskItem ? b.createdAt : DateTime(1970));
+
+      return createdA.compareTo(createdB); // Earlier created first (placed under/left)
+    });
+
     _dataSource.appState = appState;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3407,6 +3446,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  String _getShortDateString(DateTime date) {
+    const months = ['oca', 'şub', 'mar', 'nis', 'may', 'haz', 'tem', 'ağu', 'eyl', 'eki', 'kas', 'ara'];
+    return '${date.day}${months[date.month - 1]}';
+  }
+
   Widget _buildCustomHeaderCell(DateTime date, AppState appState, bool isWeek, double width) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final noteIndex = appState.dayNotes.indexWhere(
@@ -3453,41 +3497,55 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
           ),
         ),
-        child: Row(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.center,
-                child: hasEmoji
-                    ? Text(
-                        dayNote.emoji!,
-                        style: const TextStyle(fontSize: 12),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ),
             Text(
-              dayLetter,
+              _getShortDateString(date),
               style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white70 : Colors.black87,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white54 : Colors.grey.shade600,
               ),
             ),
-            Expanded(
-              child: Align(
-                alignment: Alignment.center,
-                child: hasRating
-                    ? Text(
-                        '★${dayNote.rating}',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.amber.shade800,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: hasEmoji
+                        ? Text(
+                            dayNote.emoji!,
+                            style: const TextStyle(fontSize: 11),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+                Text(
+                  dayLetter,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: hasRating
+                        ? Text(
+                            '★${dayNote.rating}',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber.shade800,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
