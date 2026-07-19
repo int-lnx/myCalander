@@ -13,6 +13,14 @@ class Project {
   final String status;
   final bool isNegativeGoal;
   final List<String> tags;
+  final bool trackPercentage;
+  final bool trackNumeric;
+  final bool trackDuration;
+  final bool trackNetHours;
+  final bool trackNote;
+  final double? defaultPercentage;
+  final double? defaultNumeric;
+  final double? defaultDuration;
 
   const Project({
     required this.id,
@@ -27,6 +35,14 @@ class Project {
     this.status = 'Aktif',
     this.isNegativeGoal = false,
     this.tags = const [],
+    this.trackPercentage = true,
+    this.trackNumeric = false,
+    this.trackDuration = true,
+    this.trackNetHours = true,
+    this.trackNote = true,
+    this.defaultPercentage,
+    this.defaultNumeric,
+    this.defaultDuration,
   });
 
   double calculateSingleSuccessPercentage(double score) {
@@ -66,6 +82,14 @@ class Project {
     String? status,
     bool? isNegativeGoal,
     List<String>? tags,
+    bool? trackPercentage,
+    bool? trackNumeric,
+    bool? trackDuration,
+    bool? trackNetHours,
+    bool? trackNote,
+    double? defaultPercentage,
+    double? defaultNumeric,
+    double? defaultDuration,
     bool clearSubTag = false,
   }) {
     return Project(
@@ -81,6 +105,14 @@ class Project {
       status: status ?? this.status,
       isNegativeGoal: isNegativeGoal ?? this.isNegativeGoal,
       tags: tags ?? this.tags,
+      trackPercentage: trackPercentage ?? this.trackPercentage,
+      trackNumeric: trackNumeric ?? this.trackNumeric,
+      trackDuration: trackDuration ?? this.trackDuration,
+      trackNetHours: trackNetHours ?? this.trackNetHours,
+      trackNote: trackNote ?? this.trackNote,
+      defaultPercentage: defaultPercentage ?? this.defaultPercentage,
+      defaultNumeric: defaultNumeric ?? this.defaultNumeric,
+      defaultDuration: defaultDuration ?? this.defaultDuration,
     );
   }
 
@@ -98,6 +130,14 @@ class Project {
       'status': status,
       'isNegativeGoal': isNegativeGoal,
       'tags': tags,
+      'trackPercentage': trackPercentage,
+      'trackNumeric': trackNumeric,
+      'trackDuration': trackDuration,
+      'trackNetHours': trackNetHours,
+      'trackNote': trackNote,
+      'defaultPercentage': defaultPercentage,
+      'defaultNumeric': defaultNumeric,
+      'defaultDuration': defaultDuration,
     };
   }
 
@@ -107,6 +147,17 @@ class Project {
       projectTags = List<String>.from(json['tags']);
     }
 
+    final evalType = json['evaluationType'] as String? ?? 'PERCENTAGE';
+    final trackPct = json['trackPercentage'] as bool? ?? (evalType == 'PERCENTAGE');
+    final trackNum = json['trackNumeric'] as bool? ?? (evalType == 'NUMERIC');
+    final trackDur = json['trackDuration'] as bool? ?? true;
+    final trackNet = json['trackNetHours'] as bool? ?? (trackPct && trackDur);
+    final trackNt = json['trackNote'] as bool? ?? true;
+    
+    final defaultPct = (json['defaultPercentage'] as num?)?.toDouble();
+    final defaultNum = (json['defaultNumeric'] as num?)?.toDouble();
+    final defaultDur = (json['defaultDuration'] as num?)?.toDouble();
+
     return Project(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
@@ -114,12 +165,20 @@ class Project {
       colorValue: json['colorValue'] as int? ?? 0xFF2196F3,
       tag: json['tag'] as String? ?? 'Genel',
       subTag: json['subTag'] as String?,
-      evaluationType: json['evaluationType'] as String? ?? 'PERCENTAGE',
+      evaluationType: evalType,
       targetValue: (json['targetValue'] as num?)?.toDouble() ?? 100.0,
       isArchived: json['isArchived'] as bool? ?? false,
       status: json['status'] as String? ?? 'Aktif',
       isNegativeGoal: json['isNegativeGoal'] as bool? ?? false,
       tags: projectTags,
+      trackPercentage: trackPct,
+      trackNumeric: trackNum,
+      trackDuration: trackDur,
+      trackNetHours: trackNet,
+      trackNote: trackNt,
+      defaultPercentage: defaultPct,
+      defaultNumeric: defaultNum,
+      defaultDuration: defaultDur,
     );
   }
 }

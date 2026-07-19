@@ -75,12 +75,10 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
 
     final notes = widget.appState.dayNotes;
     final idx = notes.indexWhere(
-      (n) {
-        final localDate = n.date.toLocal();
-        return localDate.year == _normalizedDate.year &&
-               localDate.month == _normalizedDate.month &&
-               localDate.day == _normalizedDate.day;
-      },
+      (n) =>
+          n.date.year == _normalizedDate.year &&
+          n.date.month == _normalizedDate.month &&
+          n.date.day == _normalizedDate.day,
     );
 
     _existingNote = idx != -1 ? notes[idx] : null;
@@ -436,7 +434,10 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             border: Border.all(color: Colors.grey.shade300),
                             borderRadius: BorderRadius.circular(8),
@@ -444,10 +445,15 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(_emoji ?? '😊', style: const TextStyle(fontSize: 20)),
+                              Text(
+                                _emoji ?? '😊',
+                                style: const TextStyle(fontSize: 20),
+                              ),
                               const SizedBox(width: 4),
                               Icon(
-                                _showEmojiPicker ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                                _showEmojiPicker
+                                    ? Icons.arrow_drop_up
+                                    : Icons.arrow_drop_down,
                                 size: 18,
                                 color: Colors.grey.shade600,
                               ),
@@ -476,11 +482,14 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                           children: [
                             ...List.generate(5, (index) {
                               final starVal = index + 1;
-                              final isSelected = _rating != null && _rating! >= starVal;
+                              final isSelected =
+                                  _rating != null && _rating! >= starVal;
                               return GestureDetector(
                                 onTap: () {
                                   setState(() {
-                                    _rating = (_rating == starVal) ? null : starVal;
+                                    _rating = (_rating == starVal)
+                                        ? null
+                                        : starVal;
                                   });
                                 },
                                 child: Icon(
@@ -526,54 +535,106 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.grey.shade300),
                   ),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      ...[
-                        '😊',
-                        '😐',
-                        '😢',
-                        '😡',
-                        '🎉',
-                        '💪',
-                        '🔥',
-                        '😴',
-                        '🥳',
-                        '😭',
-                        '❤️',
-                        '🌟',
-                        '🎯',
-                        '💼',
-                        '🏠',
-                        '✈️',
-                      ].map((emo) {
-                        final isSelected = _emoji == emo;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _emoji = isSelected ? null : emo;
-                              _showEmojiPicker = false; // Selection closes picker
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.amber.shade100
-                                  : Colors.transparent,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected
-                                    ? Colors.amber
-                                    : Colors.transparent,
-                                width: 1.5,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ...[
+                            '😊',
+                            '😐',
+                            '😢',
+                            '😡',
+                            '🎉',
+                            '💪',
+                            '🔥',
+                            '😴',
+                            '🥳',
+                            '😭',
+                            '❤️',
+                            '🌟',
+                            '🎯',
+                            '💼',
+                            '🏠',
+                            '✈️',
+                          ].map((emo) {
+                            final isSelected = _emoji == emo;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _emoji = isSelected ? null : emo;
+                                  _showEmojiPicker = false;
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Colors.amber.shade100
+                                      : Colors.transparent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.amber
+                                        : Colors.transparent,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  emo,
+                                  style: const TextStyle(fontSize: 20),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                      const Divider(height: 16),
+                      Row(
+                        children: [
+                          const Text(
+                            'Klavye ile gir:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SizedBox(
+                              height: 36,
+                              child: TextField(
+                                decoration: InputDecoration(
+                                  hintText: 'Emoji yazın...',
+                                  hintStyle: const TextStyle(fontSize: 12),
+                                  isDense: true,
+                                  counterText: '',
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 8,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(6),
+                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                ),
+                                style: const TextStyle(fontSize: 14),
+                                maxLength: 4,
+                                onChanged: (val) {
+                                  if (val.trim().isNotEmpty) {
+                                    setState(() {
+                                      _emoji = val.trim();
+                                    });
+                                  }
+                                },
                               ),
                             ),
-                            child: Text(emo, style: const TextStyle(fontSize: 20)),
                           ),
-                        );
-                      }),
+                        ],
+                      ),
                     ],
                   ),
                 ),

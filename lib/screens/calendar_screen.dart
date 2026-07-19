@@ -489,61 +489,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final List<dynamic> result = [];
 
-    // Add all-day events on this day
+    // Add all-day events on this day (non-recurring only;
+    // recurring all-day events are handled natively in calendarItems)
     for (var e in appState.filteredEvents) {
       if (!e.isAllDay) continue;
-      if (e.recurrenceRule == null || e.recurrenceRule!.isEmpty) {
-        if (DateTime(e.from.year, e.from.month, e.from.day) == normalizedDate) {
-          result.add(e);
-        }
-      } else {
-        try {
-          final occurrences = RecurrenceHelper.getOccurrences(
-            rrule: e.recurrenceRule!,
-            startDate: e.from,
-            specificStartDate: e.from.isUtc
-                ? normalizedDate.toUtc()
-                : normalizedDate.toLocal(),
-            specificEndDate: e.from.isUtc
-                ? normalizedDate
-                      .add(const Duration(days: 1))
-                      .subtract(const Duration(milliseconds: 1))
-                      .toUtc()
-                : normalizedDate
-                      .add(const Duration(days: 1))
-                      .subtract(const Duration(milliseconds: 1))
-                      .toLocal(),
-          );
-          final hasOccurrenceOnDay = occurrences.any((occ) {
-            final occDate = occ.toLocal();
-            return occDate.year == normalizedDate.year &&
-                occDate.month == normalizedDate.month &&
-                occDate.day == normalizedDate.day;
-          });
-          if (hasOccurrenceOnDay) {
-            final occ = occurrences.firstWhere((o) {
-              final occDate = o.toLocal();
-              return occDate.year == normalizedDate.year &&
-                  occDate.month == normalizedDate.month &&
-                  occDate.day == normalizedDate.day;
-            });
-            final duration = e.to.difference(e.from);
-            final occEnd = occ.add(duration);
-            result.add(
-              e.copyWith(
-                id: 'occ_${e.id}_${occ.millisecondsSinceEpoch}',
-                from: occ,
-                to: occEnd,
-                clearRecurrenceRule: true,
-                clearRecurrenceExceptionDates: true,
-              ),
-            );
-          }
-        } catch (_) {}
+      // Skip recurring events – they are added directly to calendarItems
+      // with their recurrenceRule so Syncfusion can render all occurrences.
+      if (e.recurrenceRule != null && e.recurrenceRule!.isNotEmpty) continue;
+      if (DateTime(e.from.year, e.from.month, e.from.day) == normalizedDate) {
+        result.add(e);
       }
     }
 
-    // Add all-day tasks on this day
+    // Add all-day tasks on this day (non-recurring only;
+    // recurring all-day tasks are handled natively in calendarItems)
     final List<TaskItem> tasks = appState.filteredTasks
         .where((t) => t.from != null)
         .toList();
@@ -551,62 +510,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     for (var t in tasks) {
       if (!t.isAllDay) continue;
-      if (t.recurrenceRule == null || t.recurrenceRule!.isEmpty) {
-        if (DateTime(t.from!.year, t.from!.month, t.from!.day) ==
-            normalizedDate) {
-          dayTasks.add(t);
-        }
-      } else {
-        try {
-          final occurrences = SfCalendar.getRecurrenceDateTimeCollection(
-            _sanitizeRRule(t.recurrenceRule, t.from!)!,
-            t.from!,
-            specificStartDate: t.from!.isUtc
-                ? normalizedDate.toUtc()
-                : normalizedDate.toLocal(),
-            specificEndDate: t.from!.isUtc
-                ? normalizedDate
-                      .add(const Duration(days: 1))
-                      .subtract(const Duration(milliseconds: 1))
-                      .toUtc()
-                : normalizedDate
-                      .add(const Duration(days: 1))
-                      .subtract(const Duration(milliseconds: 1))
-                      .toLocal(),
-          );
-          for (var occ in occurrences) {
-            final occDate = occ.toLocal();
-            if (occDate.year != normalizedDate.year ||
-                occDate.month != normalizedDate.month ||
-                occDate.day != normalizedDate.day) {
-              continue;
-            }
-            bool isException =
-                t.recurrenceExceptionDates?.any(
-                  (ex) =>
-                      ex.year == occ.year &&
-                      ex.month == occ.month &&
-                      ex.day == occ.day,
-                ) ??
-                false;
-            if (!isException) {
-              final duration = t.to != null
-                  ? t.to!.difference(t.from!)
-                  : const Duration(hours: 1);
-              final occEnd = occ.add(duration);
-              dayTasks.add(
-                t.copyWith(
-                  id: 'occ_${t.id}_${occ.millisecondsSinceEpoch}',
-                  from: occ,
-                  to: occEnd,
-                  parentTaskId: t.id,
-                  clearRecurrenceRule: true,
-                  clearRecurrenceExceptionDates: true,
-                ),
-              );
-            }
-          }
-        } catch (_) {}
+      // Skip recurring tasks – they are added directly to calendarItems
+      if (t.recurrenceRule != null && t.recurrenceRule!.isNotEmpty) continue;
+      if (DateTime(t.from!.year, t.from!.month, t.from!.day) == normalizedDate) {
+        dayTasks.add(t);
       }
     }
 
@@ -1514,6 +1421,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
     calendarItems.addAll(regularTimedTasks);
     calendarItems.addAll(eventReminders);
     calendarItems.addAll(taskReminders);
+
+    // Add all-day recurring events/tasks directly so Syncfusion handles
+    // their recurrence natively – same pipeline as timed recurring events.
+    // Exception dates are returned by EventDataSource.getRecurrenceExceptionDates.
+    final allDayRecurringEvents = events
+        .where((e) => e.isAllDay &&
+            e.recurrenceRule != null &&
+            e.recurrenceRule!.isNotEmpty)
+        .toList();
+    calendarItems.addAll(allDayRecurringEvents);
+
+    final allDayRecurringTasks = tasks
+        .where((t) => t.isAllDay &&
+            t.from != null &&
+            t.recurrenceRule != null &&
+            t.recurrenceRule!.isNotEmpty)
+        .toList();
+    calendarItems.addAll(allDayRecurringTasks);
 
     // Inject timed clones for short months
     final shortMonthClones = _getShortMonthClones(events, tasks);
@@ -3886,6 +3811,102 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  /// Returns occurrences of recurring all-day events/tasks that fall on [date].
+  /// Uses a month-wide search window so monthly/yearly rules are reliably found.
+  List<dynamic> _getRecurringAllDayOccurrencesForDate(
+      DateTime date, AppState appState) {
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    final result = <dynamic>[];
+
+    // Use the full month as search window to ensure monthly/yearly rules are found
+    final searchStart =
+        DateTime(normalizedDate.year, normalizedDate.month, 1);
+    final searchEnd =
+        DateTime(normalizedDate.year, normalizedDate.month + 1, 1)
+            .subtract(const Duration(milliseconds: 1));
+
+    // Recurring all-day events
+    for (var e in appState.filteredEvents) {
+      if (!e.isAllDay) continue;
+      if (e.recurrenceRule == null || e.recurrenceRule!.isEmpty) continue;
+      try {
+        final dates = SfCalendar.getRecurrenceDateTimeCollection(
+          _sanitizeRRule(e.recurrenceRule, e.from)!,
+          e.from,
+          specificStartDate: searchStart,
+          specificEndDate: searchEnd,
+        );
+        for (var occ in dates) {
+          final d = occ.toLocal();
+          if (d.year != normalizedDate.year ||
+              d.month != normalizedDate.month ||
+              d.day != normalizedDate.day) continue;
+          final isEx =
+              e.recurrenceExceptionDates?.any((ex) =>
+                  ex.year == d.year &&
+                  ex.month == d.month &&
+                  ex.day == d.day) ??
+              false;
+          if (!isEx) {
+            result.add(e.copyWith(
+              id: 'occ_${e.id}_${occ.millisecondsSinceEpoch}',
+              from: occ,
+              to: occ.add(e.to.difference(e.from)),
+              clearRecurrenceRule: true,
+              clearRecurrenceExceptionDates: true,
+            ));
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Recurring all-day tasks
+    final tasks = appState.filteredTasks
+        .where((t) =>
+            t.from != null &&
+            t.isAllDay &&
+            t.recurrenceRule != null &&
+            t.recurrenceRule!.isNotEmpty)
+        .toList();
+    for (var t in tasks) {
+      try {
+        final dates = SfCalendar.getRecurrenceDateTimeCollection(
+          _sanitizeRRule(t.recurrenceRule, t.from!)!,
+          t.from!,
+          specificStartDate: searchStart,
+          specificEndDate: searchEnd,
+        );
+        for (var occ in dates) {
+          final d = occ.toLocal();
+          if (d.year != normalizedDate.year ||
+              d.month != normalizedDate.month ||
+              d.day != normalizedDate.day) continue;
+          final isEx =
+              t.recurrenceExceptionDates?.any((ex) =>
+                  ex.year == occ.year &&
+                  ex.month == occ.month &&
+                  ex.day == occ.day) ??
+              false;
+          if (!isEx) {
+            final dur = t.to != null
+                ? t.to!.difference(t.from!)
+                : const Duration(hours: 1);
+            result.add(t.copyWith(
+              id: 'occ_${t.id}_${occ.millisecondsSinceEpoch}',
+              from: occ,
+              to: occ.add(dur),
+              parentTaskId: t.id,
+              clearRecurrenceRule: true,
+              clearRecurrenceExceptionDates: true,
+            ));
+          }
+        }
+      } catch (_) {}
+    }
+
+    return result;
+  }
+
   void _showAllDayItemsSheet(BuildContext context, DateTime date) {
     showModalBottomSheet(
       context: context,
@@ -3897,9 +3918,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
           child: Consumer<AppState>(
             builder: (context, appState, child) {
               final rawItems = _getAllDayItemsForDate(date, appState);
+              // Add recurring all-day items (not returned by _getAllDayItemsForDate)
+              final recurringItems =
+                  _getRecurringAllDayOccurrencesForDate(date, appState);
+              final allRawItems = [...rawItems, ...recurringItems];
               final List<dynamic> displayItems = [];
               final seenIds = <String>{};
-              for (var raw in rawItems) {
+              for (var raw in allRawItems) {
                 final original = _getOriginalItem(raw, appState);
                 String idKey = '';
                 if (original is Event) idKey = original.id;
@@ -5191,13 +5216,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final int initialHours = dur.toInt();
     final int initialMinutes = ((dur - initialHours) * 60).round();
 
-    final TextEditingController scoreCtrl = TextEditingController(
-      text: existingEval?.score.toString() ?? '',
+    final TextEditingController percentCtrl = TextEditingController(
+      text: existingEval != null
+          ? (existingEval.performancePercent ?? existingEval.score).toString()
+          : (project.defaultPercentage?.toStringAsFixed(0) ?? ''),
+    );
+    final TextEditingController numericCtrl = TextEditingController(
+      text: existingEval != null
+          ? existingEval.score.toString()
+          : (project.defaultNumeric?.toString() ?? ''),
     );
     final TextEditingController hoursCtrl = TextEditingController(
       text: existingEval != null
           ? existingEval.durationHours.toInt().toString()
-          : initialHours.toString(),
+          : (project.defaultDuration != null
+              ? project.defaultDuration!.toInt().toString()
+              : initialHours.toString()),
     );
     final TextEditingController minutesCtrl = TextEditingController(
       text: existingEval != null
@@ -5205,7 +5239,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     60)
                 .round()
                 .toString()
-          : initialMinutes.toString(),
+          : (project.defaultDuration != null
+              ? ((project.defaultDuration! - project.defaultDuration!.toInt()) * 60).round().toString()
+              : initialMinutes.toString()),
     );
     final TextEditingController noteCtrl = TextEditingController(
       text: existingEval?.note ?? '',
@@ -5235,51 +5271,65 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       },
                     ),
                     if (!isSkipped) ...[
-                      TextField(
-                        controller: scoreCtrl,
-                        decoration: InputDecoration(
-                          labelText: project.evaluationType == 'PERCENTAGE'
-                              ? 'Başarı Yüzdesi (%)'
-                              : 'Elde Edilen Sayı (Hedef: ${project.targetValue})',
+                      if (project.trackPercentage) ...[
+                        TextField(
+                          controller: percentCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Başarı Yüzdesi (%)',
+                          ),
+                          keyboardType: TextInputType.number,
                         ),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: hoursCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Saat',
-                                suffixText: 'saat',
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (project.trackNumeric) ...[
+                        TextField(
+                          controller: numericCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Elde Edilen Sayı (Hedef: ${project.targetValue})',
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextField(
-                              controller: minutesCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Dakika',
-                                suffixText: 'dk',
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (project.trackDuration) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: hoursCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Saat',
+                                  suffixText: 'saat',
+                                ),
+                                keyboardType: TextInputType.number,
                               ),
-                              keyboardType: TextInputType.number,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextField(
+                                controller: minutesCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Dakika',
+                                  suffixText: 'dk',
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ],
+                    if (project.trackNote) ...[
+                      TextField(
+                        controller: noteCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Not Ekle',
+                          hintText: 'Oturumla ilgili notlar yazın...',
+                        ),
+                        maxLines: 3,
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: noteCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Not Ekle',
-                        hintText: 'Oturumla ilgili notlar yazın...',
-                      ),
-                      maxLines: 3,
-                    ),
                   ],
                 ),
               ),
@@ -5315,7 +5365,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       if (!confirm) return;
                     }
                     if (!context.mounted) return;
-                    double score = double.tryParse(scoreCtrl.text) ?? 0.0;
+                    
+                    double score = 0.0;
+                    double? pctVal;
+
+                    if (!isSkipped) {
+                      if (project.trackNumeric) {
+                        score = double.tryParse(numericCtrl.text) ?? 0.0;
+                      }
+                      if (project.trackPercentage) {
+                        final pVal = double.tryParse(percentCtrl.text) ?? 0.0;
+                        pctVal = pVal;
+                        if (!project.trackNumeric) {
+                          score = pVal;
+                        }
+                      }
+                    }
+
                     int hrs = int.tryParse(hoursCtrl.text) ?? 0;
                     int mins = int.tryParse(minutesCtrl.text) ?? 0;
                     double duration = hrs + (mins / 60.0);
@@ -5330,12 +5396,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           ),
                       projectId: project.id,
                       sessionDate: normalizedDate,
-                      score: isSkipped ? 0 : score,
+                      score: score,
                       isSkipped: isSkipped,
-                      durationHours: isSkipped ? 0.0 : duration,
-                      note: noteCtrl.text.trim().isEmpty
-                          ? null
-                          : noteCtrl.text.trim(),
+                      durationHours: (isSkipped || !project.trackDuration) ? 0.0 : duration,
+                      note: (project.trackNote && noteCtrl.text.trim().isNotEmpty)
+                          ? noteCtrl.text.trim()
+                          : null,
+                      performancePercent: pctVal,
                     );
                     appState.addOrUpdateEvaluation(eval);
                     Navigator.pop(context);

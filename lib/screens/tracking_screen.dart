@@ -437,11 +437,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                 double netSum = 0.0;
                                 for (var day in monthDays) {
                                   final ev = _getEvalForDay(evaluations, p.id, day);
-                                  if (ev != null) {
-                                    netSum += ev.durationHours * (ev.score / 100.0);
+                                  if (ev != null && p.trackNetHours) {
+                                    final pct = ev.performancePercent ?? ev.score;
+                                    netSum += ev.durationHours * (pct / 100.0);
                                   }
                                 }
-                                return _buildValueCell(netSum.toStringAsFixed(1));
+                                return _buildValueCell(p.trackNetHours ? netSum.toStringAsFixed(1) : '-');
                               });
                             }),
                           ],
@@ -456,11 +457,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                 double brutSum = 0.0;
                                 for (var day in monthDays) {
                                   final ev = _getEvalForDay(evaluations, p.id, day);
-                                  if (ev != null) {
+                                  if (ev != null && p.trackDuration) {
                                     brutSum += ev.durationHours;
                                   }
                                 }
-                                return _buildValueCell(brutSum.toStringAsFixed(1));
+                                return _buildValueCell(p.trackDuration ? brutSum.toStringAsFixed(1) : '-');
                               });
                             }),
                           ],
@@ -475,11 +476,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                 double totalSum = 0.0;
                                 for (var day in monthDays) {
                                   final ev = _getEvalForDay(evaluations, p.id, day);
-                                  if (ev != null) {
+                                  if (ev != null && p.trackDuration) {
                                     totalSum += ev.durationHours;
                                   }
                                 }
-                                return _buildValueCell(totalSum.toStringAsFixed(1));
+                                return _buildValueCell(p.trackDuration ? totalSum.toStringAsFixed(1) : '-');
                               });
                             }),
                           ],
@@ -531,21 +532,42 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                   } else {
                                     switch (_matrixDisplayMode) {
                                       case 'PERCENTAGE':
-                                        if (p.evaluationType == 'PERCENTAGE') {
-                                          displayVal = '%${ev.score.toStringAsFixed(0)}';
+                                        if (p.trackPercentage) {
+                                          final pct = ev.performancePercent ?? ev.score;
+                                          displayVal = '%${pct.toStringAsFixed(0)}';
                                         } else {
-                                          displayVal = ev.score.toStringAsFixed(0);
+                                          displayVal = '-';
+                                        }
+                                        break;
+                                      case 'NUMERIC':
+                                        if (p.trackNumeric) {
+                                          displayVal = ev.score.toStringAsFixed(ev.score % 1 == 0 ? 0 : 1);
+                                        } else {
+                                          displayVal = '-';
                                         }
                                         break;
                                       case 'BRUT':
-                                        displayVal = ev.durationHours.toStringAsFixed(1);
+                                        if (p.trackDuration) {
+                                          displayVal = ev.durationHours.toStringAsFixed(1);
+                                        } else {
+                                          displayVal = '-';
+                                        }
                                         break;
                                       case 'NET':
-                                        final netVal = ev.durationHours * (ev.score / 100.0);
-                                        displayVal = netVal.toStringAsFixed(1);
+                                        if (p.trackNetHours) {
+                                          final pct = ev.performancePercent ?? ev.score;
+                                          final netVal = ev.durationHours * (pct / 100.0);
+                                          displayVal = netVal.toStringAsFixed(1);
+                                        } else {
+                                          displayVal = '-';
+                                        }
                                         break;
                                       case 'NOTE':
-                                        displayVal = (ev.note != null && ev.note!.isNotEmpty) ? ev.note! : '-';
+                                        if (p.trackNote) {
+                                          displayVal = (ev.note != null && ev.note!.isNotEmpty) ? ev.note! : '-';
+                                        } else {
+                                          displayVal = '-';
+                                        }
                                         break;
                                     }
                                   }
@@ -657,9 +679,14 @@ class _TrackingScreenState extends State<TrackingScreen> {
         tooltip = 'Yüzdesel Başarı';
         iconColor = Colors.blue;
         break;
+      case 'NUMERIC':
+        icon = Icons.numbers;
+        tooltip = 'Sayısal Değer';
+        iconColor = Colors.teal;
+        break;
       case 'BRUT':
         icon = Icons.hourglass_bottom;
-        tooltip = 'Brüt Saat';
+        tooltip = 'Süre Girdisi (Saat)';
         iconColor = Colors.orange;
         break;
       case 'NET':
@@ -684,6 +711,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
         onTap: () {
           setState(() {
             if (_matrixDisplayMode == 'PERCENTAGE') {
+              _matrixDisplayMode = 'NUMERIC';
+            } else if (_matrixDisplayMode == 'NUMERIC') {
               _matrixDisplayMode = 'BRUT';
             } else if (_matrixDisplayMode == 'BRUT') {
               _matrixDisplayMode = 'NET';
@@ -793,20 +822,27 @@ class _TrackingScreenState extends State<TrackingScreen> {
       ),
     );
 
-    final scoreCtrl = TextEditingController(
+    final percentCtrl = TextEditingController(
+      text: existingEval.id.isNotEmpty && !existingEval.isSkipped
+          ? (existingEval.performancePercent ?? existingEval.score).toStringAsFixed(0)
+          : (project.defaultPercentage?.toStringAsFixed(0) ?? ''),
+    );
+    final numericCtrl = TextEditingController(
       text: existingEval.id.isNotEmpty && !existingEval.isSkipped
           ? existingEval.score.toStringAsFixed(existingEval.score % 1 == 0 ? 0 : 1)
-          : '',
+          : (project.defaultNumeric?.toString() ?? ''),
     );
     final hoursCtrl = TextEditingController(
       text: existingEval.id.isNotEmpty && !existingEval.isSkipped
           ? existingEval.durationHours.toInt().toString()
-          : '',
+          : (project.defaultDuration?.toInt().toString() ?? ''),
     );
     final minutesCtrl = TextEditingController(
       text: existingEval.id.isNotEmpty && !existingEval.isSkipped
           ? ((existingEval.durationHours - existingEval.durationHours.toInt()) * 60).round().toString()
-          : '',
+          : (project.defaultDuration != null
+              ? ((project.defaultDuration! - project.defaultDuration!.toInt()) * 60).round().toString()
+              : ''),
     );
     final noteCtrl = TextEditingController(text: existingEval.note ?? '');
     bool isSkipped = existingEval.id.isNotEmpty ? existingEval.isSkipped : false;
@@ -865,51 +901,65 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       },
                     ),
                     if (!isSkipped) ...[
-                      TextField(
-                        controller: scoreCtrl,
-                        decoration: InputDecoration(
-                          labelText: project.evaluationType == 'PERCENTAGE'
-                              ? 'Başarı Yüzdesi (%)'
-                              : 'Elde Edilen Sayı (Hedef: ${project.targetValue})',
+                      if (project.trackPercentage) ...[
+                        TextField(
+                          controller: percentCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Başarı Yüzdesi (%)',
+                          ),
+                          keyboardType: TextInputType.number,
                         ),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: hoursCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Saat',
-                                suffixText: 'saat',
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (project.trackNumeric) ...[
+                        TextField(
+                          controller: numericCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Elde Edilen Sayı (Hedef: ${project.targetValue})',
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextField(
-                              controller: minutesCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Dakika',
-                                suffixText: 'dk',
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (project.trackDuration) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: hoursCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Saat',
+                                  suffixText: 'saat',
+                                ),
+                                keyboardType: TextInputType.number,
                               ),
-                              keyboardType: TextInputType.number,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextField(
+                                controller: minutesCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Dakika',
+                                  suffixText: 'dk',
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ],
+                    if (project.trackNote) ...[
+                      TextField(
+                        controller: noteCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Not Ekle',
+                          hintText: 'Oturumla ilgili notlar yazın...',
+                        ),
+                        maxLines: 3,
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: noteCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Not Ekle',
-                        hintText: 'Oturumla ilgili notlar yazın...',
-                      ),
-                      maxLines: 3,
-                    ),
                   ],
                 ),
               ),
@@ -931,7 +981,22 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    double score = double.tryParse(scoreCtrl.text) ?? 0.0;
+                    double score = 0.0;
+                    double? pctVal;
+
+                    if (!isSkipped) {
+                      if (project.trackNumeric) {
+                        score = double.tryParse(numericCtrl.text) ?? 0.0;
+                      }
+                      if (project.trackPercentage) {
+                        final pVal = double.tryParse(percentCtrl.text) ?? 0.0;
+                        pctVal = pVal;
+                        if (!project.trackNumeric) {
+                          score = pVal;
+                        }
+                      }
+                    }
+
                     int hrs = int.tryParse(hoursCtrl.text) ?? 0;
                     int mins = int.tryParse(minutesCtrl.text) ?? 0;
                     double duration = hrs + (mins / 60.0);
@@ -985,8 +1050,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       sessionDate: selectedDate,
                       score: isSkipped ? finalScore : score,
                       isSkipped: isSkipped,
-                      durationHours: isSkipped ? 0.0 : duration,
-                      note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
+                      durationHours: (isSkipped || !project.trackDuration) ? 0.0 : duration,
+                      note: (project.trackNote && noteCtrl.text.trim().isNotEmpty) ? noteCtrl.text.trim() : null,
+                      performancePercent: pctVal,
                     );
                     
                     appState.addOrUpdateEvaluation(eval);

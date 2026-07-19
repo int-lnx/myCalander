@@ -19,9 +19,17 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   late TextEditingController _detailsController;
   late String _tag;
   String? _subTag;
-  late String _evaluationType;
   late double _targetValue;
   bool _isArchived = false;
+  late bool _trackPercentage;
+  late bool _trackNumeric;
+  late bool _trackDuration;
+  late bool _trackNetHours;
+  late bool _trackNote;
+
+  late TextEditingController _defaultPercentageController;
+  late TextEditingController _defaultNumericController;
+  late TextEditingController _defaultDurationController;
 
   @override
   void initState() {
@@ -31,15 +39,32 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     _detailsController = TextEditingController(text: proj?.description ?? '');
     _tag = proj?.tag ?? 'Genel';
     _subTag = proj?.subTag;
-    _evaluationType = proj?.evaluationType ?? 'PERCENTAGE';
     _targetValue = proj?.targetValue ?? 100.0;
     _isArchived = proj?.isArchived ?? false;
+    _trackPercentage = proj?.trackPercentage ?? true;
+    _trackNumeric = proj?.trackNumeric ?? false;
+    _trackDuration = proj?.trackDuration ?? true;
+    _trackNetHours = proj?.trackNetHours ?? true;
+    _trackNote = proj?.trackNote ?? true;
+
+    _defaultPercentageController = TextEditingController(
+      text: proj?.defaultPercentage?.toStringAsFixed(0) ?? '',
+    );
+    _defaultNumericController = TextEditingController(
+      text: proj?.defaultNumeric?.toString() ?? '',
+    );
+    _defaultDurationController = TextEditingController(
+      text: proj?.defaultDuration?.toString() ?? '',
+    );
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _detailsController.dispose();
+    _defaultPercentageController.dispose();
+    _defaultNumericController.dispose();
+    _defaultDurationController.dispose();
     super.dispose();
   }
 
@@ -74,35 +99,134 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               maxLines: 3,
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _evaluationType,
-              decoration: const InputDecoration(labelText: 'Değerlendirme Tipi'),
-              items: const [
-                DropdownMenuItem(value: 'PERCENTAGE', child: Text('Yüzde (%)')),
-                DropdownMenuItem(value: 'NUMERIC', child: Text('Sayısal')),
-              ],
+            const Text('Takip Edilecek Veriler', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              title: const Text('Yüzdesel Başarı (%)'),
+              value: _trackPercentage,
               onChanged: (val) {
                 if (val != null) {
                   setState(() {
-                    _evaluationType = val;
-                    _targetValue = val == 'PERCENTAGE' ? 100.0 : 10.0;
+                    _trackPercentage = val;
+                    if (!val) {
+                      _trackNetHours = false;
+                    }
                   });
                 }
               },
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              initialValue: _targetValue.toString(),
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Hedef Değer'),
+            if (_trackPercentage)
+              Padding(
+                padding: const EdgeInsets.only(left: 32.0, right: 16.0, bottom: 8.0),
+                child: TextFormField(
+                  controller: _defaultPercentageController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Varsayılan Yüzde Başarı Değeri (%)',
+                    hintText: 'Örn: 80',
+                    isDense: true,
+                  ),
+                ),
+              ),
+            CheckboxListTile(
+              title: const Text('Sayısal Değer'),
+              value: _trackNumeric,
               onChanged: (val) {
-                final parsed = double.tryParse(val);
-                if (parsed != null) {
-                  _targetValue = parsed;
+                if (val != null) {
+                  setState(() {
+                    _trackNumeric = val;
+                  });
                 }
               },
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
+            ),
+            if (_trackNumeric)
+              Padding(
+                padding: const EdgeInsets.only(left: 32.0, right: 16.0, bottom: 8.0),
+                child: TextFormField(
+                  controller: _defaultNumericController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Varsayılan Sayısal Değer',
+                    hintText: 'Örn: 5',
+                    isDense: true,
+                  ),
+                ),
+              ),
+            CheckboxListTile(
+              title: const Text('Süre Girdisi (Saat/Dakika)'),
+              value: _trackDuration,
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _trackDuration = val;
+                    if (!val) {
+                      _trackNetHours = false;
+                    }
+                  });
+                }
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
+            ),
+            if (_trackDuration)
+              Padding(
+                padding: const EdgeInsets.only(left: 32.0, right: 16.0, bottom: 8.0),
+                child: TextFormField(
+                  controller: _defaultDurationController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Varsayılan Süre Değeri (Saat)',
+                    hintText: 'Örn: 3',
+                    isDense: true,
+                  ),
+                ),
+              ),
+            if (_trackPercentage && _trackDuration)
+              CheckboxListTile(
+                title: const Text('Net Saat Hesaplaması (Yüzdeye göre)'),
+                value: _trackNetHours,
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _trackNetHours = val;
+                    });
+                  }
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+              ),
+            CheckboxListTile(
+              title: const Text('Not / Açıklama'),
+              value: _trackNote,
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _trackNote = val;
+                  });
+                }
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
             ),
             const SizedBox(height: 16),
+            if (_trackNumeric) ...[
+              TextFormField(
+                initialValue: _targetValue.toString(),
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Sayısal Hedef Değer'),
+                onChanged: (val) {
+                  final parsed = double.tryParse(val);
+                  if (parsed != null) {
+                    _targetValue = parsed;
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
             DropdownButtonFormField<String>(
               initialValue: appState.eventTags.contains(_tag)
                   ? _tag
@@ -161,6 +285,10 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       // Auto-assign project color from category tag
       final tagColor = appState.getEventTagColor(_tag) ?? 0xFF2196F3;
       
+      final double? defPct = double.tryParse(_defaultPercentageController.text);
+      final double? defNum = double.tryParse(_defaultNumericController.text);
+      final double? defDur = double.tryParse(_defaultDurationController.text);
+
       final proj = Project(
         id: widget.existingProject?.id ?? IdGenerator.generate(_titleController.text),
         title: _titleController.text,
@@ -168,9 +296,17 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         colorValue: tagColor,
         tag: _tag,
         subTag: _subTag,
-        evaluationType: _evaluationType,
+        evaluationType: _trackPercentage ? 'PERCENTAGE' : 'NUMERIC',
         targetValue: _targetValue,
         isArchived: _isArchived,
+        trackPercentage: _trackPercentage,
+        trackNumeric: _trackNumeric,
+        trackDuration: _trackDuration,
+        trackNetHours: _trackNetHours,
+        trackNote: _trackNote,
+        defaultPercentage: _trackPercentage ? defPct : null,
+        defaultNumeric: _trackNumeric ? defNum : null,
+        defaultDuration: _trackDuration ? defDur : null,
       );
 
       if (widget.existingProject == null) {

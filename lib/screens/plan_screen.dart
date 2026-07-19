@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../models/topic.dart';
 import '../models/topic_plan.dart';
+import '../models/project.dart';
 import '../models/project_evaluation.dart';
 import '../utils/id_generator.dart';
 
@@ -19,7 +20,7 @@ class PlanScreen extends StatefulWidget {
 class _PlanScreenState extends State<PlanScreen> {
   final int _selectedYear = DateTime.now().year;
   late ScrollController _verticalScrollController;
-  late ScrollController _headerHorizontalController;
+  late ScrollController _cellsVerticalScrollController;
   late ScrollController _contentHorizontalController;
   bool _showPrediction = false;
   double _dailyCapacityHours = 2.0;
@@ -62,22 +63,22 @@ class _PlanScreenState extends State<PlanScreen> {
       }
     });
     _verticalScrollController = ScrollController();
-    _headerHorizontalController = ScrollController();
+    _cellsVerticalScrollController = ScrollController();
     _contentHorizontalController = ScrollController();
 
-    _contentHorizontalController.addListener(() {
-      if (_headerHorizontalController.hasClients &&
-          _headerHorizontalController.offset !=
-              _contentHorizontalController.offset) {
-        _headerHorizontalController.jumpTo(_contentHorizontalController.offset);
+    _verticalScrollController.addListener(() {
+      if (_cellsVerticalScrollController.hasClients &&
+          _cellsVerticalScrollController.offset !=
+              _verticalScrollController.offset) {
+        _cellsVerticalScrollController.jumpTo(_verticalScrollController.offset);
       }
     });
 
-    _headerHorizontalController.addListener(() {
-      if (_contentHorizontalController.hasClients &&
-          _contentHorizontalController.offset !=
-              _headerHorizontalController.offset) {
-        _contentHorizontalController.jumpTo(_headerHorizontalController.offset);
+    _cellsVerticalScrollController.addListener(() {
+      if (_verticalScrollController.hasClients &&
+          _verticalScrollController.offset !=
+              _cellsVerticalScrollController.offset) {
+        _verticalScrollController.jumpTo(_cellsVerticalScrollController.offset);
       }
     });
 
@@ -89,7 +90,7 @@ class _PlanScreenState extends State<PlanScreen> {
   @override
   void dispose() {
     _verticalScrollController.dispose();
-    _headerHorizontalController.dispose();
+    _cellsVerticalScrollController.dispose();
     _contentHorizontalController.dispose();
     _capacityController.dispose();
     super.dispose();
@@ -459,11 +460,25 @@ class _PlanScreenState extends State<PlanScreen> {
       return;
     }
 
-    final scoreController = TextEditingController(
-      text: existingEval != null ? existingEval.score.toStringAsFixed(0) : '',
+    final project = appState.projects.firstWhere(
+      (p) => p.id == widget.projectId,
+      orElse: () => const Project(id: '', title: '', colorValue: 0, evaluationType: 'PERCENTAGE', targetValue: 100),
+    );
+
+    final percentController = TextEditingController(
+      text: existingEval != null
+          ? (existingEval.performancePercent ?? existingEval.score).toStringAsFixed(0)
+          : (project.defaultPercentage?.toStringAsFixed(0) ?? ''),
+    );
+    final numericController = TextEditingController(
+      text: existingEval != null
+          ? existingEval.score.toStringAsFixed(0)
+          : (project.defaultNumeric?.toStringAsFixed(0) ?? ''),
     );
     final durationController = TextEditingController(
-      text: existingEval != null ? existingEval.durationHours.toString() : '',
+      text: existingEval != null
+          ? existingEval.durationHours.toString()
+          : (project.defaultDuration?.toString() ?? ''),
     );
     final noteController = TextEditingController(
       text: existingEval?.note ?? '',
@@ -484,20 +499,29 @@ class _PlanScreenState extends State<PlanScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(
-                      controller: scoreController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Puan / Performans (%)'),
-                    ),
-                    TextField(
-                      controller: durationController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Çalışılan Saat (Süre)'),
-                    ),
-                    TextField(
-                      controller: noteController,
-                      decoration: const InputDecoration(labelText: 'Not / Açıklama'),
-                    ),
+                    if (project.trackPercentage)
+                      TextField(
+                        controller: percentController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Başarı Yüzdesi (%)'),
+                      ),
+                    if (project.trackNumeric)
+                      TextField(
+                        controller: numericController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(labelText: 'Sayısal Değer (Hedef: ${project.targetValue})'),
+                      ),
+                    if (project.trackDuration)
+                      TextField(
+                        controller: durationController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Çalışılan Saat (Süre)'),
+                      ),
+                    if (project.trackNote)
+                      TextField(
+                        controller: noteController,
+                        decoration: const InputDecoration(labelText: 'Not / Açıklama'),
+                      ),
                   ],
                 ),
               ),
@@ -518,7 +542,20 @@ class _PlanScreenState extends State<PlanScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    final score = double.tryParse(scoreController.text) ?? 0.0;
+                    double scoreVal = 0.0;
+                    double? pctVal;
+
+                    if (project.trackNumeric) {
+                      scoreVal = double.tryParse(numericController.text) ?? 0.0;
+                    }
+                    if (project.trackPercentage) {
+                      final pVal = double.tryParse(percentController.text) ?? 0.0;
+                      pctVal = pVal;
+                      if (!project.trackNumeric) {
+                        scoreVal = pVal;
+                      }
+                    }
+
                     final duration = double.tryParse(durationController.text) ?? 0.0;
                     final note = noteController.text.trim();
 
@@ -526,9 +563,10 @@ class _PlanScreenState extends State<PlanScreen> {
                       id: '${widget.projectId}_${date.millisecondsSinceEpoch}',
                       projectId: widget.projectId!,
                       sessionDate: DateTime(date.year, date.month, date.day),
-                      score: score,
-                      durationHours: duration,
-                      note: note.isNotEmpty ? note : null,
+                      score: scoreVal,
+                      durationHours: project.trackDuration ? duration : 0.0,
+                      note: project.trackNote && note.isNotEmpty ? note : null,
+                      performancePercent: pctVal,
                       isSkipped: false,
                     );
                     appState.addOrUpdateEvaluation(eval);
@@ -872,74 +910,52 @@ class _PlanScreenState extends State<PlanScreen> {
               ],
             ),
           ),
-          Container(
-            height: 50,
-            color: Colors.grey.shade100,
+          Expanded(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                InkWell(
-                  onTap: () => _scrollToDate(DateTime.now()),
-                  child: Container(
-                    width: _dateColWidth,
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'Tarih 📍',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-                Container(
-                  width: _colWidth,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50.withValues(alpha: 0.5),
-                    border: Border(
-                      right: BorderSide(
-                        color: Colors.grey.shade300,
-                      ),
-                    ),
-                  ),
-                  child: const Text(
-                    'Genel 📝',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.amber,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: dynamicColumns.isEmpty
-                      ? Container(
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.only(left: 16.0),
+                // Left fixed column: Tarih
+                SizedBox(
+                  width: _dateColWidth,
+                  child: Column(
+                    children: [
+                      // Header Date
+                      InkWell(
+                        onTap: () => _scrollToDate(DateTime.now()),
+                        child: Container(
+                          height: 50,
+                          color: Colors.grey.shade100,
+                          alignment: Alignment.center,
                           child: const Text(
-                            'Soldaki mavi tarih sütununa tıklayarak ilk logunuzu ekleyin.',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic,
-                            ),
+                            'Tarih 📍',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        )
-                      : ListView.builder(
-                          controller: _headerHorizontalController,
-                          scrollDirection: Axis.horizontal,
-                          itemCount: dynamicColumns.length,
+                        ),
+                      ),
+                      // Body Dates List
+                      Expanded(
+                        child: ListView.builder(
+                          controller: _verticalScrollController,
+                          itemCount: _totalTimelineDays,
                           itemBuilder: (context, index) {
+                            final date = _timelineStartDate.add(Duration(days: index));
+                            final dateStr = '${date.day} ${_monthNames[date.month - 1]}';
                             return Container(
-                              width: _colWidth,
-                              alignment: Alignment.center,
+                              height: _rowHeight,
                               decoration: BoxDecoration(
                                 border: Border(
-                                  right: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
+                                  bottom: BorderSide(color: Colors.grey.shade200),
                                 ),
                               ),
-                              child: Text(
-                                'Kolon ${index + 1}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                              child: InkWell(
+                                onTap: () => _handleLeftDateTap(date),
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  color: Colors.blue.shade50,
+                                  child: Text(
+                                    dateStr,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
                                 ),
                               ),
                             );
@@ -949,238 +965,264 @@ class _PlanScreenState extends State<PlanScreen> {
                     ],
                   ),
                 ),
+                // Right scrollable column: Genel + Kolonlar
                 Expanded(
-                  child: ListView.builder(
-                    controller: _verticalScrollController,
-                    itemCount: _totalTimelineDays,
-                    itemBuilder: (context, index) {
-                      final date = _timelineStartDate.add(
-                        Duration(days: index),
-                      );
-                      final dateStr =
-                          '${date.day} ${_monthNames[date.month - 1]}';
-                      final dayKey =
-                          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-                      ProjectEvaluation? dayEval;
-                      for (var ev in evaluations) {
-                        if (ev.sessionDate.year == date.year &&
-                            ev.sessionDate.month == date.month &&
-                            ev.sessionDate.day == date.day) {
-                          dayEval = ev;
-                          break;
-                        }
-                      }
-
-                      String evalText = '';
-                      Color evalBg = Colors.transparent;
-                      if (dayEval != null) {
-                        evalBg = Colors.amber.shade50.withValues(alpha: 0.5);
-                        final parts = <String>[];
-                        if (dayEval.score > 0) parts.add('%${dayEval.score.toStringAsFixed(0)}');
-                        if (dayEval.durationHours > 0) parts.add('${dayEval.durationHours.toStringAsFixed(1)} sa');
-                        evalText = parts.join(' - ');
-                        if (dayEval.note != null && dayEval.note!.isNotEmpty) {
-                          evalText += '\n📝 ${dayEval.note}';
-                        }
-                      }
-
-                      return Container(
-                        height: _rowHeight,
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.grey.shade200),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            InkWell(
-                              onTap: () => _handleLeftDateTap(date),
-                              child: Container(
-                                width: _dateColWidth,
-                                alignment: Alignment.center,
-                                color: Colors.blue.shade50,
-                                child: Text(
-                                  dateStr,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                            ),
-                            InkWell(
-                              onTap: () => _showAddEvaluationDialog(context, appState, date, existingEval: dayEval),
-                              child: Container(
-                                width: _colWidth,
-                                decoration: BoxDecoration(
-                                  color: evalBg,
-                                  border: Border(
-                                    right: BorderSide(color: Colors.grey.shade200),
-                                  ),
-                                ),
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                child: Center(
-                                  child: Text(
-                                    evalText,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.amber.shade900,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: ListView.builder(
-                                controller: ScrollController(
-                                  initialScrollOffset: _contentHorizontalController.hasClients
-                                      ? _contentHorizontalController.offset
-                                      : 0.0,
-                                ),
-                                scrollDirection: Axis.horizontal,
-                                itemCount: dynamicColumns.length,
-                                itemBuilder: (context, tIndex) {
-                                  final columnPlans = dynamicColumns[tIndex];
-
-                                  String cellText = '';
-                                  Color cellColor = Colors.transparent;
-                                  for (var plan in columnPlans) {
-                                    final pStart = getVisualStartDate(plan);
-                                    final pEnd = getVisualEndDate(plan);
-                                    final pHighlightEnd = getVisualEndDate(plan);
-
-                                    if ((date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) &&
-                                        (date.isBefore(pEnd) || date.isAtSameMomentAs(pEnd))) {
-                                      
-                                      // Set light highlight color if date is between start and highlightEnd
-                                      cellColor = Color(plan.colorValue).withValues(alpha: 0.12);
-
-                                      final isFirstDay = date.isAtSameMomentAs(pStart);
-                                      final isCompletedDay = plan.status == 'Yapılanlar' && date.isAtSameMomentAs(pEnd);
-                                      final rep = plan.dayReports[dayKey];
-                                      final hours = rep?.hoursWorked ?? 0.0;
-                                      
-                                      final isPredicted = _showPrediction &&
-                                          predictionMap.containsKey(plan.id) &&
-                                          predictionMap[plan.id]!.containsKey(dayKey);
-
-                                      if (isFirstDay) {
-                                        if (isCompletedDay) {
-                                          cellText = hours > 0 ? '🏁 ${plan.title}\n($hours sa)' : '🏁 ${plan.title}';
-                                        } else if (isPredicted) {
-                                          final predHours = predictionMap[plan.id]![dayKey]!;
-                                          cellText = '🔮 ${plan.title}\n(${predHours.toStringAsFixed(1)} sa)';
-                                        } else {
-                                          cellText = hours > 0 ? '${plan.title}\n($hours sa)' : plan.title;
-                                        }
-                                        cellColor = Color(plan.colorValue).withValues(alpha: isPredicted ? 0.2 : 0.35);
-                                      } else {
-                                        if (hours > 0 || isCompletedDay || isPredicted) {
-                                          if (isCompletedDay) {
-                                            cellText = hours > 0 ? '🏁\n($hours sa)' : '🏁';
-                                          } else if (isPredicted) {
-                                            final predHours = predictionMap[plan.id]![dayKey]!;
-                                            cellText = '🔮\n(${predHours.toStringAsFixed(1)} sa)';
-                                          } else {
-                                            cellText = '($hours sa)';
-                                          }
-                                          cellColor = Color(plan.colorValue).withValues(alpha: isPredicted ? 0.2 : 0.35);
-                                        }
-                                      }
-                                      break;
-                                    }
-                                  }
-
-                                  // Find active plan in this column on this date to pre-select it
-                                  String? activePlanId;
-                                  for (var plan in columnPlans) {
-                                    final pStart = getVisualStartDate(plan);
-                                    final pEnd = getVisualEndDate(plan);
-                                    if ((date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) &&
-                                        (date.isBefore(pEnd) || date.isAtSameMomentAs(pEnd))) {
-                                      activePlanId = plan.id;
-                                      break;
-                                    }
-                                  }
-
-                                  return InkWell(
-                                    onTap: () {
-                                      final appState = Provider.of<AppState>(context, listen: false);
-                                      final allPlans = appState.topicPlans
-                                          .where((p) => p.projectId == widget.projectId)
-                                          .toList();
-
-                                      // Check if there is an ongoing plan in this column that started on or before this date
-                                      TopicPlan? restrictedPlan;
-                                      for (var plan in columnPlans) {
-                                        if (plan.status != 'Yapılanlar') {
-                                          final pStart = getVisualStartDate(plan);
-                                          if (date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) {
-                                            restrictedPlan = plan;
-                                            break;
-                                          }
-                                        }
-                                      }
-
-                                      final List<TopicPlan> dropdownPlans;
-                                      if (restrictedPlan != null) {
-                                        dropdownPlans = [restrictedPlan];
-                                      } else {
-                                        dropdownPlans = allPlans.where((plan) {
-                                          if (plan.status == 'Yapılanlar') {
-                                            final pEnd = getVisualEndDate(plan);
-                                            if (date.isAfter(pEnd)) {
-                                              return false;
-                                            }
-                                          }
-                                          return true;
-                                        }).toList();
-                                      }
-
-                                      _showLeftDateHourEntryDialog(
-                                        context,
-                                        date,
-                                        appState,
-                                        allPlans,
-                                        initialPlanId: activePlanId ?? restrictedPlan?.id,
-                                        restrictedPlans: dropdownPlans,
-                                      );
-                                    },
-                                    child: Container(
-                                      width: _colWidth,
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: cellColor,
-                                        border: Border(
-                                          right: BorderSide(
-                                            color: Colors.grey.shade200,
-                                          ),
-                                        ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    controller: _contentHorizontalController,
+                    child: SizedBox(
+                      width: (dynamicColumns.length + 1) * _colWidth,
+                      child: Column(
+                        children: [
+                          // Header Rows (Genel + Columns)
+                          Container(
+                            height: 50,
+                            color: Colors.grey.shade100,
+                            child: Row(
+                              children: List.generate(dynamicColumns.length + 1, (index) {
+                                if (index == 0) {
+                                  return Container(
+                                    width: _colWidth,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.shade50.withValues(alpha: 0.5),
+                                      border: Border(
+                                        right: BorderSide(color: Colors.grey.shade300),
                                       ),
-                                      child: Center(
-                                        child: Text(
-                                          cellText,
-                                          style: const TextStyle(fontSize: 10),
-                                          textAlign: TextAlign.center,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                    ),
+                                    child: const Text(
+                                      'Genel 📝',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.amber,
                                       ),
                                     ),
                                   );
-                                },
-                              ),
+                                }
+                                return Container(
+                                  width: _colWidth,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      right: BorderSide(color: Colors.grey.shade300),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Kolon $index',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                );
+                              }),
                             ),
-                          ],
-                        ),
-                      );
-                    },
+                          ),
+                          // Body Rows List
+                          Expanded(
+                            child: ListView.builder(
+                              controller: _cellsVerticalScrollController,
+                              itemCount: _totalTimelineDays,
+                              itemBuilder: (context, index) {
+                                final date = _timelineStartDate.add(Duration(days: index));
+                                final dayKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+                                ProjectEvaluation? dayEval;
+                                for (var ev in evaluations) {
+                                  if (ev.sessionDate.year == date.year &&
+                                      ev.sessionDate.month == date.month &&
+                                      ev.sessionDate.day == date.day) {
+                                    dayEval = ev;
+                                    break;
+                                  }
+                                }
+
+                                String evalText = '';
+                                Color evalBg = Colors.transparent;
+                                if (dayEval != null) {
+                                  evalBg = Colors.amber.shade50.withValues(alpha: 0.5);
+                                  final parts = <String>[];
+                                  if (dayEval.score > 0) parts.add('%${dayEval.score.toStringAsFixed(0)}');
+                                  if (dayEval.durationHours > 0) parts.add('${dayEval.durationHours.toStringAsFixed(1)} sa');
+                                  evalText = parts.join(' - ');
+                                  if (dayEval.note != null && dayEval.note!.isNotEmpty) {
+                                    evalText += '\n📝 ${dayEval.note}';
+                                  }
+                                }
+
+                                return Container(
+                                  height: _rowHeight,
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(color: Colors.grey.shade200),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: List.generate(dynamicColumns.length + 1, (tIndex) {
+                                      if (tIndex == 0) {
+                                        return InkWell(
+                                          onTap: () => _showAddEvaluationDialog(context, appState, date, existingEval: dayEval),
+                                          child: Container(
+                                            width: _colWidth,
+                                            decoration: BoxDecoration(
+                                              color: evalBg,
+                                              border: Border(
+                                                right: BorderSide(color: Colors.grey.shade200),
+                                              ),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                            child: Center(
+                                              child: Text(
+                                                evalText,
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: Colors.amber.shade900,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                      final columnPlans = dynamicColumns[tIndex - 1];
+
+                                      String cellText = '';
+                                      Color cellColor = Colors.transparent;
+                                      for (var plan in columnPlans) {
+                                        final pStart = getVisualStartDate(plan);
+                                        final pEnd = getVisualEndDate(plan);
+
+                                        if ((date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) &&
+                                            (date.isBefore(pEnd) || date.isAtSameMomentAs(pEnd))) {
+                                          
+                                          cellColor = Color(plan.colorValue).withValues(alpha: 0.12);
+
+                                          final isFirstDay = date.isAtSameMomentAs(pStart);
+                                          final isCompletedDay = plan.status == 'Yapılanlar' && date.isAtSameMomentAs(pEnd);
+                                          final rep = plan.dayReports[dayKey];
+                                          final hours = rep?.hoursWorked ?? 0.0;
+                                          
+                                          final isPredicted = _showPrediction &&
+                                              predictionMap.containsKey(plan.id) &&
+                                              predictionMap[plan.id]!.containsKey(dayKey);
+
+                                          if (isFirstDay) {
+                                            if (isCompletedDay) {
+                                              cellText = hours > 0 ? '🏁 ${plan.title}\n($hours sa)' : '🏁 ${plan.title}';
+                                            } else if (isPredicted) {
+                                              final predHours = predictionMap[plan.id]![dayKey]!;
+                                              cellText = '🔮 ${plan.title}\n(${predHours.toStringAsFixed(1)} sa)';
+                                            } else {
+                                              cellText = hours > 0 ? '${plan.title}\n($hours sa)' : plan.title;
+                                            }
+                                            cellColor = Color(plan.colorValue).withValues(alpha: isPredicted ? 0.2 : 0.35);
+                                          } else {
+                                            if (hours > 0 || isCompletedDay || isPredicted) {
+                                              if (isCompletedDay) {
+                                                cellText = hours > 0 ? '🏁\n($hours sa)' : '🏁';
+                                              } else if (isPredicted) {
+                                                final predHours = predictionMap[plan.id]![dayKey]!;
+                                                cellText = '🔮\n(${predHours.toStringAsFixed(1)} sa)';
+                                              } else {
+                                                cellText = '($hours sa)';
+                                              }
+                                              cellColor = Color(plan.colorValue).withValues(alpha: isPredicted ? 0.2 : 0.35);
+                                            }
+                                          }
+                                          break;
+                                        }
+                                      }
+
+                                      String? activePlanId;
+                                      for (var plan in columnPlans) {
+                                        final pStart = getVisualStartDate(plan);
+                                        final pEnd = getVisualEndDate(plan);
+                                        if ((date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) &&
+                                            (date.isBefore(pEnd) || date.isAtSameMomentAs(pEnd))) {
+                                          activePlanId = plan.id;
+                                          break;
+                                        }
+                                      }
+
+                                      return InkWell(
+                                        onTap: () {
+                                          final appState = Provider.of<AppState>(context, listen: false);
+                                          final allPlans = appState.topicPlans
+                                              .where((p) => p.projectId == widget.projectId)
+                                              .toList();
+
+                                          TopicPlan? restrictedPlan;
+                                          for (var plan in columnPlans) {
+                                            if (plan.status != 'Yapılanlar') {
+                                              final pStart = getVisualStartDate(plan);
+                                              if (date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) {
+                                                restrictedPlan = plan;
+                                                break;
+                                              }
+                                            }
+                                          }
+
+                                          final List<TopicPlan> dropdownPlans;
+                                          if (restrictedPlan != null) {
+                                            dropdownPlans = [restrictedPlan];
+                                          } else {
+                                            dropdownPlans = allPlans.where((plan) {
+                                              if (plan.status == 'Yapılanlar') {
+                                                final pEnd = getVisualEndDate(plan);
+                                                if (date.isAfter(pEnd)) {
+                                                  return false;
+                                                }
+                                              }
+                                              return true;
+                                            }).toList();
+                                          }
+
+                                          _showLeftDateHourEntryDialog(
+                                            context,
+                                            date,
+                                            appState,
+                                            allPlans,
+                                            initialPlanId: activePlanId ?? restrictedPlan?.id,
+                                            restrictedPlans: dropdownPlans,
+                                          );
+                                        },
+                                        child: Container(
+                                          width: _colWidth,
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: cellColor,
+                                            border: Border(
+                                              right: BorderSide(color: Colors.grey.shade200),
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              cellText,
+                                              style: const TextStyle(fontSize: 10),
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
     );
   }
 }

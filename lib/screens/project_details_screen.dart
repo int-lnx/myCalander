@@ -253,8 +253,16 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
 
   void _showAddEvaluationDialog(BuildContext context, AppState appState) {
     DateTime selectedDate = DateTime.now();
-    final scoreController = TextEditingController();
-    final durationController = TextEditingController();
+    final project = widget.project;
+    final percentController = TextEditingController(
+      text: project.defaultPercentage?.toStringAsFixed(0) ?? '',
+    );
+    final numericController = TextEditingController(
+      text: project.defaultNumeric?.toStringAsFixed(0) ?? '',
+    );
+    final durationController = TextEditingController(
+      text: project.defaultDuration?.toString() ?? '',
+    );
     final noteController = TextEditingController();
 
     showDialog(
@@ -283,20 +291,29 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
                         }
                       },
                     ),
-                    TextField(
-                      controller: scoreController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Puan / Performans (%)'),
-                    ),
-                    TextField(
-                      controller: durationController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Çalışılan Saat (Süre)'),
-                    ),
-                    TextField(
-                      controller: noteController,
-                      decoration: const InputDecoration(labelText: 'Not / Açıklama'),
-                    ),
+                    if (project.trackPercentage)
+                      TextField(
+                        controller: percentController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Başarı Yüzdesi (%)'),
+                      ),
+                    if (project.trackNumeric)
+                      TextField(
+                        controller: numericController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(labelText: 'Sayısal Değer (Hedef: ${project.targetValue})'),
+                      ),
+                    if (project.trackDuration)
+                      TextField(
+                        controller: durationController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Çalışılan Saat (Süre)'),
+                      ),
+                    if (project.trackNote)
+                      TextField(
+                        controller: noteController,
+                        decoration: const InputDecoration(labelText: 'Not / Açıklama'),
+                      ),
                   ],
                 ),
               ),
@@ -307,7 +324,20 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    final score = double.tryParse(scoreController.text) ?? 0.0;
+                    double scoreVal = 0.0;
+                    double? pctVal;
+
+                    if (project.trackNumeric) {
+                      scoreVal = double.tryParse(numericController.text) ?? 0.0;
+                    }
+                    if (project.trackPercentage) {
+                      final pVal = double.tryParse(percentController.text) ?? 0.0;
+                      pctVal = pVal;
+                      if (!project.trackNumeric) {
+                        scoreVal = pVal;
+                      }
+                    }
+
                     final duration = double.tryParse(durationController.text) ?? 0.0;
                     final note = noteController.text.trim();
 
@@ -315,9 +345,10 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
                       id: '${widget.project.id}_${selectedDate.millisecondsSinceEpoch}',
                       projectId: widget.project.id,
                       sessionDate: DateTime(selectedDate.year, selectedDate.month, selectedDate.day),
-                      score: score,
-                      durationHours: duration,
-                      note: note.isNotEmpty ? note : null,
+                      score: scoreVal,
+                      durationHours: project.trackDuration ? duration : 0.0,
+                      note: project.trackNote && note.isNotEmpty ? note : null,
+                      performancePercent: pctVal,
                       isSkipped: false,
                     );
                     appState.addOrUpdateEvaluation(eval);
@@ -737,6 +768,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
       ),
       body: TabBarView(
         controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
         children: [
           _buildGenelAnaliz(context, appState),
           PlanScreen(projectId: widget.project.id, showAppBar: false),

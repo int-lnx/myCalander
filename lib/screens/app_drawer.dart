@@ -134,7 +134,46 @@ class _AppDrawerState extends State<AppDrawer> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.edit, size: 16, color: Colors.grey),
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+                                onPressed: () {
+                                  final editCtrl = TextEditingController(text: cat);
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: Text(isEvent ? 'Etkinlik Kategorisini Yeniden Adlandır' : 'Görev Kategorisini Yeniden Adlandır'),
+                                      content: TextField(
+                                        controller: editCtrl,
+                                        decoration: const InputDecoration(
+                                          hintText: 'Yeni Kategori Adı',
+                                        ),
+                                        autofocus: true,
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: const Text('İptal'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () {
+                                            final newName = editCtrl.text.trim();
+                                            if (newName.isNotEmpty) {
+                                              if (isEvent) {
+                                                appState.renameEventCategory(cat, newName);
+                                              } else {
+                                                appState.renameTaskCategory(cat, newName);
+                                              }
+                                            }
+                                            Navigator.pop(ctx);
+                                            setDialogState(() {});
+                                          },
+                                          child: const Text('Kaydet'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                               if (cat != 'Genel' && cat != 'Yapılacaklar') ...[
                                 const SizedBox(width: 8),
                                 IconButton(
@@ -192,6 +231,48 @@ class _AppDrawerState extends State<AppDrawer> {
                     currentCat,
                     overflow: TextOverflow.ellipsis,
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20, color: Colors.blue),
+                  onPressed: () {
+                    final editCtrl = TextEditingController(text: currentCat);
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(isEvent ? 'Kategoriyi Yeniden Adlandır' : 'Görev Kategorisini Yeniden Adlandır'),
+                        content: TextField(
+                          controller: editCtrl,
+                          decoration: const InputDecoration(
+                            hintText: 'Yeni Kategori Adı',
+                          ),
+                          autofocus: true,
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('İptal'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              final newName = editCtrl.text.trim();
+                              if (newName.isNotEmpty) {
+                                if (isEvent) {
+                                  appState.renameEventCategory(currentCat, newName);
+                                } else {
+                                  appState.renameTaskCategory(currentCat, newName);
+                                }
+                                setDialogState(() {
+                                  selectedCategory = newName;
+                                });
+                              }
+                              Navigator.pop(ctx);
+                            },
+                            child: const Text('Kaydet'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
