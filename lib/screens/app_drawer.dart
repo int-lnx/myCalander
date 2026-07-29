@@ -833,7 +833,7 @@ class _AppDrawerState extends State<AppDrawer> {
                         ),
                         IconButton(
                           icon: Icon(
-                            _projectsExpanded ? Icons.remove_circle : Icons.add_circle,
+                            _projectsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                             color: Colors.blue,
                             size: 20,
                           ),
@@ -1178,6 +1178,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     padding: const EdgeInsets.all(12.0),
                     child: TextField(
                       controller: textCtrl,
+                      enableInteractiveSelection: true,
                       maxLines: null,
                       keyboardType: TextInputType.multiline,
                       style: const TextStyle(

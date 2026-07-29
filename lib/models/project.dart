@@ -21,6 +21,7 @@ class Project {
   final double? defaultPercentage;
   final double? defaultNumeric;
   final double? defaultDuration;
+  final List<String> dataOrder; // e.g. ['BRUT', 'PERCENTAGE', 'NET', 'NUMERIC', 'NOTE']
 
   const Project({
     required this.id,
@@ -43,6 +44,7 @@ class Project {
     this.defaultPercentage,
     this.defaultNumeric,
     this.defaultDuration,
+    this.dataOrder = const ['BRUT', 'PERCENTAGE', 'NET', 'NUMERIC', 'NOTE'],
   });
 
   double calculateSingleSuccessPercentage(double score) {
@@ -90,6 +92,7 @@ class Project {
     double? defaultPercentage,
     double? defaultNumeric,
     double? defaultDuration,
+    List<String>? dataOrder,
     bool clearSubTag = false,
   }) {
     return Project(
@@ -113,6 +116,7 @@ class Project {
       defaultPercentage: defaultPercentage ?? this.defaultPercentage,
       defaultNumeric: defaultNumeric ?? this.defaultNumeric,
       defaultDuration: defaultDuration ?? this.defaultDuration,
+      dataOrder: dataOrder ?? this.dataOrder,
     );
   }
 
@@ -138,6 +142,7 @@ class Project {
       'defaultPercentage': defaultPercentage,
       'defaultNumeric': defaultNumeric,
       'defaultDuration': defaultDuration,
+      'dataOrder': dataOrder,
     };
   }
 
@@ -157,6 +162,11 @@ class Project {
     final defaultPct = (json['defaultPercentage'] as num?)?.toDouble();
     final defaultNum = (json['defaultNumeric'] as num?)?.toDouble();
     final defaultDur = (json['defaultDuration'] as num?)?.toDouble();
+
+    List<String> order = ['BRUT', 'PERCENTAGE', 'NET', 'NUMERIC', 'NOTE'];
+    if (json['dataOrder'] is List) {
+      order = List<String>.from(json['dataOrder']);
+    }
 
     return Project(
       id: json['id'] as String? ?? '',
@@ -179,6 +189,7 @@ class Project {
       defaultPercentage: defaultPct,
       defaultNumeric: defaultNum,
       defaultDuration: defaultDur,
+      dataOrder: order,
     );
   }
 }

@@ -18,7 +18,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
   DateTime _focusedDate = DateTime.now();
   String _timeRange = 'Haftalık'; // 'Günlük', 'Haftalık', 'Aylık'
   String _valueType = 'Yapılan'; // 'Yapılan', 'Yapılacak', 'Toplam'
-  String _matrixDisplayMode = 'PERCENTAGE'; // 'PERCENTAGE', 'BRUT', 'NET', 'NOTE'
+  int _matrixDisplayIndex = 0; // 0, 1, 2, 3, 4 -> 1., 2., 3., 4., 5. sıra
 
   List<DateTime> _getMonthDays(DateTime date) {
     return List.generate(30, (i) => DateTime(date.year, date.month, date.day).subtract(Duration(days: 29 - i)));
@@ -510,7 +510,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                   if (ev.isSkipped) {
                                     int skipCount = 0;
                                     DateTime checkDate = DateTime(day.year, day.month, day.day);
-                                    while (true) {
+                                    int safetyLimit = 0;
+                                    while (safetyLimit < 365) {
+                                      safetyLimit++;
                                       ProjectEvaluation? checkEv;
                                       for (final e in evaluations) {
                                         if (e.projectId == p.id &&
@@ -521,7 +523,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                           break;
                                         }
                                       }
-                                      if (checkEv != null && checkEv.isSkipped) {
+                                      if (checkEv == null || checkEv.isSkipped) {
                                         skipCount++;
                                         checkDate = checkDate.subtract(const Duration(days: 1));
                                       } else {
@@ -530,46 +532,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                     }
                                     displayVal = 'Pas $skipCount';
                                   } else {
-                                    switch (_matrixDisplayMode) {
-                                      case 'PERCENTAGE':
-                                        if (p.trackPercentage) {
-                                          final pct = ev.performancePercent ?? ev.score;
-                                          displayVal = '%${pct.toStringAsFixed(0)}';
-                                        } else {
-                                          displayVal = '-';
-                                        }
-                                        break;
-                                      case 'NUMERIC':
-                                        if (p.trackNumeric) {
-                                          displayVal = ev.score.toStringAsFixed(ev.score % 1 == 0 ? 0 : 1);
-                                        } else {
-                                          displayVal = '-';
-                                        }
-                                        break;
-                                      case 'BRUT':
-                                        if (p.trackDuration) {
-                                          displayVal = ev.durationHours.toStringAsFixed(1);
-                                        } else {
-                                          displayVal = '-';
-                                        }
-                                        break;
-                                      case 'NET':
-                                        if (p.trackNetHours) {
-                                          final pct = ev.performancePercent ?? ev.score;
-                                          final netVal = ev.durationHours * (pct / 100.0);
-                                          displayVal = netVal.toStringAsFixed(1);
-                                        } else {
-                                          displayVal = '-';
-                                        }
-                                        break;
-                                      case 'NOTE':
-                                        if (p.trackNote) {
-                                          displayVal = (ev.note != null && ev.note!.isNotEmpty) ? ev.note! : '-';
-                                        } else {
-                                          displayVal = '-';
-                                        }
-                                        break;
-                                    }
+                                    displayVal = _getDisplayValueForProject(p, ev, _matrixDisplayIndex);
                                   }
 
                                   final cellBgColor = ev.isSkipped
@@ -668,69 +631,69 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  Widget _buildModeSelectorCell() {
-    IconData icon;
-    String tooltip;
-    Color iconColor;
+  String _getDisplayValueForProject(Project p, ProjectEvaluation ev, int slotIndex) {
+    if (slotIndex >= p.dataOrder.length) return '-';
+    final targetType = p.dataOrder[slotIndex];
 
-    switch (_matrixDisplayMode) {
+    switch (targetType) {
       case 'PERCENTAGE':
-        icon = Icons.percent;
-        tooltip = 'Yüzdesel Başarı';
-        iconColor = Colors.blue;
-        break;
+        if (p.trackPercentage) {
+          final pct = ev.performancePercent ?? ev.score;
+          return '%${pct.toStringAsFixed(0)}';
+        }
+        return '-';
       case 'NUMERIC':
-        icon = Icons.numbers;
-        tooltip = 'Sayısal Değer';
-        iconColor = Colors.teal;
-        break;
+        if (p.trackNumeric) {
+          return ev.score.toStringAsFixed(ev.score % 1 == 0 ? 0 : 1);
+        }
+        return '-';
       case 'BRUT':
-        icon = Icons.hourglass_bottom;
-        tooltip = 'Süre Girdisi (Saat)';
-        iconColor = Colors.orange;
-        break;
+        if (p.trackDuration) {
+          return ev.durationHours.toStringAsFixed(1);
+        }
+        return '-';
       case 'NET':
-        icon = Icons.hourglass_full;
-        tooltip = 'Net Çalışma Saati';
-        iconColor = Colors.green;
-        break;
+        if (p.trackNetHours) {
+          final pct = ev.performancePercent ?? ev.score;
+          final netVal = ev.durationHours * (pct / 100.0);
+          return netVal.toStringAsFixed(1);
+        }
+        return '-';
       case 'NOTE':
-        icon = Icons.chat;
-        tooltip = 'Günlük Notlar';
-        iconColor = Colors.purple;
-        break;
+        if (p.trackNote) {
+          return (ev.note != null && ev.note!.isNotEmpty) ? ev.note! : '-';
+        }
+        return '-';
       default:
-        icon = Icons.percent;
-        tooltip = 'Yüzdesel Başarı';
-        iconColor = Colors.blue;
+        return '-';
     }
+  }
 
+  Widget _buildModeSelectorCell() {
+    final int displayNum = _matrixDisplayIndex + 1;
     return Tooltip(
-      message: tooltip,
+      message: '$displayNum. Sıra Verilerini Göster (Tıklayınca Değişir)',
       child: InkWell(
         onTap: () {
           setState(() {
-            if (_matrixDisplayMode == 'PERCENTAGE') {
-              _matrixDisplayMode = 'NUMERIC';
-            } else if (_matrixDisplayMode == 'NUMERIC') {
-              _matrixDisplayMode = 'BRUT';
-            } else if (_matrixDisplayMode == 'BRUT') {
-              _matrixDisplayMode = 'NET';
-            } else if (_matrixDisplayMode == 'NET') {
-              _matrixDisplayMode = 'NOTE';
-            } else {
-              _matrixDisplayMode = 'PERCENTAGE';
-            }
+            _matrixDisplayIndex = (_matrixDisplayIndex + 1) % 5;
           });
         },
         child: Container(
           padding: const EdgeInsets.all(4.0),
           alignment: Alignment.center,
           height: 48,
-          child: Icon(
-            icon,
-            size: 20,
-            color: iconColor,
+          child: CircleAvatar(
+            radius: 14,
+            backgroundColor: Colors.blue.shade100,
+            child: Text(
+              '$displayNum',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.blue.shade900,
+              ),
+            ),
           ),
         ),
       ),

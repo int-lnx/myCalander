@@ -315,7 +315,7 @@ class _PlanScreenState extends State<PlanScreen> {
                       }()),
                     ],
                     DropdownButtonFormField<String?>(
-                      value: selectedPlanId,
+                      initialValue: selectedPlanId,
                       decoration: const InputDecoration(
                         labelText: 'Adım Seçin',
                       ),

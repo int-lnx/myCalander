@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -6,13 +6,17 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import '../models/event.dart';
 import '../models/task_item.dart';
 import '../utils/recurrence_helper.dart';
+import 'web_notification_helper.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   static Future<void> init() async {
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      await WebNotificationHelper.requestPermission();
+      return;
+    }
     if (defaultTargetPlatform != TargetPlatform.android &&
         defaultTargetPlatform != TargetPlatform.iOS) {
       return;
@@ -64,7 +68,10 @@ class NotificationService {
   }
 
   static Future<void> requestPermissions() async {
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      await WebNotificationHelper.requestPermission();
+      return;
+    }
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
         await _notificationsPlugin
@@ -146,6 +153,34 @@ class NotificationService {
   static Future<void> scheduleEventNotifications(Event event) async {
     await cancelEventNotifications(event);
 
+    if (kIsWeb) {
+      final occurrences = _getOccurrences(event);
+      final now = DateTime.now();
+      for (var occ in occurrences) {
+        for (var offset in event.notificationOffsets) {
+          final triggerTime = occ.subtract(Duration(minutes: offset));
+          if (triggerTime.isBefore(now)) {
+            continue;
+          }
+          final String uniqueId = 'event_${event.id}_${occ.millisecondsSinceEpoch}_$offset';
+          final String body = offset == 0
+              ? 'Etkinlik şimdi başlıyor!'
+              : (offset >= 1440
+                    ? 'Etkinliğe ${offset ~/ 1440} gün kaldı.'
+                    : (offset >= 60
+                          ? 'Etkinliğe ${offset ~/ 60} saat kaldı.'
+                          : 'Etkinliğe $offset dakika kaldı.'));
+          WebNotificationHelper.scheduleNotification(
+            uniqueId,
+            event.title,
+            body,
+            triggerTime,
+          );
+        }
+      }
+      return;
+    }
+
     final occurrences = _getOccurrences(event);
     final now = DateTime.now();
 
@@ -157,7 +192,8 @@ class NotificationService {
         }
 
         final int id =
-            event.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
+            (event.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset)
+                .toSigned(32);
         final tz.TZDateTime scheduledDate = tz.TZDateTime.from(
           triggerTime,
           tz.local,
@@ -215,6 +251,29 @@ class NotificationService {
   }
 
   static Future<void> cancelEventNotifications(Event event) async {
+    if (kIsWeb) {
+      final occurrences = _getOccurrences(event);
+      final List<int> offsetsToCancel = [
+        0,
+        5,
+        10,
+        15,
+        30,
+        60,
+        120,
+        1440,
+        10080,
+        ...event.notificationOffsets,
+      ];
+      for (var occ in occurrences) {
+        for (var offset in offsetsToCancel) {
+          final String uniqueId = 'event_${event.id}_${occ.millisecondsSinceEpoch}_$offset';
+          WebNotificationHelper.cancelNotification(uniqueId);
+        }
+      }
+      return;
+    }
+
     final start = DateTime.now().subtract(const Duration(days: 30));
     final end = DateTime.now().add(const Duration(days: 30));
     final List<int> offsetsToCancel = [
@@ -249,9 +308,9 @@ class NotificationService {
       for (var occ in occurrences) {
         for (var offset in offsetsToCancel) {
           final int id =
-              event.id.hashCode ^
-              (occ.millisecondsSinceEpoch ~/ 60000) ^
-              offset;
+              (event.id.hashCode ^
+               (occ.millisecondsSinceEpoch ~/ 60000) ^
+               offset).toSigned(32);
           await _notificationsPlugin.cancel(id: id);
         }
       }
@@ -294,6 +353,34 @@ class NotificationService {
     await cancelTaskNotifications(task);
     if (task.from == null) return;
 
+    if (kIsWeb) {
+      final occurrences = _getTaskOccurrences(task);
+      final now = DateTime.now();
+      for (var occ in occurrences) {
+        for (var offset in task.notificationOffsets) {
+          final triggerTime = occ.subtract(Duration(minutes: offset));
+          if (triggerTime.isBefore(now)) {
+            continue;
+          }
+          final String uniqueId = 'task_${task.id}_${occ.millisecondsSinceEpoch}_$offset';
+          final String body = offset == 0
+              ? 'Görev şimdi başlıyor!'
+              : (offset >= 1440
+                    ? 'Göreve ${offset ~/ 1440} gün kaldı.'
+                    : (offset >= 60
+                          ? 'Göreve ${offset ~/ 60} saat kaldı.'
+                          : 'Göreve $offset dakika kaldı.'));
+          WebNotificationHelper.scheduleNotification(
+            uniqueId,
+            task.title,
+            body,
+            triggerTime,
+          );
+        }
+      }
+      return;
+    }
+
     final occurrences = _getTaskOccurrences(task);
     final now = DateTime.now();
 
@@ -305,7 +392,8 @@ class NotificationService {
         }
 
         final int id =
-            task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
+            (task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset)
+                .toSigned(32);
         final tz.TZDateTime scheduledDate = tz.TZDateTime.from(
           triggerTime,
           tz.local,
@@ -363,6 +451,30 @@ class NotificationService {
 
   static Future<void> cancelTaskNotifications(TaskItem task) async {
     if (task.from == null) return;
+
+    if (kIsWeb) {
+      final occurrences = _getTaskOccurrences(task);
+      final List<int> offsetsToCancel = [
+        0,
+        5,
+        10,
+        15,
+        30,
+        60,
+        120,
+        1440,
+        10080,
+        ...task.notificationOffsets,
+      ];
+      for (var occ in occurrences) {
+        for (var offset in offsetsToCancel) {
+          final String uniqueId = 'task_${task.id}_${occ.millisecondsSinceEpoch}_$offset';
+          WebNotificationHelper.cancelNotification(uniqueId);
+        }
+      }
+      return;
+    }
+
     final start = DateTime.now().subtract(const Duration(days: 30));
     final end = DateTime.now().add(const Duration(days: 30));
     final List<int> offsetsToCancel = [
@@ -397,7 +509,8 @@ class NotificationService {
       for (var occ in occurrences) {
         for (var offset in offsetsToCancel) {
           final int id =
-              task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset;
+              (task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset)
+                  .toSigned(32);
           await _notificationsPlugin.cancel(id: id);
         }
       }

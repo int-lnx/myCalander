@@ -28,34 +28,45 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
   return sanitized;
 }
 
+/// Returns the next active (non-exception) occurrence date of a recurring task,
+/// or null when all occurrences have been exhausted.
+/// For non-recurring tasks simply returns task.from.
 DateTime? _getNextActiveOccurrenceDate(dynamic task) {
-  if (task is! TaskItem) return task.from;
+  if (task is! TaskItem) return task?.from;
   if (task.recurrenceRule == null || task.recurrenceRule!.isEmpty || task.from == null) {
     return task.from;
   }
   try {
-    final searchStart = task.from!;
-    final searchEnd = searchStart.add(const Duration(days: 366));
     final sanitizedRule = _sanitizeRRule(task.recurrenceRule, task.from!);
     if (sanitizedRule == null) return task.from;
-    
+
+    // Use a wide window: from the task start up to ~10 years.
+    // The recurrence rule's COUNT/UNTIL will naturally limit the result set.
+    final searchEnd = task.from!.add(const Duration(days: 3650));
+
     final occurrences = SfCalendar.getRecurrenceDateTimeCollection(
       sanitizedRule,
       task.from!,
-      specificStartDate: searchStart,
+      specificStartDate: task.from!,
       specificEndDate: searchEnd,
     );
-    
+
     for (var occ in occurrences) {
       final occDate = occ.toLocal();
-      bool isException = task.recurrenceExceptionDates?.any(
-        (ex) => ex.year == occDate.year && ex.month == occDate.month && ex.day == occDate.day
+      final isException = task.recurrenceExceptionDates?.any(
+        (ex) =>
+            ex.year == occDate.year &&
+            ex.month == occDate.month &&
+            ex.day == occDate.day,
       ) ?? false;
       if (!isException) {
-        return occDate;
+        return occDate; // first non-completed occurrence
       }
     }
+    // All occurrences are in the exception list → series fully completed
+    return null;
   } catch (_) {}
+  // Fallback for any parsing error – keep showing
   return task.from;
 }
 
@@ -642,6 +653,27 @@ class _TasksScreenState extends State<TasksScreen> {
       if (_selectedTab == 'Tüm Tarihsizler') return t.from == null;
       return t.tag == _selectedTab;
     }).toList();
+
+    // Remove recurring tasks that have NO remaining active occurrences
+    // (i.e. all COUNT occurrences are exhausted / UNTIL date passed).
+    displayedTasks.removeWhere((t) {
+      if (t.isCompleted) return false; // completed clones handled separately
+      if (t.recurrenceRule == null || t.recurrenceRule!.isEmpty) return false;
+      final nextOcc = _getNextActiveOccurrenceDate(t);
+      return nextOcc == null; // null means series is fully done
+    });
+
+    // Unique seriesId filtering: If a series has an active (uncompleted) task,
+    // hide all completed tasks from that same series.
+    final activeSeriesIds = displayedTasks
+        .where((t) => !t.isCompleted && t.seriesId.isNotEmpty)
+        .map((t) => t.seriesId)
+        .toSet();
+
+    displayedTasks.removeWhere((t) =>
+        t.isCompleted &&
+        t.seriesId.isNotEmpty &&
+        activeSeriesIds.contains(t.seriesId));
 
     // Sort tasks based on selected sortMode
     if (_sortMode == 'DATE') {

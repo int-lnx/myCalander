@@ -145,8 +145,16 @@ class Event {
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
-      from: DateTime.parse(json['from'] as String),
-      to: DateTime.parse(json['to'] as String),
+      from: json['from'] != null
+          ? DateTime.parse(json['from'] as String)
+          : (json['to'] != null
+              ? DateTime.parse(json['to'] as String)
+              : DateTime.now()),
+      to: json['to'] != null
+          ? DateTime.parse(json['to'] as String)
+          : (json['from'] != null
+              ? DateTime.parse(json['from'] as String)
+              : DateTime.now().add(const Duration(hours: 1))),
       colorValue: json['colorValue'] as int? ?? 0xFF2196F3,
       tag: json['tag'] as String? ?? 'Genel',
       subTag: json['subTag'] as String?,

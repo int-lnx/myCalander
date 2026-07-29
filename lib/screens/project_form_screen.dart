@@ -26,10 +26,28 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   late bool _trackDuration;
   late bool _trackNetHours;
   late bool _trackNote;
+  late List<String> _dataOrder;
 
   late TextEditingController _defaultPercentageController;
   late TextEditingController _defaultNumericController;
   late TextEditingController _defaultDurationController;
+
+  String _getDataOrderTitle(String type) {
+    switch (type) {
+      case 'BRUT':
+        return 'Saat / Süre Girdisi';
+      case 'PERCENTAGE':
+        return 'Yüzdesel Başarı (%)';
+      case 'NET':
+        return 'Net Çalışma Saati';
+      case 'NUMERIC':
+        return 'Sayısal Değer';
+      case 'NOTE':
+        return 'Günlük Notlar';
+      default:
+        return type;
+    }
+  }
 
   @override
   void initState() {
@@ -46,6 +64,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     _trackDuration = proj?.trackDuration ?? true;
     _trackNetHours = proj?.trackNetHours ?? true;
     _trackNote = proj?.trackNote ?? true;
+    _dataOrder = List<String>.from(proj?.dataOrder ?? ['BRUT', 'PERCENTAGE', 'NET', 'NUMERIC', 'NOTE']);
 
     _defaultPercentageController = TextEditingController(
       text: proj?.defaultPercentage?.toStringAsFixed(0) ?? '',
@@ -261,6 +280,59 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                 },
               ),
             ],
+            const SizedBox(height: 16),
+            const Text(
+              'Matris Veri Gösterim Sırası (Sürükleyip Sıralayabilirsiniz)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  for (int index = 0; index < _dataOrder.length; index++) ...[
+                    ListTile(
+                      key: ValueKey(_dataOrder[index]),
+                      dense: true,
+                      leading: CircleAvatar(
+                        radius: 12,
+                        child: Text('${index + 1}', style: const TextStyle(fontSize: 12)),
+                      ),
+                      title: Text(_getDataOrderTitle(_dataOrder[index])),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (index > 0)
+                            IconButton(
+                              icon: const Icon(Icons.arrow_upward, size: 18),
+                              onPressed: () {
+                                setState(() {
+                                  final item = _dataOrder.removeAt(index);
+                                  _dataOrder.insert(index - 1, item);
+                                });
+                              },
+                            ),
+                          if (index < _dataOrder.length - 1)
+                            IconButton(
+                              icon: const Icon(Icons.arrow_downward, size: 18),
+                              onPressed: () {
+                                setState(() {
+                                  final item = _dataOrder.removeAt(index);
+                                  _dataOrder.insert(index + 1, item);
+                                });
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (index < _dataOrder.length - 1) const Divider(height: 1),
+                  ],
+                ],
+              ),
+            ),
             if (widget.existingProject != null) ...[
               const SizedBox(height: 16),
               SwitchListTile(
@@ -307,6 +379,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         defaultPercentage: _trackPercentage ? defPct : null,
         defaultNumeric: _trackNumeric ? defNum : null,
         defaultDuration: _trackDuration ? defDur : null,
+        dataOrder: _dataOrder,
       );
 
       if (widget.existingProject == null) {

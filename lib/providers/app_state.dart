@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.36';
+  static const String appVersion = '2.58';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -70,7 +70,7 @@ class AppState extends ChangeNotifier {
   List<TaskItem> _tasks = [];
   List<Project> _projects = [];
   List<ProjectEvaluation> _evaluations = [];
-  List<String> _selectedProjectIds = [];
+  List<String> _selectedProjectIds = ['no_project'];
   bool _isBulkMode = false;
   final Set<String> _selectedEventIds = {};
 
@@ -526,15 +526,7 @@ class AppState extends ChangeNotifier {
     _tasksSubscription = _firestoreService.getTasks(userId).listen((
       newTasks,
     ) async {
-      // Silinmiş görevleri filtrele; Firestore'da hâlâ duruyorlarsa tekrar sil
-      for (final t in newTasks) {
-        if (_deletedTaskIds.contains(t.id)) {
-          _firestoreDeleteTask(t.id);
-        }
-      }
-      final filtered = newTasks
-          .where((t) => !_deletedTaskIds.contains(t.id))
-          .toList();
+      final filtered = newTasks;
       final oldJson = json.encode(_tasks.map((t) => t.toJson()).toList());
       final newJson = json.encode(filtered.map((t) => t.toJson()).toList());
       if (oldJson != newJson) {
@@ -542,6 +534,10 @@ class AppState extends ChangeNotifier {
         _cleanDuplicateTasks();
         _syncTaskTagsAndSubTags();
         await _saveTasks();
+        _ensureAllItemCategoriesExist();
+        for (final t in _tasks) {
+          NotificationService.scheduleTaskNotifications(t);
+        }
         notifyListeners();
       }
     });
@@ -549,21 +545,17 @@ class AppState extends ChangeNotifier {
     _eventsSubscription = _firestoreService.getEvents(userId).listen((
       newEvents,
     ) async {
-      // Silinmiş etkinlikleri filtrele; Firestore'da hâlâ duruyorlarsa tekrar sil
-      for (final e in newEvents) {
-        if (_deletedEventIds.contains(e.id)) {
-          _firestoreDeleteEvent(e.id);
-        }
-      }
-      final filtered = newEvents
-          .where((e) => !_deletedEventIds.contains(e.id))
-          .toList();
+      final filtered = newEvents;
       final oldJson = json.encode(_events.map((e) => e.toJson()).toList());
       final newJson = json.encode(filtered.map((e) => e.toJson()).toList());
       if (oldJson != newJson) {
         _events = filtered;
         _cleanDuplicateEvents();
         await _saveEvents();
+        _ensureAllItemCategoriesExist();
+        for (final e in _events) {
+          NotificationService.scheduleEventNotifications(e);
+        }
         notifyListeners();
       }
     });
@@ -928,6 +920,14 @@ class AppState extends ChangeNotifier {
     _runWaitingPlansCatchUp();
     _cleanDuplicateTasks();
     _cleanDuplicateEvents();
+    _ensureAllItemCategoriesExist();
+
+    for (final t in _tasks) {
+      NotificationService.scheduleTaskNotifications(t);
+    }
+    for (final e in _events) {
+      NotificationService.scheduleEventNotifications(e);
+    }
 
     notifyListeners();
   }
@@ -1030,6 +1030,75 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('taskTags', _taskTags);
     await prefs.setString('taskSubTags', json.encode(_taskSubTags));
+  }
+
+  void _ensureAllItemCategoriesExist() {
+    bool changed = false;
+    for (final e in _events) {
+      if (e.tag.isNotEmpty && !_eventTags.contains(e.tag)) {
+        _eventTags.add(e.tag);
+        if (!_selectedEventTags.contains(e.tag)) {
+          _selectedEventTags.add(e.tag);
+        }
+        _eventSubTags[e.tag] = [];
+        changed = true;
+      }
+      if (e.tag.isNotEmpty && !_selectedEventTags.contains(e.tag)) {
+        _selectedEventTags.add(e.tag);
+        changed = true;
+      }
+      if (e.subTag != null && e.subTag!.isNotEmpty) {
+        final allowed = _eventSubTags[e.tag] ?? [];
+        if (!allowed.contains(e.subTag!)) {
+          allowed.add(e.subTag!);
+          _eventSubTags[e.tag] = allowed;
+          changed = true;
+        }
+        final key = '${e.tag}:${e.subTag}';
+        if (!_selectedEventSubTags.contains(key)) {
+          _selectedEventSubTags.add(key);
+          changed = true;
+        }
+      }
+    }
+
+    for (final t in _tasks) {
+      if (t.tag.isNotEmpty && !_taskTags.contains(t.tag)) {
+        _taskTags.add(t.tag);
+        if (!_selectedTaskTags.contains(t.tag)) {
+          _selectedTaskTags.add(t.tag);
+        }
+        _taskSubTags[t.tag] = [];
+        changed = true;
+      }
+      if (t.tag.isNotEmpty && !_selectedTaskTags.contains(t.tag)) {
+        _selectedTaskTags.add(t.tag);
+        changed = true;
+      }
+      if (t.subTag != null && t.subTag!.isNotEmpty) {
+        final allowed = _taskSubTags[t.tag] ?? [];
+        if (!allowed.contains(t.subTag!)) {
+          allowed.add(t.subTag!);
+          _taskSubTags[t.tag] = allowed;
+          changed = true;
+        }
+        final key = '${t.tag}:${t.subTag}';
+        if (!_selectedTaskSubTags.contains(key)) {
+          _selectedTaskSubTags.add(key);
+          changed = true;
+        }
+      }
+    }
+
+    if (!_selectedProjectIds.contains('no_project') && _projects.isEmpty) {
+      _selectedProjectIds.add('no_project');
+      changed = true;
+      _saveSelectedProjectIds();
+    }
+
+    if (changed) {
+      _saveCategories();
+    }
   }
 
   void _cleanDuplicateEvents() {
@@ -1465,27 +1534,27 @@ class AppState extends ChangeNotifier {
           }
         }
 
-        // Add all past occurrences
-        for (var occ in pastOccs) {
+        // Add ONLY the single oldest past occurrence if there are uncompleted past occurrences.
+        // Otherwise, add ONLY the single next future occurrence.
+        if (pastOccs.isNotEmpty) {
+          pastOccs.sort();
+          final oldestOcc = pastOccs.first;
           final duration = t.to != null
               ? t.to!.difference(t.from!)
               : const Duration(hours: 1);
-          final occEnd = occ.add(duration);
+          final occEnd = oldestOcc.add(duration);
 
           result.add(
             t.copyWith(
-              id: 'occ_${t.id}_${occ.millisecondsSinceEpoch}',
-              from: occ,
+              id: 'occ_${t.id}_${oldestOcc.millisecondsSinceEpoch}',
+              from: oldestOcc,
               to: occEnd,
               parentTaskId: t.id,
               clearRecurrenceRule: true,
               clearRecurrenceExceptionDates: true,
             ),
           );
-        }
-
-        // Add ONLY the single next future occurrence
-        if (futureOccs.isNotEmpty) {
+        } else if (futureOccs.isNotEmpty) {
           futureOccs.sort();
           final nextOcc = futureOccs.first;
           final duration = t.to != null
@@ -1591,27 +1660,27 @@ class AppState extends ChangeNotifier {
           }
         }
 
-        // Add all past occurrences
-        for (var occ in pastOccs) {
+        // Add ONLY the single oldest past occurrence if there are uncompleted past occurrences.
+        // Otherwise, add ONLY the single next future occurrence.
+        if (pastOccs.isNotEmpty) {
+          pastOccs.sort();
+          final oldestOcc = pastOccs.first;
           final duration = t.to != null
               ? t.to!.difference(t.from!)
               : const Duration(hours: 1);
-          final occEnd = occ.add(duration);
+          final occEnd = oldestOcc.add(duration);
 
           result.add(
             t.copyWith(
-              id: 'occ_${t.id}_${occ.millisecondsSinceEpoch}',
-              from: occ,
+              id: 'occ_${t.id}_${oldestOcc.millisecondsSinceEpoch}',
+              from: oldestOcc,
               to: occEnd,
               parentTaskId: t.id,
               clearRecurrenceRule: true,
               clearRecurrenceExceptionDates: true,
             ),
           );
-        }
-
-        // Add ONLY the single next future occurrence
-        if (futureOccs.isNotEmpty) {
+        } else if (futureOccs.isNotEmpty) {
           futureOccs.sort();
           final nextOcc = futureOccs.first;
           final duration = t.to != null
@@ -1690,7 +1759,18 @@ class AppState extends ChangeNotifier {
             final exceptions = List<DateTime>.from(
               parentTask.recurrenceExceptionDates ?? [],
             );
-            exceptions.add(occDate);
+            final normOcc = occDate.toLocal();
+            final bool alreadyException = exceptions.any((ex) {
+              final e = ex.toLocal();
+              return e.year == normOcc.year &&
+                     e.month == normOcc.month &&
+                     e.day == normOcc.day &&
+                     e.hour == normOcc.hour &&
+                     e.minute == normOcc.minute;
+            });
+            if (!alreadyException) {
+              exceptions.add(normOcc);
+            }
             _tasks[parentIndex] = parentTask.copyWith(
               recurrenceExceptionDates: exceptions,
             );
@@ -1749,10 +1829,23 @@ class AppState extends ChangeNotifier {
   }
 
   void _initSelectedProjectIdsIfNeeded() {
-    if (_selectedProjectIdsNeedsInit && _projects.isNotEmpty) {
-      _selectedProjectIds = ['no_project', ..._projects.map((p) => p.id)];
+    final allProjectKeys = ['no_project', ..._projects.map((p) => p.id)];
+    if (_selectedProjectIdsNeedsInit) {
+      _selectedProjectIds = List.from(allProjectKeys);
       _selectedProjectIdsNeedsInit = false;
       _saveSelectedProjectIds();
+    } else {
+      // Yeni eklenen projeler varsa onları da seçili listesine dahil et
+      bool changed = false;
+      for (final key in allProjectKeys) {
+        if (!_selectedProjectIds.contains(key)) {
+          _selectedProjectIds.add(key);
+          changed = true;
+        }
+      }
+      if (changed) {
+        _saveSelectedProjectIds();
+      }
     }
   }
 
@@ -2767,7 +2860,7 @@ class AppState extends ChangeNotifier {
         );
       }
 
-      cleanUnusedDefaultCategories();
+      // cleanUnusedDefaultCategories();
       await _firestoreService.saveEventCategories(
         userId,
         _eventTags,
@@ -2969,6 +3062,7 @@ class AppState extends ChangeNotifier {
       _cleanDuplicateTasks();
       _syncTaskTagsAndSubTags();
       _cleanDuplicateEvents();
+      _ensureAllItemCategoriesExist();
 
       await _saveEvents();
       await _saveTasks();
@@ -3851,103 +3945,7 @@ class AppState extends ChangeNotifier {
   }
 
   void cleanUnusedDefaultCategories() {
-    final defaultTags = ['Genel', 'İş', 'Kişisel', 'Eğitim'];
-    final usedEventTags = <String>{};
-    final usedTaskTags = <String>{};
-    final usedEventSubTags = <String>{};
-    final usedTaskSubTags = <String>{};
-
-    for (var event in _events) {
-      if (event.tag.isNotEmpty) usedEventTags.add(event.tag);
-      if (event.subTag != null && event.subTag!.isNotEmpty) {
-        usedEventSubTags.add(event.subTag!);
-      }
-    }
-    for (var task in _tasks) {
-      if (task.tag.isNotEmpty) usedTaskTags.add(task.tag);
-      if (task.subTag != null && task.subTag!.isNotEmpty) {
-        usedTaskSubTags.add(task.subTag!);
-      }
-    }
-    for (var project in _projects) {
-      if (project.tag.isNotEmpty) usedTaskTags.add(project.tag);
-      if (project.subTag != null && project.subTag!.isNotEmpty) {
-        usedTaskSubTags.add(project.subTag!);
-      }
-    }
-
-    // 1a. Clean unused default event categories
-    final eventTagsToRemove = <String>[];
-    for (var tag in defaultTags) {
-      if (!usedEventTags.contains(tag) && _eventTags.contains(tag)) {
-        eventTagsToRemove.add(tag);
-      }
-    }
-    if (eventTagsToRemove.isNotEmpty) {
-      _eventTags.removeWhere((tag) => eventTagsToRemove.contains(tag));
-      _selectedEventTags.removeWhere((tag) => eventTagsToRemove.contains(tag));
-      for (var tag in eventTagsToRemove) {
-        _eventSubTags.remove(tag);
-      }
-    }
-
-    // 1b. Clean unused default task categories
-    final taskTagsToRemove = <String>[];
-    for (var tag in defaultTags) {
-      if (!usedTaskTags.contains(tag) && _taskTags.contains(tag)) {
-        taskTagsToRemove.add(tag);
-      }
-    }
-    if (taskTagsToRemove.isNotEmpty) {
-      _taskTags.removeWhere((tag) => taskTagsToRemove.contains(tag));
-      _selectedTaskTags.removeWhere((tag) => taskTagsToRemove.contains(tag));
-      for (var tag in taskTagsToRemove) {
-        _taskSubTags.remove(tag);
-      }
-    }
-
-    // 2. Clean unused default subtags
-    final defaultSubTagsMap = {
-      'İş': ['Yazılım', 'Tasarım', 'Toplantı', 'Rutin'],
-      'Kişisel': ['Sağlık', 'Finans', 'Kitap Okuma'],
-      'Eğitim': ['Flutter', 'İngilizce', 'Üniversite'],
-    };
-
-    // Event subtags
-    defaultSubTagsMap.forEach((category, defaultSubs) {
-      if (_eventSubTags.containsKey(category)) {
-        final currentSubs = _eventSubTags[category]!;
-        final subsToRemove = defaultSubs
-            .where(
-              (sub) =>
-                  !usedEventSubTags.contains(sub) && currentSubs.contains(sub),
-            )
-            .toList();
-        if (subsToRemove.isNotEmpty) {
-          currentSubs.removeWhere((sub) => subsToRemove.contains(sub));
-          _selectedEventSubTags.removeWhere(
-            (sub) => subsToRemove.contains(sub),
-          );
-        }
-      }
-    });
-
-    // Task subtags
-    defaultSubTagsMap.forEach((category, defaultSubs) {
-      if (_taskSubTags.containsKey(category)) {
-        final currentSubs = _taskSubTags[category]!;
-        final subsToRemove = defaultSubs
-            .where(
-              (sub) =>
-                  !usedTaskSubTags.contains(sub) && currentSubs.contains(sub),
-            )
-            .toList();
-        if (subsToRemove.isNotEmpty) {
-          currentSubs.removeWhere((sub) => subsToRemove.contains(sub));
-          _selectedTaskSubTags.removeWhere((sub) => subsToRemove.contains(sub));
-        }
-      }
-    });
+    // Disabled: categories must never be automatically cleaned up just because they have no events/tasks.
   }
 
   Future<void> _saveTopics() async {

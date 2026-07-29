@@ -25,9 +25,16 @@ class FirestoreService {
   // --- EVENTS ---
   Stream<List<Event>> getEvents(String userId) {
     return _userCollection(userId, 'events').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Event.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
+      final List<Event> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          list.add(Event.fromJson(data));
+        } catch (e) {
+          print('Error parsing event doc ${doc.id}: $e');
+        }
+      }
+      return list;
     });
   }
 
@@ -42,9 +49,16 @@ class FirestoreService {
   // --- TASKS ---
   Stream<List<TaskItem>> getTasks(String userId) {
     return _userCollection(userId, 'tasks').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => TaskItem.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
+      final List<TaskItem> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          list.add(TaskItem.fromJson(data));
+        } catch (e) {
+          print('Error parsing task doc ${doc.id}: $e');
+        }
+      }
+      return list;
     });
   }
 
@@ -59,9 +73,16 @@ class FirestoreService {
   // --- PROJECTS ---
   Stream<List<Project>> getProjects(String userId) {
     return _userCollection(userId, 'projects').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Project.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
+      final List<Project> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          list.add(Project.fromJson(data));
+        } catch (e) {
+          print('Error parsing project doc ${doc.id}: $e');
+        }
+      }
+      return list;
     });
   }
 
@@ -79,12 +100,16 @@ class FirestoreService {
   // --- PROJECT EVALUATIONS ---
   Stream<List<ProjectEvaluation>> getEvaluations(String userId) {
     return _userCollection(userId, 'evaluations').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map(
-            (doc) =>
-                ProjectEvaluation.fromJson(doc.data() as Map<String, dynamic>),
-          )
-          .toList();
+      final List<ProjectEvaluation> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          list.add(ProjectEvaluation.fromJson(data));
+        } catch (e) {
+          print('Error parsing evaluation doc ${doc.id}: $e');
+        }
+      }
+      return list;
     });
   }
 
@@ -112,9 +137,16 @@ class FirestoreService {
   // --- SERITS ---
   Stream<List<Serit>> getSerits(String userId) {
     return _userCollection(userId, 'serits').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Serit.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
+      final List<Serit> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          list.add(Serit.fromJson(data));
+        } catch (e) {
+          print('Error parsing serit doc ${doc.id}: $e');
+        }
+      }
+      return list;
     });
   }
 
@@ -250,9 +282,16 @@ class FirestoreService {
   // --- DAY NOTES ---
   Stream<List<DayNote>> getDayNotes(String userId) {
     return _userCollection(userId, 'day_notes').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => DayNote.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
+      final List<DayNote> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          list.add(DayNote.fromJson(data));
+        } catch (e) {
+          print('Error parsing day note doc ${doc.id}: $e');
+        }
+      }
+      return list;
     });
   }
 
@@ -267,9 +306,16 @@ class FirestoreService {
   // --- TOPICS ---
   Stream<List<Topic>> getTopics(String userId) {
     return _userCollection(userId, 'topics').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Topic.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
+      final List<Topic> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          list.add(Topic.fromJson(data));
+        } catch (e) {
+          print('Error parsing topic doc ${doc.id}: $e');
+        }
+      }
+      return list;
     });
   }
 
@@ -284,9 +330,16 @@ class FirestoreService {
   // --- TOPIC PLANS ---
   Stream<List<TopicPlan>> getTopicPlans(String userId) {
     return _userCollection(userId, 'steps').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => TopicPlan.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
+      final List<TopicPlan> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          list.add(TopicPlan.fromJson(data));
+        } catch (e) {
+          print('Error parsing topic plan doc ${doc.id}: $e');
+        }
+      }
+      return list;
     });
   }
 

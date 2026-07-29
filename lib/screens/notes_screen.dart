@@ -36,6 +36,74 @@ class _NotesScreenState extends State<NotesScreen> {
     0xFFE8EAED, // Grey
   ];
 
+  void _applyFormatting(TextEditingController controller, String prefix, String suffix) {
+    final text = controller.text;
+    final selection = controller.selection;
+    if (!selection.isValid) return;
+
+    final start = selection.start;
+    final end = selection.end;
+
+    if (start != end) {
+      final selectedText = text.substring(start, end);
+      final newText = text.replaceRange(start, end, '$prefix$selectedText$suffix');
+      controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection(
+          baseOffset: start,
+          extentOffset: end + prefix.length + suffix.length,
+        ),
+      );
+    } else {
+      final newText = text.replaceRange(start, end, '$prefix$suffix');
+      controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: start + prefix.length),
+      );
+    }
+  }
+
+  static Widget buildFormattedText(String text, TextStyle baseStyle) {
+    final RegExp exp = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|~~.*?~~)');
+    final List<TextSpan> spans = [];
+    int start = 0;
+
+    for (final Match match in exp.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start), style: baseStyle));
+      }
+      final String matchText = match.group(0)!;
+      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
+        spans.add(TextSpan(
+          text: matchText.substring(3, matchText.length - 3),
+          style: baseStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+        ));
+      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
+        spans.add(TextSpan(
+          text: matchText.substring(2, matchText.length - 2),
+          style: baseStyle.copyWith(fontWeight: FontWeight.bold),
+        ));
+      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
+        spans.add(TextSpan(
+          text: matchText.substring(1, matchText.length - 1),
+          style: baseStyle.copyWith(fontStyle: FontStyle.italic),
+        ));
+      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
+        spans.add(TextSpan(
+          text: matchText.substring(2, matchText.length - 2),
+          style: baseStyle.copyWith(decoration: TextDecoration.lineThrough),
+        ));
+      }
+      start = match.end;
+    }
+
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start), style: baseStyle));
+    }
+
+    return RichText(text: TextSpan(children: spans));
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -308,16 +376,33 @@ class _NotesScreenState extends State<NotesScreen> {
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            child: TextField(
-                              controller: _contentController,
-                              maxLines: _isExpanded ? null : 1,
-                              enabled: _isExpanded,
-                              decoration: const InputDecoration(
-                                hintText: 'Not alın...',
-                                border: InputBorder.none,
-                              ),
-                              style: const TextStyle(fontSize: 14),
-                            ),
+                            child: _isExpanded
+                                ? ConstrainedBox(
+                                    constraints: const BoxConstraints(maxHeight: 250),
+                                    child: Scrollbar(
+                                      child: SingleChildScrollView(
+                                        child: TextField(
+                                          controller: _contentController,
+                                          maxLines: null,
+                                          decoration: const InputDecoration(
+                                            hintText: 'Not alın...',
+                                            border: InputBorder.none,
+                                          ),
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : TextField(
+                                    controller: _contentController,
+                                    maxLines: 1,
+                                    enabled: false,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Not alın...',
+                                      border: InputBorder.none,
+                                    ),
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
                           ),
                         ),
                         if (_isExpanded) ...[
@@ -348,6 +433,18 @@ class _NotesScreenState extends State<NotesScreen> {
                               children: [
                                 Row(
                                   children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.format_bold, size: 20),
+                                      onPressed: () => _applyFormatting(_contentController, '**', '**'),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.format_italic, size: 20),
+                                      onPressed: () => _applyFormatting(_contentController, '*', '*'),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.format_strikethrough, size: 20),
+                                      onPressed: () => _applyFormatting(_contentController, '~~', '~~'),
+                                    ),
                                     IconButton(
                                       icon: const Icon(Icons.palette_outlined, size: 20),
                                       onPressed: () {
@@ -582,9 +679,9 @@ class _NoteCardState extends State<NoteCard> {
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.only(right: 6.0),
-                        child: Text(
+                        child: _NotesScreenState.buildFormattedText(
                           note.content,
-                          style: TextStyle(
+                          TextStyle(
                             fontSize: 12,
                             color: isNoteDark ? Colors.white70 : Colors.black87,
                           ),
@@ -777,6 +874,96 @@ class _EditNoteDialogState extends State<EditNoteDialog> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                IconButton(
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    Icons.format_bold,
+                    color: isNoteDark ? Colors.white70 : Colors.black87,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    final text = _contentController.text;
+                    final selection = _contentController.selection;
+                    if (!selection.isValid) return;
+                    final start = selection.start;
+                    final end = selection.end;
+                    if (start != end) {
+                      final selectedText = text.substring(start, end);
+                      final newText = text.replaceRange(start, end, '**$selectedText**');
+                      _contentController.value = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection(baseOffset: start, extentOffset: end + 4),
+                      );
+                    } else {
+                      final newText = text.replaceRange(start, end, '****');
+                      _contentController.value = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection.collapsed(offset: start + 2),
+                      );
+                    }
+                  },
+                ),
+                IconButton(
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    Icons.format_italic,
+                    color: isNoteDark ? Colors.white70 : Colors.black87,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    final text = _contentController.text;
+                    final selection = _contentController.selection;
+                    if (!selection.isValid) return;
+                    final start = selection.start;
+                    final end = selection.end;
+                    if (start != end) {
+                      final selectedText = text.substring(start, end);
+                      final newText = text.replaceRange(start, end, '*$selectedText*');
+                      _contentController.value = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection(baseOffset: start, extentOffset: end + 2),
+                      );
+                    } else {
+                      final newText = text.replaceRange(start, end, '**');
+                      _contentController.value = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection.collapsed(offset: start + 1),
+                      );
+                    }
+                  },
+                ),
+                IconButton(
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    Icons.format_strikethrough,
+                    color: isNoteDark ? Colors.white70 : Colors.black87,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    final text = _contentController.text;
+                    final selection = _contentController.selection;
+                    if (!selection.isValid) return;
+                    final start = selection.start;
+                    final end = selection.end;
+                    if (start != end) {
+                      final selectedText = text.substring(start, end);
+                      final newText = text.replaceRange(start, end, '~~$selectedText~~');
+                      _contentController.value = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection(baseOffset: start, extentOffset: end + 4),
+                      );
+                    } else {
+                      final newText = text.replaceRange(start, end, '~~~~');
+                      _contentController.value = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection.collapsed(offset: start + 2),
+                      );
+                    }
+                  },
+                ),
                 IconButton(
                   padding: const EdgeInsets.all(8),
                   constraints: const BoxConstraints(),

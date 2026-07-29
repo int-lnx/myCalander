@@ -597,6 +597,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       recurrenceExceptionDates: null,
                     ),
                   );
+                  break; // Only show the single oldest uncompleted occurrence
                 }
               }
             } catch (_) {}
@@ -1349,6 +1350,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     recurrenceExceptionDates: null,
                   ),
                 );
+                break; // Only show the single oldest uncompleted occurrence
               }
             }
           } catch (_) {}
@@ -1757,7 +1759,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     CalendarElement.appointment &&
                                 details.appointments!.isNotEmpty) {
                               final rawAppointment =
-                                  details.appointments!.first;
+                                  details.appointments!.last;
                               final appointment = _getOriginalItem(
                                 rawAppointment,
                                 appState,
@@ -1788,7 +1790,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 details.appointments!.isEmpty) {
                               return;
                             }
-                            final rawAppointment = details.appointments!.first;
+                            final rawAppointment = details.appointments!.last;
                             final appointment = _getOriginalItem(
                               rawAppointment,
                               appState,
@@ -1867,6 +1869,41 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               details.targetElement ==
                                   CalendarElement.calendarCell &&
                               details.date != null) {
+                            final tappedTime = details.date!;
+                            final double toleranceMinutes = 15.0;
+                            dynamic clickedReminder;
+
+                            for (var e in appState.filteredEvents) {
+                              if (!e.isAllDay && e.from.isAtSameMomentAs(e.to)) {
+                                final diff = e.from.difference(tappedTime).inMinutes.abs();
+                                if (diff <= toleranceMinutes && e.from.day == tappedTime.day) {
+                                  clickedReminder = e;
+                                  break;
+                                }
+                              }
+                            }
+
+                            if (clickedReminder == null) {
+                              for (var t in appState.filteredTasks) {
+                                if (t.from != null && t.to != null && !t.isAllDay && t.from!.isAtSameMomentAs(t.to!)) {
+                                  final diff = t.from!.difference(tappedTime).inMinutes.abs();
+                                  if (diff <= toleranceMinutes && t.from!.day == tappedTime.day) {
+                                    clickedReminder = t;
+                                    break;
+                                  }
+                                }
+                              }
+                            }
+
+                            if (clickedReminder != null) {
+                              _showItemDetailsDialog(
+                                context,
+                                clickedReminder,
+                                tappedDate: clickedReminder is Event ? clickedReminder.from : clickedReminder.from,
+                              );
+                              return;
+                            }
+
                             _showAddSelection(
                               context,
                               initialDate: details.date,
@@ -3309,7 +3346,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           if (details.targetElement ==
                                   CalendarElement.appointment &&
                               details.appointments!.isNotEmpty) {
-                            final rawAppointment = details.appointments!.first;
+                            final rawAppointment = details.appointments!.last;
                             final appointment = _getOriginalItem(
                               rawAppointment,
                               appState,
@@ -3343,8 +3380,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         },
                       ),
                     ),
-                    ),
-                     if (appState.calendarView == CalendarView.day ||
+                  ),
+                    if (appState.calendarView == CalendarView.day ||
                         appState.calendarView == CalendarView.week)
                       Positioned(
                         left: 0,
@@ -3358,6 +3395,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           },
                         ),
                       ),
+
                     _buildCustomHeaderRow(context, appState, constraints),
                     if (_showWeekStrips)
                       _buildWeekStripsPanel(context, appState, constraints),
@@ -3925,16 +3963,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
               final List<dynamic> displayItems = [];
               final seenIds = <String>{};
               for (var raw in allRawItems) {
-                final original = _getOriginalItem(raw, appState);
                 String idKey = '';
-                if (original is Event) idKey = original.id;
-                else if (original is TaskItem) idKey = original.id;
-                else if (original is Serit) idKey = original.id;
-                else if (original is ProjectEvaluation) idKey = original.id;
+                if (raw is Event) idKey = raw.id;
+                else if (raw is TaskItem) idKey = raw.id;
+                else if (raw is Serit) idKey = raw.id;
+                else if (raw is ProjectEvaluation) idKey = raw.id;
                 
                 if (idKey.isEmpty || !seenIds.contains(idKey)) {
                   if (idKey.isNotEmpty) seenIds.add(idKey);
-                  displayItems.add(original);
+                  displayItems.add(raw);
                 }
               }
               final remainingEvents = 0;
@@ -4211,10 +4248,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                             vertical: -4.0,
                                                           ),
                                                       onChanged: (bool? value) {
-                                                        appState
-                                                            .toggleTaskCompletion(
-                                                              item.id,
-                                                            );
+                                                        appState.toggleTaskCompletion(item.id);
                                                       },
                                                     ),
                                                   ),

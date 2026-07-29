@@ -721,10 +721,14 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
+              final currentProject = appState.projects.firstWhere(
+                (p) => p.id == widget.project.id,
+                orElse: () => widget.project,
+              );
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ProjectFormScreen(existingProject: widget.project),
+                  builder: (context) => ProjectFormScreen(existingProject: currentProject),
                 ),
               );
             },

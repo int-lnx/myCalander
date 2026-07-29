@@ -653,6 +653,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               const SizedBox(height: 6),
               TextField(
                 controller: _controller,
+                enableInteractiveSelection: true,
                 minLines: 8,
                 maxLines: 15,
                 decoration: const InputDecoration(
