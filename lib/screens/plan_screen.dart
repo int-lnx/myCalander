@@ -2,11 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
-import '../models/topic.dart';
 import '../models/topic_plan.dart';
 import '../models/project.dart';
 import '../models/project_evaluation.dart';
-import '../utils/id_generator.dart';
 
 class PlanScreen extends StatefulWidget {
   final String? projectId;
@@ -172,7 +170,9 @@ class _PlanScreenState extends State<PlanScreen> {
     if (allPlans.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Lütfen önce Görev Havuzuna giderek bir adım/görev ekleyin.'),
+          content: Text(
+            'Lütfen önce Görev Havuzuna giderek bir adım/görev ekleyin.',
+          ),
         ),
       );
       return;
@@ -187,7 +187,13 @@ class _PlanScreenState extends State<PlanScreen> {
       }
       return true;
     }).toList();
-    _showLeftDateHourEntryDialog(context, clickedDate, appState, allPlans, restrictedPlans: availablePlans);
+    _showLeftDateHourEntryDialog(
+      context,
+      clickedDate,
+      appState,
+      allPlans,
+      restrictedPlans: availablePlans,
+    );
   }
 
   void _showLeftDateHourEntryDialog(
@@ -208,10 +214,15 @@ class _PlanScreenState extends State<PlanScreen> {
     // Check if initial plan is already completed
     bool isCompletedChecked = false;
     if (selectedPlanId != null) {
-      final p = allPlans.firstWhere((plan) => plan.id == selectedPlanId, orElse: () => allPlans.first);
+      final p = allPlans.firstWhere(
+        (plan) => plan.id == selectedPlanId,
+        orElse: () => allPlans.first,
+      );
       isCompletedChecked = p.status == 'Yapılanlar';
       final rep = p.dayReports[dateKey];
-      hoursController.text = rep != null && rep.hoursWorked > 0 ? rep.hoursWorked.toString() : '';
+      hoursController.text = rep != null && rep.hoursWorked > 0
+          ? rep.hoursWorked.toString()
+          : '';
       noteController.text = rep?.note ?? '';
     }
 
@@ -222,8 +233,12 @@ class _PlanScreenState extends State<PlanScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final hasLogForDate = selectedPlanId != null &&
-                allPlans.firstWhere((plan) => plan.id == selectedPlanId).dayReports.containsKey(dateKey);
+            final hasLogForDate =
+                selectedPlanId != null &&
+                allPlans
+                    .firstWhere((plan) => plan.id == selectedPlanId)
+                    .dayReports
+                    .containsKey(dateKey);
 
             return AlertDialog(
               title: Text(
@@ -239,22 +254,31 @@ class _PlanScreenState extends State<PlanScreen> {
                   children: [
                     if (selectedPlanId != null) ...[
                       (() {
-                        final p = allPlans.firstWhere((plan) => plan.id == selectedPlanId);
-                        final totalWorkedHours = p.dayReports.values.map((r) => r.hoursWorked).fold(0.0, (a, b) => a + b);
+                        final p = allPlans.firstWhere(
+                          (plan) => plan.id == selectedPlanId,
+                        );
+                        final totalWorkedHours = p.dayReports.values
+                            .map((r) => r.hoursWorked)
+                            .fold(0.0, (a, b) => a + b);
                         final target = p.targetHours;
-                        final totalProgress = target > 0 ? (totalWorkedHours / target) * 100 : 0.0;
+                        final totalProgress = target > 0
+                            ? (totalWorkedHours / target) * 100
+                            : 0.0;
                         final remaining = target - totalWorkedHours;
-                        
+
                         double workedHoursUpToDate = 0.0;
                         for (var entry in p.dayReports.entries) {
                           try {
                             final entryDate = DateTime.parse(entry.key);
-                            if (entryDate.isBefore(date) || entryDate.isAtSameMomentAs(date)) {
+                            if (entryDate.isBefore(date) ||
+                                entryDate.isAtSameMomentAs(date)) {
                               workedHoursUpToDate += entry.value.hoursWorked;
                             }
                           } catch (_) {}
                         }
-                        final progressUpToDate = target > 0 ? (workedHoursUpToDate / target) * 100 : 0.0;
+                        final progressUpToDate = target > 0
+                            ? (workedHoursUpToDate / target) * 100
+                            : 0.0;
 
                         return Container(
                           width: double.infinity,
@@ -270,43 +294,97 @@ class _PlanScreenState extends State<PlanScreen> {
                             children: [
                               Text(
                                 'Adım Durumu: ${p.status == 'Yapılanlar' ? 'Tamamlandı' : p.status}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.blue,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Hedef Süre:', style: TextStyle(fontSize: 11)),
-                                  Text('${target.toStringAsFixed(1)} sa', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  const Text(
+                                    'Hedef Süre:',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                  Text(
+                                    '${target.toStringAsFixed(1)} sa',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Toplam Çalışılan:', style: TextStyle(fontSize: 11)),
-                                  Text('${totalWorkedHours.toStringAsFixed(1)} sa', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  const Text(
+                                    'Toplam Çalışılan:',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                  Text(
+                                    '${totalWorkedHours.toStringAsFixed(1)} sa',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Kalan Süre:', style: TextStyle(fontSize: 11)),
-                                  Text('${remaining > 0 ? remaining.toStringAsFixed(1) : 0.0} sa', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  const Text(
+                                    'Kalan Süre:',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                  Text(
+                                    '${remaining > 0 ? remaining.toStringAsFixed(1) : 0.0} sa',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                               const Divider(height: 12),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Toplam İlerleme:', style: TextStyle(fontSize: 11)),
-                                  Text('%${totalProgress.toStringAsFixed(0)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  const Text(
+                                    'Toplam İlerleme:',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                  Text(
+                                    '%${totalProgress.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Bu Güne Kadar İlerleme:', style: TextStyle(fontSize: 11)),
-                                  Text('%${progressUpToDate.toStringAsFixed(0)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  const Text(
+                                    'Bu Güne Kadar İlerleme:',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                  Text(
+                                    '%${progressUpToDate.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -399,10 +477,14 @@ class _PlanScreenState extends State<PlanScreen> {
                           p.dayReports,
                         );
                         reports.remove(dateKey);
-                        appState.updateTopicPlan(p.copyWith(
-                          dayReports: reports,
-                          status: isCompletedChecked ? 'Yapılanlar' : 'Yapılıyor',
-                        ));
+                        appState.updateTopicPlan(
+                          p.copyWith(
+                            dayReports: reports,
+                            status: isCompletedChecked
+                                ? 'Yapılanlar'
+                                : 'Yapılıyor',
+                          ),
+                        );
                       }
                       Navigator.pop(context);
                       setState(() {});
@@ -433,11 +515,15 @@ class _PlanScreenState extends State<PlanScreen> {
                         offset: hours > 0 ? 0 : 1,
                       );
 
-                      appState.updateTopicPlan(p.copyWith(
-                        status: isCompletedChecked ? 'Yapılanlar' : 'Yapılıyor',
-                        endDate: isCompletedChecked ? date : p.endDate,
-                        dayReports: reports,
-                      ));
+                      appState.updateTopicPlan(
+                        p.copyWith(
+                          status: isCompletedChecked
+                              ? 'Yapılanlar'
+                              : 'Yapılıyor',
+                          endDate: isCompletedChecked ? date : p.endDate,
+                          dayReports: reports,
+                        ),
+                      );
                     }
                     Navigator.pop(context);
                     setState(() {});
@@ -452,7 +538,12 @@ class _PlanScreenState extends State<PlanScreen> {
     );
   }
 
-  void _showAddEvaluationDialog(BuildContext context, AppState appState, DateTime date, {ProjectEvaluation? existingEval}) {
+  void _showAddEvaluationDialog(
+    BuildContext context,
+    AppState appState,
+    DateTime date, {
+    ProjectEvaluation? existingEval,
+  }) {
     if (widget.projectId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Hata: Proje ID bulunamadı.')),
@@ -462,12 +553,19 @@ class _PlanScreenState extends State<PlanScreen> {
 
     final project = appState.projects.firstWhere(
       (p) => p.id == widget.projectId,
-      orElse: () => const Project(id: '', title: '', colorValue: 0, evaluationType: 'PERCENTAGE', targetValue: 100),
+      orElse: () => const Project(
+        id: '',
+        title: '',
+        colorValue: 0,
+        evaluationType: 'PERCENTAGE',
+        targetValue: 100,
+      ),
     );
 
     final percentController = TextEditingController(
       text: existingEval != null
-          ? (existingEval.performancePercent ?? existingEval.score).toStringAsFixed(0)
+          ? (existingEval.performancePercent ?? existingEval.score)
+                .toStringAsFixed(0)
           : (project.defaultPercentage?.toStringAsFixed(0) ?? ''),
     );
     final numericController = TextEditingController(
@@ -490,10 +588,15 @@ class _PlanScreenState extends State<PlanScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               title: Text(
                 'Değerlendirme / Genel Log\n${date.day} ${_monthNames[date.month - 1]} ${date.year}',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -502,25 +605,40 @@ class _PlanScreenState extends State<PlanScreen> {
                     if (project.trackPercentage)
                       TextField(
                         controller: percentController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Başarı Yüzdesi (%)'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Başarı Yüzdesi (%)',
+                        ),
                       ),
                     if (project.trackNumeric)
                       TextField(
                         controller: numericController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(labelText: 'Sayısal Değer (Hedef: ${project.targetValue})'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText:
+                              'Sayısal Değer (Hedef: ${project.targetValue})',
+                        ),
                       ),
                     if (project.trackDuration)
                       TextField(
                         controller: durationController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Çalışılan Saat (Süre)'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Çalışılan Saat (Süre)',
+                        ),
                       ),
                     if (project.trackNote)
                       TextField(
                         controller: noteController,
-                        decoration: const InputDecoration(labelText: 'Not / Açıklama'),
+                        decoration: const InputDecoration(
+                          labelText: 'Not / Açıklama',
+                        ),
                       ),
                   ],
                 ),
@@ -549,14 +667,16 @@ class _PlanScreenState extends State<PlanScreen> {
                       scoreVal = double.tryParse(numericController.text) ?? 0.0;
                     }
                     if (project.trackPercentage) {
-                      final pVal = double.tryParse(percentController.text) ?? 0.0;
+                      final pVal =
+                          double.tryParse(percentController.text) ?? 0.0;
                       pctVal = pVal;
                       if (!project.trackNumeric) {
                         scoreVal = pVal;
                       }
                     }
 
-                    final duration = double.tryParse(durationController.text) ?? 0.0;
+                    final duration =
+                        double.tryParse(durationController.text) ?? 0.0;
                     final note = noteController.text.trim();
 
                     final eval = ProjectEvaluation(
@@ -586,7 +706,7 @@ class _PlanScreenState extends State<PlanScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    
+
     // Attempt auto-scroll to today
     if (!_hasScrolledToToday) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -610,18 +730,20 @@ class _PlanScreenState extends State<PlanScreen> {
     // Map to store predicted reports: planId -> Map<dayKey, hours>
     final Map<String, Map<String, double>> predictionMap = {};
     final Map<String, DateTime> planStartDates = {};
-    
+
     if (_showPrediction) {
       // 1. Unfinished active/scheduled steps (status is Yapılıyor or Bekleyenler)
-      final activeSteps = projectPlans.where((p) =>
-          p.status == 'Yapılıyor' || p.status == 'Bekleyenler'
-      ).toList();
-      activeSteps.sort((a, b) => getPlanStartDate(a).compareTo(getPlanStartDate(b)));
+      final activeSteps = projectPlans
+          .where((p) => p.status == 'Yapılıyor' || p.status == 'Bekleyenler')
+          .toList();
+      activeSteps.sort(
+        (a, b) => getPlanStartDate(a).compareTo(getPlanStartDate(b)),
+      );
 
       // 2. Unfinished pool steps (status is Yapılacak)
-      final poolSteps = projectPlans.where((p) =>
-          p.status == 'Yapılacak'
-      ).toList();
+      final poolSteps = projectPlans
+          .where((p) => p.status == 'Yapılacak')
+          .toList();
       poolSteps.sort((a, b) => b.importance.compareTo(a.importance));
 
       final List<TopicPlan> predictionQueue = [];
@@ -634,10 +756,12 @@ class _PlanScreenState extends State<PlanScreen> {
       final today = DateTime(now.year, now.month, now.day);
 
       for (var plan in predictionQueue) {
-        final totalLoggedHours = plan.dayReports.values.map((r) => r.hoursWorked).fold(0.0, (a, b) => a + b);
+        final totalLoggedHours = plan.dayReports.values
+            .map((r) => r.hoursWorked)
+            .fold(0.0, (a, b) => a + b);
         final remaining = plan.targetHours - totalLoggedHours;
         remainingHoursMap[plan.id] = remaining > 0 ? remaining : 0.0;
-        
+
         DateTime? maxLoggedDate;
         for (var entry in plan.dayReports.entries) {
           if (entry.value.hoursWorked > 0) {
@@ -649,7 +773,7 @@ class _PlanScreenState extends State<PlanScreen> {
             } catch (_) {}
           }
         }
-        
+
         DateTime initialStart;
         if (maxLoggedDate != null) {
           final nextDay = maxLoggedDate.add(const Duration(days: 1));
@@ -657,47 +781,69 @@ class _PlanScreenState extends State<PlanScreen> {
         } else {
           initialStart = today;
         }
-        
-        planStartDates[plan.id] = DateTime(initialStart.year, initialStart.month, initialStart.day);
+
+        planStartDates[plan.id] = DateTime(
+          initialStart.year,
+          initialStart.month,
+          initialStart.day,
+        );
         predictionMap[plan.id] = {};
       }
 
       if (predictionQueue.isNotEmpty) {
         DateTime current = today;
-        
+
         int safetyDays = 0;
-        while (predictionQueue.any((p) => remainingHoursMap[p.id]! > 0) && safetyDays < 730) {
+        while (predictionQueue.any((p) => remainingHoursMap[p.id]! > 0) &&
+            safetyDays < 730) {
           safetyDays++;
-          
-          final isWeekend = current.weekday == DateTime.saturday || current.weekday == DateTime.sunday;
-          final isGenExcludedWeekday = _generalExcludedWeekdays.contains(current.weekday);
+
+          final isWeekend =
+              current.weekday == DateTime.saturday ||
+              current.weekday == DateTime.sunday;
+          final isGenExcludedWeekday = _generalExcludedWeekdays.contains(
+            current.weekday,
+          );
           final isGenExcludedDate = _generalExcludedDates.contains(current);
 
           if (!isGenExcludedWeekday && !isGenExcludedDate) {
             double availableCapacity = _dailyCapacityHours;
-            
+
             for (var plan in predictionQueue) {
               if (availableCapacity <= 0) break;
               final rem = remainingHoursMap[plan.id]!;
               if (rem <= 0) continue;
-              
+
               final pStart = planStartDates[plan.id]!;
               if (current.isBefore(pStart)) {
                 continue;
               }
-              
+
               final isPlanExcludedWeekend = plan.excludeWeekends && isWeekend;
-              final isPlanExcludedWeekday = plan.excludedWeekdays.contains(current.weekday);
-              final isPlanExcludedDate = plan.excludedDates.any((d) => d.year == current.year && d.month == current.month && d.day == current.day);
-              
-              if (!isPlanExcludedWeekend && !isPlanExcludedWeekday && !isPlanExcludedDate) {
-                final allocated = rem < availableCapacity ? rem : availableCapacity;
-                final key = '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
-                
-                predictionMap[plan.id]![key] = (predictionMap[plan.id]![key] ?? 0.0) + allocated;
+              final isPlanExcludedWeekday = plan.excludedWeekdays.contains(
+                current.weekday,
+              );
+              final isPlanExcludedDate = plan.excludedDates.any(
+                (d) =>
+                    d.year == current.year &&
+                    d.month == current.month &&
+                    d.day == current.day,
+              );
+
+              if (!isPlanExcludedWeekend &&
+                  !isPlanExcludedWeekday &&
+                  !isPlanExcludedDate) {
+                final allocated = rem < availableCapacity
+                    ? rem
+                    : availableCapacity;
+                final key =
+                    '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
+
+                predictionMap[plan.id]![key] =
+                    (predictionMap[plan.id]![key] ?? 0.0) + allocated;
                 remainingHoursMap[plan.id] = rem - allocated;
                 availableCapacity -= allocated;
-                
+
                 if (remainingHoursMap[plan.id]! <= 0) {
                   final nextPlanIdx = predictionQueue.indexOf(plan) + 1;
                   if (nextPlanIdx < predictionQueue.length) {
@@ -721,11 +867,17 @@ class _PlanScreenState extends State<PlanScreen> {
         return DateTime(d.year, d.month, d.day);
       }
       // If prediction is on and we have predicted dates for it, start at the first predicted date
-      if (_showPrediction && predictionMap.containsKey(plan.id) && predictionMap[plan.id]!.isNotEmpty) {
+      if (_showPrediction &&
+          predictionMap.containsKey(plan.id) &&
+          predictionMap[plan.id]!.isNotEmpty) {
         final keys = predictionMap[plan.id]!.keys.toList()..sort();
         final firstKey = keys.first;
         final parts = firstKey.split('-');
-        return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+        return DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
       }
       final d = getPlanStartDate(plan);
       return DateTime(d.year, d.month, d.day);
@@ -733,13 +885,23 @@ class _PlanScreenState extends State<PlanScreen> {
 
     DateTime getVisualEndDate(TopicPlan plan) {
       if (plan.status == 'Yapılanlar') {
-        return DateTime(plan.endDate.year, plan.endDate.month, plan.endDate.day);
+        return DateTime(
+          plan.endDate.year,
+          plan.endDate.month,
+          plan.endDate.day,
+        );
       }
-      if (_showPrediction && predictionMap.containsKey(plan.id) && predictionMap[plan.id]!.isNotEmpty) {
+      if (_showPrediction &&
+          predictionMap.containsKey(plan.id) &&
+          predictionMap[plan.id]!.isNotEmpty) {
         final keys = predictionMap[plan.id]!.keys.toList()..sort();
         final lastKey = keys.last;
         final parts = lastKey.split('-');
-        return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+        return DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
       }
       final now = DateTime.now();
       return DateTime(now.year, now.month, now.day);
@@ -757,7 +919,10 @@ class _PlanScreenState extends State<PlanScreen> {
     final loggedPlans = projectPlans.where((plan) {
       final hasLogs = plan.dayReports.values.any((rep) => rep.hoursWorked > 0);
       if (hasLogs) return true;
-      if (_showPrediction && predictionMap.containsKey(plan.id) && predictionMap[plan.id]!.isNotEmpty) return true;
+      if (_showPrediction &&
+          predictionMap.containsKey(plan.id) &&
+          predictionMap[plan.id]!.isNotEmpty)
+        return true;
       return false;
     }).toList();
 
@@ -794,7 +959,10 @@ class _PlanScreenState extends State<PlanScreen> {
         children: [
           // Exclusions and Prediction Control Panel
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
               border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
@@ -804,7 +972,9 @@ class _PlanScreenState extends State<PlanScreen> {
                 // Prediction Toggle Button
                 ElevatedButton.icon(
                   icon: Icon(
-                    _showPrediction ? Icons.online_prediction : Icons.psychology_outlined,
+                    _showPrediction
+                        ? Icons.online_prediction
+                        : Icons.psychology_outlined,
                     size: 18,
                     color: _showPrediction ? Colors.white : Colors.purple,
                   ),
@@ -817,9 +987,14 @@ class _PlanScreenState extends State<PlanScreen> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _showPrediction ? Colors.purple : Colors.purple.shade50,
+                    backgroundColor: _showPrediction
+                        ? Colors.purple
+                        : Colors.purple.shade50,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -831,7 +1006,7 @@ class _PlanScreenState extends State<PlanScreen> {
                   },
                 ),
                 const SizedBox(width: 16),
-                
+
                 // Daily Capacity Hours Input
                 const Text(
                   'Günlük Kapasite:',
@@ -843,10 +1018,15 @@ class _PlanScreenState extends State<PlanScreen> {
                   height: 32,
                   child: TextField(
                     controller: _capacityController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     style: const TextStyle(fontSize: 12),
                     decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -857,7 +1037,7 @@ class _PlanScreenState extends State<PlanScreen> {
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(width: 24),
-                
+
                 // Days to Skip Selection
                 const Text(
                   'Pas Geçilecek Günler:',
@@ -870,8 +1050,18 @@ class _PlanScreenState extends State<PlanScreen> {
                     child: Row(
                       children: List.generate(7, (index) {
                         final weekday = index + 1;
-                        final daysShort = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-                        final isSelected = _generalExcludedWeekdays.contains(weekday);
+                        final daysShort = [
+                          'Pzt',
+                          'Sal',
+                          'Çar',
+                          'Per',
+                          'Cum',
+                          'Cmt',
+                          'Paz',
+                        ];
+                        final isSelected = _generalExcludedWeekdays.contains(
+                          weekday,
+                        );
                         return GestureDetector(
                           onTap: () {
                             setState(() {
@@ -884,12 +1074,19 @@ class _PlanScreenState extends State<PlanScreen> {
                           },
                           child: Container(
                             margin: const EdgeInsets.symmetric(horizontal: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: isSelected ? Colors.red.shade100 : Colors.grey.shade200,
+                              color: isSelected
+                                  ? Colors.red.shade100
+                                  : Colors.grey.shade200,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isSelected ? Colors.red : Colors.grey.shade400,
+                                color: isSelected
+                                    ? Colors.red
+                                    : Colors.grey.shade400,
                                 width: 0.5,
                               ),
                             ),
@@ -897,8 +1094,12 @@ class _PlanScreenState extends State<PlanScreen> {
                               daysShort[index],
                               style: TextStyle(
                                 fontSize: 10,
-                                color: isSelected ? Colors.red.shade900 : Colors.black87,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                color: isSelected
+                                    ? Colors.red.shade900
+                                    : Colors.black87,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                               ),
                             ),
                           ),
@@ -938,13 +1139,18 @@ class _PlanScreenState extends State<PlanScreen> {
                           controller: _verticalScrollController,
                           itemCount: _totalTimelineDays,
                           itemBuilder: (context, index) {
-                            final date = _timelineStartDate.add(Duration(days: index));
-                            final dateStr = '${date.day} ${_monthNames[date.month - 1]}';
+                            final date = _timelineStartDate.add(
+                              Duration(days: index),
+                            );
+                            final dateStr =
+                                '${date.day} ${_monthNames[date.month - 1]}';
                             return Container(
                               height: _rowHeight,
                               decoration: BoxDecoration(
                                 border: Border(
-                                  bottom: BorderSide(color: Colors.grey.shade200),
+                                  bottom: BorderSide(
+                                    color: Colors.grey.shade200,
+                                  ),
                                 ),
                               ),
                               child: InkWell(
@@ -979,40 +1185,51 @@ class _PlanScreenState extends State<PlanScreen> {
                             height: 50,
                             color: Colors.grey.shade100,
                             child: Row(
-                              children: List.generate(dynamicColumns.length + 1, (index) {
-                                if (index == 0) {
+                              children: List.generate(
+                                dynamicColumns.length + 1,
+                                (index) {
+                                  if (index == 0) {
+                                    return Container(
+                                      width: _colWidth,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade50.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                        border: Border(
+                                          right: BorderSide(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Genel 📝',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.amber,
+                                        ),
+                                      ),
+                                    );
+                                  }
                                   return Container(
                                     width: _colWidth,
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
-                                      color: Colors.amber.shade50.withValues(alpha: 0.5),
                                       border: Border(
-                                        right: BorderSide(color: Colors.grey.shade300),
+                                        right: BorderSide(
+                                          color: Colors.grey.shade300,
+                                        ),
                                       ),
                                     ),
-                                    child: const Text(
-                                      'Genel 📝',
-                                      style: TextStyle(
+                                    child: Text(
+                                      'Kolon $index',
+                                      style: const TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.amber,
                                       ),
                                     ),
                                   );
-                                }
-                                return Container(
-                                  width: _colWidth,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      right: BorderSide(color: Colors.grey.shade300),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Kolon $index',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                );
-                              }),
+                                },
+                              ),
                             ),
                           ),
                           // Body Rows List
@@ -1021,8 +1238,11 @@ class _PlanScreenState extends State<PlanScreen> {
                               controller: _cellsVerticalScrollController,
                               itemCount: _totalTimelineDays,
                               itemBuilder: (context, index) {
-                                final date = _timelineStartDate.add(Duration(days: index));
-                                final dayKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+                                final date = _timelineStartDate.add(
+                                  Duration(days: index),
+                                );
+                                final dayKey =
+                                    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
                                 ProjectEvaluation? dayEval;
                                 for (var ev in evaluations) {
@@ -1037,12 +1257,21 @@ class _PlanScreenState extends State<PlanScreen> {
                                 String evalText = '';
                                 Color evalBg = Colors.transparent;
                                 if (dayEval != null) {
-                                  evalBg = Colors.amber.shade50.withValues(alpha: 0.5);
+                                  evalBg = Colors.amber.shade50.withValues(
+                                    alpha: 0.5,
+                                  );
                                   final parts = <String>[];
-                                  if (dayEval.score > 0) parts.add('%${dayEval.score.toStringAsFixed(0)}');
-                                  if (dayEval.durationHours > 0) parts.add('${dayEval.durationHours.toStringAsFixed(1)} sa');
+                                  if (dayEval.score > 0)
+                                    parts.add(
+                                      '%${dayEval.score.toStringAsFixed(0)}',
+                                    );
+                                  if (dayEval.durationHours > 0)
+                                    parts.add(
+                                      '${dayEval.durationHours.toStringAsFixed(1)} sa',
+                                    );
                                   evalText = parts.join(' - ');
-                                  if (dayEval.note != null && dayEval.note!.isNotEmpty) {
+                                  if (dayEval.note != null &&
+                                      dayEval.note!.isNotEmpty) {
                                     evalText += '\n📝 ${dayEval.note}';
                                   }
                                 }
@@ -1051,23 +1280,37 @@ class _PlanScreenState extends State<PlanScreen> {
                                   height: _rowHeight,
                                   decoration: BoxDecoration(
                                     border: Border(
-                                      bottom: BorderSide(color: Colors.grey.shade200),
+                                      bottom: BorderSide(
+                                        color: Colors.grey.shade200,
+                                      ),
                                     ),
                                   ),
                                   child: Row(
-                                    children: List.generate(dynamicColumns.length + 1, (tIndex) {
+                                    children: List.generate(dynamicColumns.length + 1, (
+                                      tIndex,
+                                    ) {
                                       if (tIndex == 0) {
                                         return InkWell(
-                                          onTap: () => _showAddEvaluationDialog(context, appState, date, existingEval: dayEval),
+                                          onTap: () => _showAddEvaluationDialog(
+                                            context,
+                                            appState,
+                                            date,
+                                            existingEval: dayEval,
+                                          ),
                                           child: Container(
                                             width: _colWidth,
                                             decoration: BoxDecoration(
                                               color: evalBg,
                                               border: Border(
-                                                right: BorderSide(color: Colors.grey.shade200),
+                                                right: BorderSide(
+                                                  color: Colors.grey.shade200,
+                                                ),
                                               ),
                                             ),
-                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 2,
+                                            ),
                                             child: Center(
                                               child: Text(
                                                 evalText,
@@ -1085,7 +1328,8 @@ class _PlanScreenState extends State<PlanScreen> {
                                         );
                                       }
 
-                                      final columnPlans = dynamicColumns[tIndex - 1];
+                                      final columnPlans =
+                                          dynamicColumns[tIndex - 1];
 
                                       String cellText = '';
                                       Color cellColor = Colors.transparent;
@@ -1093,41 +1337,77 @@ class _PlanScreenState extends State<PlanScreen> {
                                         final pStart = getVisualStartDate(plan);
                                         final pEnd = getVisualEndDate(plan);
 
-                                        if ((date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) &&
-                                            (date.isBefore(pEnd) || date.isAtSameMomentAs(pEnd))) {
-                                          
-                                          cellColor = Color(plan.colorValue).withValues(alpha: 0.12);
+                                        if ((date.isAfter(pStart) ||
+                                                date.isAtSameMomentAs(
+                                                  pStart,
+                                                )) &&
+                                            (date.isBefore(pEnd) ||
+                                                date.isAtSameMomentAs(pEnd))) {
+                                          cellColor = Color(
+                                            plan.colorValue,
+                                          ).withValues(alpha: 0.12);
 
-                                          final isFirstDay = date.isAtSameMomentAs(pStart);
-                                          final isCompletedDay = plan.status == 'Yapılanlar' && date.isAtSameMomentAs(pEnd);
+                                          final isFirstDay = date
+                                              .isAtSameMomentAs(pStart);
+                                          final isCompletedDay =
+                                              plan.status == 'Yapılanlar' &&
+                                              date.isAtSameMomentAs(pEnd);
                                           final rep = plan.dayReports[dayKey];
                                           final hours = rep?.hoursWorked ?? 0.0;
-                                          
-                                          final isPredicted = _showPrediction &&
-                                              predictionMap.containsKey(plan.id) &&
-                                              predictionMap[plan.id]!.containsKey(dayKey);
+
+                                          final isPredicted =
+                                              _showPrediction &&
+                                              predictionMap.containsKey(
+                                                plan.id,
+                                              ) &&
+                                              predictionMap[plan.id]!
+                                                  .containsKey(dayKey);
 
                                           if (isFirstDay) {
                                             if (isCompletedDay) {
-                                              cellText = hours > 0 ? '🏁 ${plan.title}\n($hours sa)' : '🏁 ${plan.title}';
+                                              cellText = hours > 0
+                                                  ? '🏁 ${plan.title}\n($hours sa)'
+                                                  : '🏁 ${plan.title}';
                                             } else if (isPredicted) {
-                                              final predHours = predictionMap[plan.id]![dayKey]!;
-                                              cellText = '🔮 ${plan.title}\n(${predHours.toStringAsFixed(1)} sa)';
+                                              final predHours =
+                                                  predictionMap[plan
+                                                      .id]![dayKey]!;
+                                              cellText =
+                                                  '🔮 ${plan.title}\n(${predHours.toStringAsFixed(1)} sa)';
                                             } else {
-                                              cellText = hours > 0 ? '${plan.title}\n($hours sa)' : plan.title;
+                                              cellText = hours > 0
+                                                  ? '${plan.title}\n($hours sa)'
+                                                  : plan.title;
                                             }
-                                            cellColor = Color(plan.colorValue).withValues(alpha: isPredicted ? 0.2 : 0.35);
+                                            cellColor = Color(plan.colorValue)
+                                                .withValues(
+                                                  alpha: isPredicted
+                                                      ? 0.2
+                                                      : 0.35,
+                                                );
                                           } else {
-                                            if (hours > 0 || isCompletedDay || isPredicted) {
+                                            if (hours > 0 ||
+                                                isCompletedDay ||
+                                                isPredicted) {
                                               if (isCompletedDay) {
-                                                cellText = hours > 0 ? '🏁\n($hours sa)' : '🏁';
+                                                cellText = hours > 0
+                                                    ? '🏁\n($hours sa)'
+                                                    : '🏁';
                                               } else if (isPredicted) {
-                                                final predHours = predictionMap[plan.id]![dayKey]!;
-                                                cellText = '🔮\n(${predHours.toStringAsFixed(1)} sa)';
+                                                final predHours =
+                                                    predictionMap[plan
+                                                        .id]![dayKey]!;
+                                                cellText =
+                                                    '🔮\n(${predHours.toStringAsFixed(1)} sa)';
                                               } else {
                                                 cellText = '($hours sa)';
                                               }
-                                              cellColor = Color(plan.colorValue).withValues(alpha: isPredicted ? 0.2 : 0.35);
+                                              cellColor = Color(plan.colorValue)
+                                                  .withValues(
+                                                    alpha: isPredicted
+                                                        ? 0.2
+                                                        : 0.35,
+                                                  );
                                             }
                                           }
                                           break;
@@ -1138,8 +1418,12 @@ class _PlanScreenState extends State<PlanScreen> {
                                       for (var plan in columnPlans) {
                                         final pStart = getVisualStartDate(plan);
                                         final pEnd = getVisualEndDate(plan);
-                                        if ((date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) &&
-                                            (date.isBefore(pEnd) || date.isAtSameMomentAs(pEnd))) {
+                                        if ((date.isAfter(pStart) ||
+                                                date.isAtSameMomentAs(
+                                                  pStart,
+                                                )) &&
+                                            (date.isBefore(pEnd) ||
+                                                date.isAtSameMomentAs(pEnd))) {
                                           activePlanId = plan.id;
                                           break;
                                         }
@@ -1147,16 +1431,29 @@ class _PlanScreenState extends State<PlanScreen> {
 
                                       return InkWell(
                                         onTap: () {
-                                          final appState = Provider.of<AppState>(context, listen: false);
+                                          final appState =
+                                              Provider.of<AppState>(
+                                                context,
+                                                listen: false,
+                                              );
                                           final allPlans = appState.topicPlans
-                                              .where((p) => p.projectId == widget.projectId)
+                                              .where(
+                                                (p) =>
+                                                    p.projectId ==
+                                                    widget.projectId,
+                                              )
                                               .toList();
 
                                           TopicPlan? restrictedPlan;
                                           for (var plan in columnPlans) {
                                             if (plan.status != 'Yapılanlar') {
-                                              final pStart = getVisualStartDate(plan);
-                                              if (date.isAfter(pStart) || date.isAtSameMomentAs(pStart)) {
+                                              final pStart = getVisualStartDate(
+                                                plan,
+                                              );
+                                              if (date.isAfter(pStart) ||
+                                                  date.isAtSameMomentAs(
+                                                    pStart,
+                                                  )) {
                                                 restrictedPlan = plan;
                                                 break;
                                               }
@@ -1167,9 +1464,13 @@ class _PlanScreenState extends State<PlanScreen> {
                                           if (restrictedPlan != null) {
                                             dropdownPlans = [restrictedPlan];
                                           } else {
-                                            dropdownPlans = allPlans.where((plan) {
+                                            dropdownPlans = allPlans.where((
+                                              plan,
+                                            ) {
                                               if (plan.status == 'Yapılanlar') {
-                                                final pEnd = getVisualEndDate(plan);
+                                                final pEnd = getVisualEndDate(
+                                                  plan,
+                                                );
                                                 if (date.isAfter(pEnd)) {
                                                   return false;
                                                 }
@@ -1183,7 +1484,9 @@ class _PlanScreenState extends State<PlanScreen> {
                                             date,
                                             appState,
                                             allPlans,
-                                            initialPlanId: activePlanId ?? restrictedPlan?.id,
+                                            initialPlanId:
+                                                activePlanId ??
+                                                restrictedPlan?.id,
                                             restrictedPlans: dropdownPlans,
                                           );
                                         },
@@ -1193,13 +1496,17 @@ class _PlanScreenState extends State<PlanScreen> {
                                           decoration: BoxDecoration(
                                             color: cellColor,
                                             border: Border(
-                                              right: BorderSide(color: Colors.grey.shade200),
+                                              right: BorderSide(
+                                                color: Colors.grey.shade200,
+                                              ),
                                             ),
                                           ),
                                           child: Center(
                                             child: Text(
                                               cellText,
-                                              style: const TextStyle(fontSize: 10),
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                              ),
                                               textAlign: TextAlign.center,
                                               maxLines: 2,
                                               overflow: TextOverflow.ellipsis,

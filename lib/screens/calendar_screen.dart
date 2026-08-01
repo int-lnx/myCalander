@@ -383,8 +383,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final DateTime start = item.from ?? DateTime.now();
       final lower = rrule.toLowerCase();
 
-      if (!lower.contains('freq=monthly') && !lower.contains('freq=yearly'))
+      if (!lower.contains('freq=monthly') && !lower.contains('freq=yearly')) {
         return;
+      }
 
       int targetDay = start.day;
       final byMonthDayMatch = RegExp(r'bymonthday=([-\d]+)').firstMatch(lower);
@@ -512,7 +513,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (!t.isAllDay) continue;
       // Skip recurring tasks – they are added directly to calendarItems
       if (t.recurrenceRule != null && t.recurrenceRule!.isNotEmpty) continue;
-      if (DateTime(t.from!.year, t.from!.month, t.from!.day) == normalizedDate) {
+      if (DateTime(t.from!.year, t.from!.month, t.from!.day) ==
+          normalizedDate) {
         dayTasks.add(t);
       }
     }
@@ -608,7 +610,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     // Sort tasks chronologically by 'from' date, fallback to createdAt descending
     dayTasks.sort((a, b) {
-      if (a.from == null && b.from == null) return b.createdAt.compareTo(a.createdAt);
+      if (a.from == null && b.from == null)
+        return b.createdAt.compareTo(a.createdAt);
       if (a.from == null) return 1;
       if (b.from == null) return -1;
       final dateCompare = a.from!.compareTo(b.from!);
@@ -639,7 +642,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (appState.calendarView == CalendarView.day) {
       final dayEnd = normalizedDate.add(const Duration(days: 1));
       final allStrips = _getActiveStrips(appState);
-      
+
       for (var s in allStrips) {
         if (s.startDate.isBefore(dayEnd) && s.endDate.isAfter(normalizedDate)) {
           if (s.originalItem is Event) {
@@ -1015,7 +1018,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
       if (t.recurrenceRule == null) {
         final tFromLocal = t.from!.toLocal();
-        final tToLocal = (t.to ?? t.from!.add(const Duration(hours: 1))).toLocal();
+        final tToLocal = (t.to ?? t.from!.add(const Duration(hours: 1)))
+            .toLocal();
         if (tFromLocal.isBefore(dayEnd) && tToLocal.isAfter(dayStart)) {
           occurrences.add(
             OccurrenceInfo(
@@ -1124,7 +1128,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     int index = overlapping.indexOf(currentOcc);
     return {
       'index': index >= 0 ? index : 0,
-      'total': overlapping.length > 0 ? overlapping.length : 1,
+      'total': overlapping.isNotEmpty ? overlapping.length : 1,
     };
   }
 
@@ -1138,14 +1142,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (s.colorValue != 0) {
         color = Color(s.colorValue);
       }
-      strips.add(StripItem(
-        id: s.id,
-        title: s.title,
-        startDate: s.startDate,
-        endDate: s.endDate,
-        color: color,
-        originalItem: s,
-      ));
+      strips.add(
+        StripItem(
+          id: s.id,
+          title: s.title,
+          startDate: s.startDate,
+          endDate: s.endDate,
+          color: color,
+          originalItem: s,
+        ),
+      );
     }
 
     // 2. Add regular Events > 24 hours
@@ -1155,14 +1161,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
         if (e.colorValue != 0) {
           color = Color(e.colorValue);
         }
-        strips.add(StripItem(
-          id: e.id,
-          title: e.title,
-          startDate: e.from,
-          endDate: e.to,
-          color: color,
-          originalItem: e,
-        ));
+        strips.add(
+          StripItem(
+            id: e.id,
+            title: e.title,
+            startDate: e.from,
+            endDate: e.to,
+            color: color,
+            originalItem: e,
+          ),
+        );
       }
     }
 
@@ -1171,18 +1179,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (t.from != null && t.to != null) {
         if (t.to!.difference(t.from!).inMinutes > 1440) {
           Color color = Colors.orange;
-          final project = appState.projects.where((p) => p.id == t.projectId).firstOrNull;
+          final project = appState.projects
+              .where((p) => p.id == t.projectId)
+              .firstOrNull;
           if (project != null) {
             color = Color(project.colorValue);
           }
-          strips.add(StripItem(
-            id: t.id,
-            title: t.title,
-            startDate: t.from!,
-            endDate: t.to!,
-            color: color,
-            originalItem: t,
-          ));
+          strips.add(
+            StripItem(
+              id: t.id,
+              title: t.title,
+              startDate: t.from!,
+              endDate: t.to!,
+              color: color,
+              originalItem: t,
+            ),
+          );
         }
       }
     }
@@ -1205,7 +1217,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final Set<int> takenSlots = {};
       for (var assigned in slots.entries) {
         final s2 = strips.firstWhere((x) => x.id == assigned.key);
-        if (s2.startDate.isBefore(s.endDate) && s2.endDate.isAfter(s.startDate)) {
+        if (s2.startDate.isBefore(s.endDate) &&
+            s2.endDate.isAfter(s.startDate)) {
           takenSlots.add(assigned.value);
         }
       }
@@ -1219,8 +1232,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget _buildStripWidget(StripItem s, DateTime date, AppState appState) {
-    final bool isStart = s.startDate.year == date.year && s.startDate.month == date.month && s.startDate.day == date.day;
-    final bool isEnd = s.endDate.year == date.year && s.endDate.month == date.month && s.endDate.day == date.day;
+    final bool isStart =
+        s.startDate.year == date.year &&
+        s.startDate.month == date.month &&
+        s.startDate.day == date.day;
+    final bool isEnd =
+        s.endDate.year == date.year &&
+        s.endDate.month == date.month &&
+        s.endDate.day == date.day;
     final bool showText = isStart || date.weekday == DateTime.monday;
 
     return Container(
@@ -1428,17 +1447,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
     // their recurrence natively – same pipeline as timed recurring events.
     // Exception dates are returned by EventDataSource.getRecurrenceExceptionDates.
     final allDayRecurringEvents = events
-        .where((e) => e.isAllDay &&
-            e.recurrenceRule != null &&
-            e.recurrenceRule!.isNotEmpty)
+        .where(
+          (e) =>
+              e.isAllDay &&
+              e.recurrenceRule != null &&
+              e.recurrenceRule!.isNotEmpty,
+        )
         .toList();
     calendarItems.addAll(allDayRecurringEvents);
 
     final allDayRecurringTasks = tasks
-        .where((t) => t.isAllDay &&
-            t.from != null &&
-            t.recurrenceRule != null &&
-            t.recurrenceRule!.isNotEmpty)
+        .where(
+          (t) =>
+              t.isAllDay &&
+              t.from != null &&
+              t.recurrenceRule != null &&
+              t.recurrenceRule!.isNotEmpty,
+        )
         .toList();
     calendarItems.addAll(allDayRecurringTasks);
 
@@ -1530,7 +1555,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
         if (item is Event && item.to.difference(item.from).inMinutes > 1440) {
           continue;
         }
-        if (item is TaskItem && item.from != null && item.to != null && item.to!.difference(item.from!).inMinutes > 1440) {
+        if (item is TaskItem &&
+            item.from != null &&
+            item.to != null &&
+            item.to!.difference(item.from!).inMinutes > 1440) {
           continue;
         }
       }
@@ -1539,12 +1567,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     if (isDay) {
       final displayDate = calendarController.displayDate ?? DateTime.now();
-      final dayStart = DateTime(displayDate.year, displayDate.month, displayDate.day);
+      final dayStart = DateTime(
+        displayDate.year,
+        displayDate.month,
+        displayDate.day,
+      );
       final dayEnd = dayStart.add(const Duration(days: 1));
-      
+
       for (var serit in appState.serits) {
         if (!serit.isVisible) continue;
-        if (serit.startDate.isBefore(dayEnd) && serit.endDate.isAfter(dayStart)) {
+        if (serit.startDate.isBefore(dayEnd) &&
+            serit.endDate.isAfter(dayStart)) {
           finalItems.add(
             Event(
               id: serit.id,
@@ -1565,23 +1598,37 @@ class _CalendarScreenState extends State<CalendarScreen> {
       for (var date in datesToProcess) {
         final DateTime dateStart = DateTime(date.year, date.month, date.day);
         final DateTime dateEnd = dateStart.add(const Duration(days: 1));
-        final hasStripOnDay = allStrips.any((s) => s.startDate.isBefore(dateEnd) && s.endDate.isAfter(dateStart));
-        
+        final hasStripOnDay = allStrips.any(
+          (s) => s.startDate.isBefore(dateEnd) && s.endDate.isAfter(dateStart),
+        );
+
         if (hasStripOnDay) {
           final hasOtherAllDay = finalItems.any((item) {
-            if (item is Event && item.isAllDay && !item.id.startsWith('dummy_')) {
-              final itemStart = DateTime(item.from.year, item.from.month, item.from.day);
+            if (item is Event &&
+                item.isAllDay &&
+                !item.id.startsWith('dummy_')) {
+              final itemStart = DateTime(
+                item.from.year,
+                item.from.month,
+                item.from.day,
+              );
               return itemStart == dateStart;
             }
-            if (item is TaskItem && item.isAllDay && !item.id.startsWith('dummy_')) {
+            if (item is TaskItem &&
+                item.isAllDay &&
+                !item.id.startsWith('dummy_')) {
               if (item.from != null) {
-                final itemStart = DateTime(item.from!.year, item.from!.month, item.from!.day);
+                final itemStart = DateTime(
+                  item.from!.year,
+                  item.from!.month,
+                  item.from!.day,
+                );
                 return itemStart == dateStart;
               }
             }
             return false;
           });
-          
+
           if (!hasOtherAllDay) {
             finalItems.add(
               Event(
@@ -1603,13 +1650,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final startA = a is Event
           ? a.from
           : (a is TaskItem
-              ? (a.from ?? DateTime(1970))
-              : (a is ProjectEvaluation ? a.sessionDate : DateTime(1970)));
+                ? (a.from ?? DateTime(1970))
+                : (a is ProjectEvaluation ? a.sessionDate : DateTime(1970)));
       final startB = b is Event
           ? b.from
           : (b is TaskItem
-              ? (b.from ?? DateTime(1970))
-              : (b is ProjectEvaluation ? b.sessionDate : DateTime(1970)));
+                ? (b.from ?? DateTime(1970))
+                : (b is ProjectEvaluation ? b.sessionDate : DateTime(1970)));
 
       final startCompare = startA.compareTo(startB);
       if (startCompare != 0) return startCompare;
@@ -1617,15 +1664,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final durA = a is Event
           ? a.to.difference(a.from)
           : (a is TaskItem && a.from != null && a.to != null
-              ? a.to!.difference(a.from!)
-              : const Duration(hours: 1));
+                ? a.to!.difference(a.from!)
+                : const Duration(hours: 1));
       final durB = b is Event
           ? b.to.difference(b.from)
           : (b is TaskItem && b.from != null && b.to != null
-              ? b.to!.difference(b.from!)
-              : const Duration(hours: 1));
+                ? b.to!.difference(b.from!)
+                : const Duration(hours: 1));
 
-      final durCompare = durB.compareTo(durA); // Longer duration first (placed under/left)
+      final durCompare = durB.compareTo(
+        durA,
+      ); // Longer duration first (placed under/left)
       if (durCompare != 0) return durCompare;
 
       final createdA = a is Event
@@ -1635,7 +1684,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ? b.createdAt
           : (b is TaskItem ? b.createdAt : DateTime(1970));
 
-      return createdA.compareTo(createdB); // Earlier created first (placed under/left)
+      return createdA.compareTo(
+        createdB,
+      ); // Earlier created first (placed under/left)
     });
 
     _dataSource.appState = appState;
@@ -1643,10 +1694,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _dataSource.appointments = finalItems;
-        _dataSource.notifyListeners(
-          CalendarDataSourceAction.reset,
-          finalItems,
-        );
+        _dataSource.notifyListeners(CalendarDataSourceAction.reset, finalItems);
       }
     });
 
@@ -1682,7 +1730,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   children: [
                     Padding(
                       padding: EdgeInsets.only(
-                        top: (appState.calendarView == CalendarView.day ||
+                        top:
+                            (appState.calendarView == CalendarView.day ||
                                 appState.calendarView == CalendarView.week)
                             ? 55.0
                             : 0.0,
@@ -1697,621 +1746,700 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           view: appState.calendarView,
                           firstDayOfWeek: appState.firstDayOfWeek,
                           headerHeight: 0,
-                          viewHeaderHeight: (appState.calendarView == CalendarView.day ||
+                          viewHeaderHeight:
+                              (appState.calendarView == CalendarView.day ||
                                   appState.calendarView == CalendarView.week)
                               ? 0.0
                               : 55.0,
-                        showWeekNumber:
-                            appState.calendarView == CalendarView.week,
+                          showWeekNumber:
+                              appState.calendarView == CalendarView.week,
 
-                        weekNumberStyle: const WeekNumberStyle(
-                          textStyle: TextStyle(
-                            color: Colors.blue,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                          weekNumberStyle: const WeekNumberStyle(
+                            textStyle: TextStyle(
+                              color: Colors.blue,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            backgroundColor: Color(0xFFE3F2FD),
                           ),
-                          backgroundColor: Color(0xFFE3F2FD),
-                        ),
-                        viewHeaderStyle: const ViewHeaderStyle(
-                          dayTextStyle: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                          viewHeaderStyle: const ViewHeaderStyle(
+                            dayTextStyle: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            dateTextStyle: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          dateTextStyle: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        onViewChanged: (ViewChangedDetails details) {
-                          _visibleDates = details.visibleDates;
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (mounted) {
-                              final state = Provider.of<AppState>(
-                                context,
-                                listen: false,
-                              );
-                              if (details.visibleDates.isNotEmpty) {
-                                final midDate =
-                                    details.visibleDates[details
-                                            .visibleDates
-                                            .length ~/
-                                        2];
-                                state.setDisplayDate(midDate);
+                          onViewChanged: (ViewChangedDetails details) {
+                            _visibleDates = details.visibleDates;
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                final state = Provider.of<AppState>(
+                                  context,
+                                  listen: false,
+                                );
+                                if (details.visibleDates.isNotEmpty) {
+                                  final midDate =
+                                      details.visibleDates[details
+                                              .visibleDates
+                                              .length ~/
+                                          2];
+                                  state.setDisplayDate(midDate);
+                                }
                               }
-                            }
-                          });
-                        },
-                        timeSlotViewSettings: TimeSlotViewSettings(
-                          startHour: startHour,
-                          endHour: endHour,
-                          timeIntervalHeight: activeIntervalHeight,
-                          timeRulerSize: 40.0,
-                          timeFormat: 'HH:mm',
-                        ),
+                            });
+                          },
+                          timeSlotViewSettings: TimeSlotViewSettings(
+                            startHour: startHour,
+                            endHour: endHour,
+                            timeIntervalHeight: activeIntervalHeight,
+                            timeRulerSize: 40.0,
+                            timeFormat: 'HH:mm',
+                          ),
 
-                        onTap: (CalendarTapDetails details) {
-                          final appState = Provider.of<AppState>(
-                            context,
-                            listen: false,
-                          );
-                          if (appState.isBulkMode) {
+                          onTap: (CalendarTapDetails details) {
+                            final appState = Provider.of<AppState>(
+                              context,
+                              listen: false,
+                            );
+                            if (appState.isBulkMode) {
+                              if (details.targetElement ==
+                                      CalendarElement.appointment &&
+                                  details.appointments!.isNotEmpty) {
+                                final rawAppointment =
+                                    details.appointments!.last;
+                                final appointment = _getOriginalItem(
+                                  rawAppointment,
+                                  appState,
+                                );
+                                if (appointment is Event) {
+                                  if (appointment.id != 'dummy_t' &&
+                                      appointment.id != 'dummy_e' &&
+                                      appointment.id != 'dummy_eval') {
+                                    DateTime? occurrenceFrom;
+                                    if (rawAppointment is Appointment) {
+                                      occurrenceFrom = rawAppointment.startTime;
+                                    } else {
+                                      occurrenceFrom = appointment.from;
+                                    }
+                                    final String selectionId =
+                                        appointment.recurrenceRule != null
+                                        ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
+                                        : appointment.id;
+                                    appState.toggleEventSelection(selectionId);
+                                  }
+                                }
+                              }
+                              return;
+                            }
                             if (details.targetElement ==
-                                    CalendarElement.appointment &&
-                                details.appointments!.isNotEmpty) {
-                              final rawAppointment =
-                                  details.appointments!.last;
+                                CalendarElement.appointment) {
+                              if (details.appointments == null ||
+                                  details.appointments!.isEmpty) {
+                                return;
+                              }
+                              final rawAppointment = details.appointments!.last;
                               final appointment = _getOriginalItem(
                                 rawAppointment,
                                 appState,
                               );
-                              if (appointment is Event) {
-                                if (appointment.id != 'dummy_t' &&
-                                    appointment.id != 'dummy_e' &&
-                                    appointment.id != 'dummy_eval') {
-                                  DateTime? occurrenceFrom;
-                                  if (rawAppointment is Appointment) {
-                                    occurrenceFrom = rawAppointment.startTime;
-                                  } else {
-                                    occurrenceFrom = appointment.from;
-                                  }
-                                  final String selectionId =
-                                      appointment.recurrenceRule != null
-                                      ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
-                                      : appointment.id;
-                                  appState.toggleEventSelection(selectionId);
-                                }
+                              if (appointment is DayNote) {
+                                DayNoteDialog.show(
+                                  context,
+                                  appState,
+                                  DateTime(
+                                    appointment.date.year,
+                                    appointment.date.month,
+                                    appointment.date.day,
+                                  ),
+                                );
+                                return;
                               }
-                            }
-                            return;
-                          }
-                          if (details.targetElement ==
-                              CalendarElement.appointment) {
-                            if (details.appointments == null ||
-                                details.appointments!.isEmpty) {
-                              return;
-                            }
-                            final rawAppointment = details.appointments!.last;
-                            final appointment = _getOriginalItem(
-                              rawAppointment,
-                              appState,
-                            );
-                            if (appointment is DayNote) {
-                              DayNoteDialog.show(
-                                context,
-                                appState,
-                                DateTime(
-                                  appointment.date.year,
-                                  appointment.date.month,
-                                  appointment.date.day,
-                                ),
-                              );
-                              return;
-                            }
-                            bool isAllDay = false;
-                            DateTime? date;
+                              bool isAllDay = false;
+                              DateTime? date;
 
-                            if (rawAppointment is Appointment) {
-                              date = rawAppointment.startTime;
-                            } else if (rawAppointment is Event) {
-                              date = rawAppointment.from;
-                            } else if (rawAppointment is TaskItem) {
-                              date = rawAppointment.from;
-                            } else if (rawAppointment is ProjectEvaluation) {
-                              date = rawAppointment.sessionDate;
-                            }
+                              if (rawAppointment is Appointment) {
+                                date = rawAppointment.startTime;
+                              } else if (rawAppointment is Event) {
+                                date = rawAppointment.from;
+                              } else if (rawAppointment is TaskItem) {
+                                date = rawAppointment.from;
+                              } else if (rawAppointment is ProjectEvaluation) {
+                                date = rawAppointment.sessionDate;
+                              }
 
-                            if (appointment is Event) {
-                              isAllDay = appointment.isAllDay;
-                              if (appointment.id == 'dummy_t' ||
-                                  appointment.id == 'dummy_e' ||
-                                  appointment.id == 'dummy_eval') {
+                              if (appointment is Event) {
+                                isAllDay = appointment.isAllDay;
+                                if (appointment.id == 'dummy_t' ||
+                                    appointment.id == 'dummy_e' ||
+                                    appointment.id == 'dummy_eval') {
+                                  final normalizedDate = DateTime(
+                                    date!.year,
+                                    date.month,
+                                    date.day,
+                                  );
+                                  _showAllDayItemsSheet(
+                                    context,
+                                    normalizedDate,
+                                  );
+                                  return;
+                                }
+                              } else if (appointment is TaskItem) {
+                                isAllDay = appointment.isAllDay;
+                              } else if (appointment is ProjectEvaluation) {
+                                isAllDay = true;
+                              }
+
+                              if (isAllDay && date != null) {
                                 final normalizedDate = DateTime(
-                                  date!.year,
+                                  date.year,
                                   date.month,
                                   date.day,
                                 );
                                 _showAllDayItemsSheet(context, normalizedDate);
-                                return;
-                              }
-                            } else if (appointment is TaskItem) {
-                              isAllDay = appointment.isAllDay;
-                            } else if (appointment is ProjectEvaluation) {
-                              isAllDay = true;
-                            }
-
-                            if (isAllDay && date != null) {
-                              final normalizedDate = DateTime(
-                                date.year,
-                                date.month,
-                                date.day,
-                              );
-                              _showAllDayItemsSheet(context, normalizedDate);
-                            } else {
-                              DateTime? occurrenceTime;
-                              if (rawAppointment is Appointment) {
-                                occurrenceTime = rawAppointment.startTime;
-                              }
-                              _showItemDetailsDialog(
-                                context,
-                                appointment,
-                                tappedDate: occurrenceTime ?? details.date,
-                              );
-                            }
-                          } else if (appState.calendarView ==
-                                  CalendarView.month &&
-                              details.targetElement ==
-                                  CalendarElement.calendarCell &&
-                              details.date != null) {
-                            calendarController.displayDate = details.date;
-                            appState.setCalendarView(CalendarView.day);
-                          } else if ((appState.calendarView == CalendarView.day ||
-                                  appState.calendarView == CalendarView.week) &&
-                              details.targetElement ==
-                                  CalendarElement.calendarCell &&
-                              details.date != null) {
-                            final tappedTime = details.date!;
-                            final double toleranceMinutes = 15.0;
-                            dynamic clickedReminder;
-
-                            for (var e in appState.filteredEvents) {
-                              if (!e.isAllDay && e.from.isAtSameMomentAs(e.to)) {
-                                final diff = e.from.difference(tappedTime).inMinutes.abs();
-                                if (diff <= toleranceMinutes && e.from.day == tappedTime.day) {
-                                  clickedReminder = e;
-                                  break;
+                              } else {
+                                DateTime? occurrenceTime;
+                                if (rawAppointment is Appointment) {
+                                  occurrenceTime = rawAppointment.startTime;
                                 }
+                                _showItemDetailsDialog(
+                                  context,
+                                  appointment,
+                                  tappedDate: occurrenceTime ?? details.date,
+                                );
                               }
-                            }
+                            } else if (appState.calendarView ==
+                                    CalendarView.month &&
+                                details.targetElement ==
+                                    CalendarElement.calendarCell &&
+                                details.date != null) {
+                              calendarController.displayDate = details.date;
+                              appState.setCalendarView(CalendarView.day);
+                            } else if ((appState.calendarView ==
+                                        CalendarView.day ||
+                                    appState.calendarView ==
+                                        CalendarView.week) &&
+                                details.targetElement ==
+                                    CalendarElement.calendarCell &&
+                                details.date != null) {
+                              final tappedTime = details.date!;
+                              final double toleranceMinutes = 15.0;
+                              dynamic clickedReminder;
 
-                            if (clickedReminder == null) {
-                              for (var t in appState.filteredTasks) {
-                                if (t.from != null && t.to != null && !t.isAllDay && t.from!.isAtSameMomentAs(t.to!)) {
-                                  final diff = t.from!.difference(tappedTime).inMinutes.abs();
-                                  if (diff <= toleranceMinutes && t.from!.day == tappedTime.day) {
-                                    clickedReminder = t;
+                              for (var e in appState.filteredEvents) {
+                                if (!e.isAllDay &&
+                                    e.from.isAtSameMomentAs(e.to)) {
+                                  final diff = e.from
+                                      .difference(tappedTime)
+                                      .inMinutes
+                                      .abs();
+                                  if (diff <= toleranceMinutes &&
+                                      e.from.day == tappedTime.day) {
+                                    clickedReminder = e;
                                     break;
                                   }
                                 }
                               }
-                            }
 
-                            if (clickedReminder != null) {
-                              _showItemDetailsDialog(
+                              if (clickedReminder == null) {
+                                for (var t in appState.filteredTasks) {
+                                  if (t.from != null &&
+                                      t.to != null &&
+                                      !t.isAllDay &&
+                                      t.from!.isAtSameMomentAs(t.to!)) {
+                                    final diff = t.from!
+                                        .difference(tappedTime)
+                                        .inMinutes
+                                        .abs();
+                                    if (diff <= toleranceMinutes &&
+                                        t.from!.day == tappedTime.day) {
+                                      clickedReminder = t;
+                                      break;
+                                    }
+                                  }
+                                }
+                              }
+
+                              if (clickedReminder != null) {
+                                _showItemDetailsDialog(
+                                  context,
+                                  clickedReminder,
+                                  tappedDate: clickedReminder is Event
+                                      ? clickedReminder.from
+                                      : clickedReminder.from,
+                                );
+                                return;
+                              }
+
+                              _showAddSelection(
                                 context,
-                                clickedReminder,
-                                tappedDate: clickedReminder is Event ? clickedReminder.from : clickedReminder.from,
+                                initialDate: details.date,
                               );
-                              return;
+                            } else if (details.targetElement ==
+                                CalendarElement.allDayPanel) {
+                              final targetDate =
+                                  (appState.calendarView == CalendarView.day)
+                                  ? (calendarController.displayDate ??
+                                        details.date ??
+                                        DateTime.now())
+                                  : (details.date ?? DateTime.now());
+                              final normalizedDate = DateTime(
+                                targetDate.year,
+                                targetDate.month,
+                                targetDate.day,
+                              );
+                              _showAllDayItemsSheet(context, normalizedDate);
                             }
-
-                            _showAddSelection(
+                          },
+                          dataSource: _dataSource,
+                          appointmentBuilder: (context, calendarAppointmentDetails) {
+                            if (calendarAppointmentDetails
+                                .appointments
+                                .isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            final dynamic rawAppointment =
+                                calendarAppointmentDetails.appointments.first;
+                            final appState = Provider.of<AppState>(
                               context,
-                              initialDate: details.date,
+                              listen: false,
                             );
-                          } else if (details.targetElement ==
-                              CalendarElement.allDayPanel) {
-                            final targetDate =
-                                (appState.calendarView == CalendarView.day)
-                                ? (calendarController.displayDate ??
-                                      details.date ??
-                                      DateTime.now())
-                                : (details.date ?? DateTime.now());
-                            final normalizedDate = DateTime(
-                              targetDate.year,
-                              targetDate.month,
-                              targetDate.day,
+                            final dynamic appointment = _getOriginalItem(
+                              rawAppointment,
+                              appState,
                             );
-                            _showAllDayItemsSheet(context, normalizedDate);
-                          }
-                        },
-                        dataSource: _dataSource,
-                        appointmentBuilder: (context, calendarAppointmentDetails) {
-                          if (calendarAppointmentDetails.appointments.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          final dynamic rawAppointment =
-                              calendarAppointmentDetails.appointments.first;
-                          final appState = Provider.of<AppState>(
-                            context,
-                            listen: false,
-                          );
-                          final dynamic appointment = _getOriginalItem(
-                            rawAppointment,
-                            appState,
-                          );
-                          if (appointment is Event &&
-                              appointment.id.startsWith('dummy_all_day_placeholder_')) {
-                            return const SizedBox.shrink();
-                          }
-                          DateTime? occurrenceFrom;
-                          if (rawAppointment is Appointment) {
-                            occurrenceFrom = rawAppointment.startTime;
-                          } else if (appointment is Event) {
-                            occurrenceFrom = appointment.from;
-                          }
-                          final String selectionId =
-                              (appointment is Event &&
-                                  appointment.recurrenceRule != null &&
-                                  occurrenceFrom != null)
-                              ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
-                              : (appointment is Event ? appointment.id : "");
-                          final bool isSelected =
-                              appState.isBulkMode &&
-                              appState.selectedEventIds.contains(selectionId);
+                            if (appointment is Event &&
+                                appointment.id.startsWith(
+                                  'dummy_all_day_placeholder_',
+                                )) {
+                              return const SizedBox.shrink();
+                            }
+                            DateTime? occurrenceFrom;
+                            if (rawAppointment is Appointment) {
+                              occurrenceFrom = rawAppointment.startTime;
+                            } else if (appointment is Event) {
+                              occurrenceFrom = appointment.from;
+                            }
+                            final String selectionId =
+                                (appointment is Event &&
+                                    appointment.recurrenceRule != null &&
+                                    occurrenceFrom != null)
+                                ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
+                                : (appointment is Event ? appointment.id : "");
+                            final bool isSelected =
+                                appState.isBulkMode &&
+                                appState.selectedEventIds.contains(selectionId);
 
-                          Widget wrapWithSelection(
-                            Widget card, {
-                            required bool isSelected,
-                          }) {
-                            if (!isSelected) return card;
-                            return Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                card,
-                                Positioned(
-                                  top: 2,
-                                  right: 2,
-                                  child: Container(
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    padding: const EdgeInsets.all(1),
-                                    child: const Icon(
-                                      Icons.check_circle,
-                                      color: Colors.green,
-                                      size: 16,
+                            Widget wrapWithSelection(
+                              Widget card, {
+                              required bool isSelected,
+                            }) {
+                              if (!isSelected) return card;
+                              return Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  card,
+                                  Positioned(
+                                    top: 2,
+                                    right: 2,
+                                    child: Container(
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      padding: const EdgeInsets.all(1),
+                                      child: const Icon(
+                                        Icons.check_circle,
+                                        color: Colors.green,
+                                        size: 16,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            );
-                          }
-
-                          Project? project;
-                          if (appointment is Event &&
-                              appointment.projectId != null) {
-                            try {
-                              project = appState.projects.firstWhere(
-                                (p) => p.id == appointment.projectId,
+                                ],
                               );
-                            } catch (_) {}
-                          } else if (appointment is TaskItem &&
-                              appointment.projectId != null) {
-                            try {
-                              project = appState.projects.firstWhere(
-                                (p) => p.id == appointment.projectId,
-                              );
-                            } catch (_) {}
-                          }
-
-                          final bool isTask = appointment is TaskItem;
-                          final bool isHighImportance =
-                              (appointment is Event &&
-                                  appointment.importance == 2) ||
-                              (appointment is TaskItem &&
-                                  appointment.importance == 2);
-                          Color bgColor = Colors.blue;
-                          String title = '';
-                          bool isDummy = false;
-                          bool isCompleted = false;
-                          bool isReminder = false;
-
-                          DateTime? from;
-                          DateTime? to;
-                          bool isAllDay = false;
-
-                          if (appointment is Event) {
-                            bgColor = Color(appointment.colorValue);
-                            title = appointment.title;
-                            isAllDay = appointment.isAllDay;
-                            if (rawAppointment is Appointment) {
-                              from = rawAppointment.startTime;
-                              to = rawAppointment.endTime;
-                            } else {
-                              from = appointment.from;
-                              to = appointment.to;
                             }
-                            if (appointment.id == 'dummy_t' ||
-                                appointment.id == 'dummy_e' ||
-                                appointment.id == 'dummy_eval') {
-                              isDummy = true;
-                              if (appointment.id == 'dummy_eval') {
-                                bgColor = Colors.grey.shade300;
+
+                            Project? project;
+                            if (appointment is Event &&
+                                appointment.projectId != null) {
+                              try {
+                                project = appState.projects.firstWhere(
+                                  (p) => p.id == appointment.projectId,
+                                );
+                              } catch (_) {}
+                            } else if (appointment is TaskItem &&
+                                appointment.projectId != null) {
+                              try {
+                                project = appState.projects.firstWhere(
+                                  (p) => p.id == appointment.projectId,
+                                );
+                              } catch (_) {}
+                            }
+
+                            final bool isTask = appointment is TaskItem;
+                            final bool isHighImportance =
+                                (appointment is Event &&
+                                    appointment.importance == 2) ||
+                                (appointment is TaskItem &&
+                                    appointment.importance == 2);
+                            Color bgColor = Colors.blue;
+                            String title = '';
+                            bool isDummy = false;
+                            bool isCompleted = false;
+                            bool isReminder = false;
+
+                            DateTime? from;
+                            DateTime? to;
+                            bool isAllDay = false;
+
+                            if (appointment is Event) {
+                              bgColor = Color(appointment.colorValue);
+                              title = appointment.title;
+                              isAllDay = appointment.isAllDay;
+                              if (rawAppointment is Appointment) {
+                                from = rawAppointment.startTime;
+                                to = rawAppointment.endTime;
+                              } else {
+                                from = appointment.from;
+                                to = appointment.to;
                               }
-                            } else {
+                              if (appointment.id == 'dummy_t' ||
+                                  appointment.id == 'dummy_e' ||
+                                  appointment.id == 'dummy_eval') {
+                                isDummy = true;
+                                if (appointment.id == 'dummy_eval') {
+                                  bgColor = Colors.grey.shade300;
+                                }
+                              } else {
+                                isReminder =
+                                    !isAllDay && from.isAtSameMomentAs(to);
+                                if (to.isBefore(DateTime.now())) {
+                                  bgColor = bgColor.withValues(alpha: 0.4);
+                                }
+                              }
+                            } else if (appointment is TaskItem) {
+                              bgColor = Color(appointment.colorValue);
+                              title = appointment.title;
+                              final rawId = rawAppointment is Appointment
+                                  ? rawAppointment.id
+                                  : null;
+                              if (rawId is String &&
+                                  rawId.startsWith('rollover_')) {
+                                title = '⚠️ $title';
+                              }
+                              isAllDay = appointment.isAllDay;
+                              isCompleted = appointment.isCompleted;
+                              if (rawAppointment is Appointment) {
+                                from = rawAppointment.startTime;
+                                to = rawAppointment.endTime;
+                              } else {
+                                from = appointment.from;
+                                to = appointment.to ?? appointment.from;
+                              }
                               isReminder =
-                                  !isAllDay && from.isAtSameMomentAs(to);
-                              if (to.isBefore(DateTime.now())) {
+                                  !isAllDay &&
+                                  from != null &&
+                                  to != null &&
+                                  from.isAtSameMomentAs(to);
+                              if (appointment.id == 'dummy_t' ||
+                                  appointment.id == 'dummy_e' ||
+                                  appointment.id == 'dummy_eval') {
+                                isDummy = true;
+                              } else if (isCompleted) {
                                 bgColor = bgColor.withValues(alpha: 0.4);
                               }
-                            }
-                          } else if (appointment is TaskItem) {
-                            bgColor = Color(appointment.colorValue);
-                            title = appointment.title;
-                            final rawId = rawAppointment is Appointment
-                                ? rawAppointment.id
-                                : null;
-                            if (rawId is String &&
-                                rawId.startsWith('rollover_')) {
-                              title = '⚠️ $title';
-                            }
-                            isAllDay = appointment.isAllDay;
-                            isCompleted = appointment.isCompleted;
-                            if (rawAppointment is Appointment) {
-                              from = rawAppointment.startTime;
-                              to = rawAppointment.endTime;
-                            } else {
-                              from = appointment.from;
-                              to = appointment.to ?? appointment.from;
-                            }
-                            isReminder =
-                                !isAllDay &&
-                                from != null &&
-                                to != null &&
-                                from.isAtSameMomentAs(to);
-                            if (appointment.id == 'dummy_t' ||
-                                appointment.id == 'dummy_e' ||
-                                appointment.id == 'dummy_eval') {
-                              isDummy = true;
-                            } else if (isCompleted) {
-                              bgColor = bgColor.withValues(alpha: 0.4);
-                            }
-                          } else if (appointment is ProjectEvaluation) {
-                            isAllDay = true;
-                            from = appointment.sessionDate;
-                            to = appointment.sessionDate.add(
-                              const Duration(hours: 1),
-                            );
-                            try {
-                              final proj = appState.projects.firstWhere(
-                                (p) => p.id == appointment.projectId,
+                            } else if (appointment is ProjectEvaluation) {
+                              isAllDay = true;
+                              from = appointment.sessionDate;
+                              to = appointment.sessionDate.add(
+                                const Duration(hours: 1),
                               );
-                              bgColor = appointment.isSkipped
-                                  ? Colors.red.shade400
-                                  : Color(proj.colorValue);
-                              title = appointment.isSkipped
-                                  ? '📊 ${proj.title}: Pas'
-                                  : '📊 ${proj.title}: %${appointment.score.toStringAsFixed(0)}';
-                            } catch (_) {
-                              bgColor = Colors.grey.shade400;
-                              title = '📊 Değerlendirme';
-                            }
-                          } else if (appointment is DayNote) {
-                            isAllDay = false;
-                            from = DateTime(
-                              appointment.date.year,
-                              appointment.date.month,
-                              appointment.date.day,
-                              23,
-                              59,
-                            );
-                            to = DateTime(
-                              appointment.date.year,
-                              appointment.date.month,
-                              appointment.date.day,
-                              23,
-                              59,
-                              59,
-                            );
-                            bgColor = Colors.teal.shade700;
-                            title = appointment.note;
-                            isReminder = false;
-                          }
-
-                          if (title.isEmpty && rawAppointment is Appointment) {
-                            title = rawAppointment.subject;
-                          }
-
-                          if (!isDummy &&
-                              appState.calendarView == CalendarView.schedule &&
-                              from != null &&
-                              to != null) {
-                            if (appointment is DayNote) {
-                              title = '📝 Günlük Not  •  $title';
-                            } else {
-                              final fromStr =
-                                  '${from.hour.toString().padLeft(2, '0')}:${from.minute.toString().padLeft(2, '0')}';
-                              String timeRange;
-                              if (isAllDay) {
-                                timeRange = 'Tüm Gün';
-                              } else if (isReminder) {
-                                timeRange = '$fromStr (Hatırlatıcı)';
-                              } else {
-                                final toStr =
-                                    '${to.hour.toString().padLeft(2, '0')}:${to.minute.toString().padLeft(2, '0')}';
-                                timeRange = '$fromStr - $toStr';
-                              }
-                              title = '$timeRange  •  $title';
-                            }
-                          }
-
-                          final bool hasProject =
-                              (appointment is Event &&
-                                  appointment.projectId != null) ||
-                              (appointment is TaskItem &&
-                                  appointment.projectId != null);
-
-                          bool isEvaluated = false;
-                          bool isSkippedEval = false;
-                          if (hasProject && from != null) {
-                            final normalizedFrom = DateTime(
-                              from.year,
-                              from.month,
-                              from.day,
-                            );
-                            final String? targetProjectId = appointment is Event
-                                ? appointment.projectId
-                                : (appointment is TaskItem
-                                      ? appointment.projectId
-                                      : null);
-                            if (targetProjectId != null) {
                               try {
-                                final eval = appState.evaluations.firstWhere(
-                                  (e) =>
-                                      e.projectId == targetProjectId &&
-                                      e.sessionDate.year ==
-                                          normalizedFrom.year &&
-                                      e.sessionDate.month ==
-                                          normalizedFrom.month &&
-                                      e.sessionDate.day == normalizedFrom.day,
+                                final proj = appState.projects.firstWhere(
+                                  (p) => p.id == appointment.projectId,
                                 );
-                                isEvaluated = true;
-                                isSkippedEval = eval.isSkipped;
+                                bgColor = appointment.isSkipped
+                                    ? Colors.red.shade400
+                                    : Color(proj.colorValue);
+                                title = appointment.isSkipped
+                                    ? '📊 ${proj.title}: Pas'
+                                    : '📊 ${proj.title}: %${appointment.score.toStringAsFixed(0)}';
                               } catch (_) {
-                                isEvaluated = false;
-                                isSkippedEval = false;
+                                bgColor = Colors.grey.shade400;
+                                title = '📊 Değerlendirme';
+                              }
+                            } else if (appointment is DayNote) {
+                              isAllDay = false;
+                              from = DateTime(
+                                appointment.date.year,
+                                appointment.date.month,
+                                appointment.date.day,
+                                23,
+                                59,
+                              );
+                              to = DateTime(
+                                appointment.date.year,
+                                appointment.date.month,
+                                appointment.date.day,
+                                23,
+                                59,
+                                59,
+                              );
+                              bgColor = Colors.teal.shade700;
+                              title = appointment.note;
+                              isReminder = false;
+                            }
+
+                            if (title.isEmpty &&
+                                rawAppointment is Appointment) {
+                              title = rawAppointment.subject;
+                            }
+
+                            if (!isDummy &&
+                                appState.calendarView ==
+                                    CalendarView.schedule &&
+                                from != null &&
+                                to != null) {
+                              if (appointment is DayNote) {
+                                title = '📝 Günlük Not  •  $title';
+                              } else {
+                                final fromStr =
+                                    '${from.hour.toString().padLeft(2, '0')}:${from.minute.toString().padLeft(2, '0')}';
+                                String timeRange;
+                                if (isAllDay) {
+                                  timeRange = 'Tüm Gün';
+                                } else if (isReminder) {
+                                  timeRange = '$fromStr (Hatırlatıcı)';
+                                } else {
+                                  final toStr =
+                                      '${to.hour.toString().padLeft(2, '0')}:${to.minute.toString().padLeft(2, '0')}';
+                                  timeRange = '$fromStr - $toStr';
+                                }
+                                title = '$timeRange  •  $title';
                               }
                             }
-                          }
 
-                          if (isReminder) {
-                            final Color reminderBorderColor = isSelected
-                                ? Colors.green.shade600
-                                : (hasProject && project != null
-                                      ? (isEvaluated
-                                            ? (isSkippedEval
-                                                  ? Colors.red.shade400
-                                                  : Colors.black)
-                                            : Color(project.colorValue))
-                                      : bgColor);
+                            final bool hasProject =
+                                (appointment is Event &&
+                                    appointment.projectId != null) ||
+                                (appointment is TaskItem &&
+                                    appointment.projectId != null);
 
-                            final bool isDayOrWeek =
-                                appState.calendarView == CalendarView.day ||
-                                appState.calendarView == CalendarView.week;
-
-                            if (isDayOrWeek && from != null) {
-                              final bounds = calendarAppointmentDetails.bounds;
-                              final double calendarWidth = constraints.maxWidth;
-                              final int numDays =
-                                  appState.calendarView == CalendarView.week
-                                  ? 7
-                                  : 1;
-                              const double timeRulerWidth = 40.0;
-                              final double columnWidth =
-                                  (calendarWidth - timeRulerWidth) / numDays;
-                              final int dayIndex = numDays == 1
-                                  ? 0
-                                  : ((from.weekday - appState.firstDayOfWeek) %
-                                        7);
-                              final double colStart =
-                                  timeRulerWidth + dayIndex * columnWidth;
-                              final double leftShift = bounds.left - colStart;
-
-                              return OverflowBox(
-                                alignment: Alignment.topLeft,
-                                maxWidth: columnWidth,
-                                minWidth: columnWidth,
-                                maxHeight: 24.0,
-                                minHeight: 24.0,
-                                child: Transform.translate(
-                                  offset: Offset(-leftShift, -12.0),
-                                  child: wrapWithSelection(
-                                    Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        Positioned(
-                                          left: 0,
-                                          right: 0,
-                                          top: 12.0,
-                                          child: Container(
-                                            height: 1.5,
-                                            color: reminderBorderColor,
-                                          ),
-                                        ),
-                                        Positioned(
-                                          left: 0,
-                                          top: 8.5,
-                                          child: Container(
-                                            width: 7,
-                                            height: 7,
-                                            decoration: BoxDecoration(
-                                              color: reminderBorderColor,
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: Colors.black,
-                                                width: 1.0,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          left: 12,
-                                          bottom: 13.5,
-                                          right: 4,
-                                          child: Align(
-                                            alignment: Alignment.bottomLeft,
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 4,
-                                                    vertical: 1,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withValues(
-                                                  alpha: 0.85,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                title,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: reminderBorderColor,
-                                                  fontSize:
-                                                      9 *
-                                                      appState
-                                                          .fontSizeMultiplier,
-                                                  fontWeight: FontWeight.w600,
-                                                  decoration: isCompleted
-                                                      ? TextDecoration
-                                                            .lineThrough
-                                                      : null,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    isSelected: isSelected,
-                                  ),
-                                ),
+                            bool isEvaluated = false;
+                            bool isSkippedEval = false;
+                            if (hasProject && from != null) {
+                              final normalizedFrom = DateTime(
+                                from.year,
+                                from.month,
+                                from.day,
                               );
+                              final String? targetProjectId =
+                                  appointment is Event
+                                  ? appointment.projectId
+                                  : (appointment is TaskItem
+                                        ? appointment.projectId
+                                        : null);
+                              if (targetProjectId != null) {
+                                try {
+                                  final eval = appState.evaluations.firstWhere(
+                                    (e) =>
+                                        e.projectId == targetProjectId &&
+                                        e.sessionDate.year ==
+                                            normalizedFrom.year &&
+                                        e.sessionDate.month ==
+                                            normalizedFrom.month &&
+                                        e.sessionDate.day == normalizedFrom.day,
+                                  );
+                                  isEvaluated = true;
+                                  isSkippedEval = eval.isSkipped;
+                                } catch (_) {
+                                  isEvaluated = false;
+                                  isSkippedEval = false;
+                                }
+                              }
                             }
 
-                            return wrapWithSelection(
-                              hasProject
-                                  ? CustomPaint(
-                                      painter: DashedBorderPainter(
-                                        color: reminderBorderColor,
-                                        borderRadius: 4,
-                                        strokeWidth: isEvaluated ? 1.0 : 1.5,
-                                        isSolid: isEvaluated,
+                            if (isReminder) {
+                              final Color reminderBorderColor = isSelected
+                                  ? Colors.green.shade600
+                                  : (hasProject && project != null
+                                        ? (isEvaluated
+                                              ? (isSkippedEval
+                                                    ? Colors.red.shade400
+                                                    : Colors.black)
+                                              : Color(project.colorValue))
+                                        : bgColor);
+
+                              final bool isDayOrWeek =
+                                  appState.calendarView == CalendarView.day ||
+                                  appState.calendarView == CalendarView.week;
+
+                              if (isDayOrWeek && from != null) {
+                                final bounds =
+                                    calendarAppointmentDetails.bounds;
+                                final double calendarWidth =
+                                    constraints.maxWidth;
+                                final int numDays =
+                                    appState.calendarView == CalendarView.week
+                                    ? 7
+                                    : 1;
+                                const double timeRulerWidth = 40.0;
+                                final double columnWidth =
+                                    (calendarWidth - timeRulerWidth) / numDays;
+                                final int dayIndex = numDays == 1
+                                    ? 0
+                                    : ((from.weekday -
+                                              appState.firstDayOfWeek) %
+                                          7);
+                                final double colStart =
+                                    timeRulerWidth + dayIndex * columnWidth;
+                                final double leftShift = bounds.left - colStart;
+
+                                return OverflowBox(
+                                  alignment: Alignment.topLeft,
+                                  maxWidth: columnWidth,
+                                  minWidth: columnWidth,
+                                  maxHeight: 24.0,
+                                  minHeight: 24.0,
+                                  child: Transform.translate(
+                                    offset: Offset(-leftShift, -12.0),
+                                    child: wrapWithSelection(
+                                      Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Positioned(
+                                            left: 0,
+                                            right: 0,
+                                            top: 12.0,
+                                            child: Container(
+                                              height: 1.5,
+                                              color: reminderBorderColor,
+                                            ),
+                                          ),
+                                          Positioned(
+                                            left: 0,
+                                            top: 8.5,
+                                            child: Container(
+                                              width: 7,
+                                              height: 7,
+                                              decoration: BoxDecoration(
+                                                color: reminderBorderColor,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: Colors.black,
+                                                  width: 1.0,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          Positioned(
+                                            left: 12,
+                                            bottom: 13.5,
+                                            right: 4,
+                                            child: Align(
+                                              alignment: Alignment.bottomLeft,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.85),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  title,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: reminderBorderColor,
+                                                    fontSize:
+                                                        9 *
+                                                        appState
+                                                            .fontSizeMultiplier,
+                                                    fontWeight: FontWeight.w600,
+                                                    decoration: isCompleted
+                                                        ? TextDecoration
+                                                              .lineThrough
+                                                        : null,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      child: Container(
+                                      isSelected: isSelected,
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              return wrapWithSelection(
+                                hasProject
+                                    ? CustomPaint(
+                                        painter: DashedBorderPainter(
+                                          color: reminderBorderColor,
+                                          borderRadius: 4,
+                                          strokeWidth: isEvaluated ? 1.0 : 1.5,
+                                          isSolid: isEvaluated,
+                                        ),
+                                        child: Container(
+                                          alignment: Alignment.topLeft,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 3,
+                                            vertical: 1.5,
+                                          ),
+                                          clipBehavior: Clip.hardEdge,
+                                          child: Text(
+                                            title,
+                                            style: TextStyle(
+                                              color: reminderBorderColor,
+                                              fontSize:
+                                                  9 *
+                                                  appState.fontSizeMultiplier,
+                                              fontWeight: FontWeight.normal,
+                                              decoration: isCompleted
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.transparent,
+                                          border: Border(
+                                            left: BorderSide(
+                                              color: reminderBorderColor,
+                                              width: 1.5,
+                                            ),
+                                            top: BorderSide(
+                                              color: reminderBorderColor
+                                                  .withValues(alpha: 0.2),
+                                              width: 0.5,
+                                            ),
+                                            right: BorderSide(
+                                              color: reminderBorderColor
+                                                  .withValues(alpha: 0.2),
+                                              width: 0.5,
+                                            ),
+                                            bottom: BorderSide(
+                                              color: reminderBorderColor
+                                                  .withValues(alpha: 0.2),
+                                              width: 0.5,
+                                            ),
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
                                         alignment: Alignment.topLeft,
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 3,
@@ -2321,7 +2449,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         child: Text(
                                           title,
                                           style: TextStyle(
-                                            color: reminderBorderColor,
+                                            color: isSelected
+                                                ? Colors.green.shade600
+                                                : (hasProject && project != null
+                                                      ? Color(
+                                                          project.colorValue,
+                                                        )
+                                                      : bgColor),
                                             fontSize:
                                                 9 * appState.fontSizeMultiplier,
                                             fontWeight: FontWeight.normal,
@@ -2331,220 +2465,98 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                           ),
                                         ),
                                       ),
-                                    )
-                                  : Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.transparent,
-                                        border: Border(
-                                          left: BorderSide(
-                                            color: reminderBorderColor,
-                                            width: 1.5,
-                                          ),
-                                          top: BorderSide(
-                                            color: reminderBorderColor
-                                                .withValues(alpha: 0.2),
-                                            width: 0.5,
-                                          ),
-                                          right: BorderSide(
-                                            color: reminderBorderColor
-                                                .withValues(alpha: 0.2),
-                                            width: 0.5,
-                                          ),
-                                          bottom: BorderSide(
-                                            color: reminderBorderColor
-                                                .withValues(alpha: 0.2),
-                                            width: 0.5,
-                                          ),
-                                        ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      alignment: Alignment.topLeft,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 3,
-                                        vertical: 1.5,
-                                      ),
-                                      clipBehavior: Clip.hardEdge,
-                                      child: Text(
-                                        title,
-                                        style: TextStyle(
-                                          color: isSelected
-                                              ? Colors.green.shade600
-                                              : (hasProject && project != null
-                                                    ? Color(project.colorValue)
-                                                    : bgColor),
-                                          fontSize:
-                                              9 * appState.fontSizeMultiplier,
-                                          fontWeight: FontWeight.normal,
-                                          decoration: isCompleted
-                                              ? TextDecoration.lineThrough
-                                              : null,
-                                        ),
-                                      ),
-                                    ),
-                              isSelected: isSelected,
-                            );
-                          }
-
-                          final isDayOrWeek =
-                              appState.calendarView == CalendarView.day ||
-                              appState.calendarView == CalendarView.week;
-                          if (isDayOrWeek &&
-                              !isAllDay &&
-                              !isReminder &&
-                              !isDummy &&
-                              from != null &&
-                              to != null) {
-                            final bounds = calendarAppointmentDetails.bounds;
-                            final double calendarWidth = constraints.maxWidth;
-                            final int numDays =
-                                appState.calendarView == CalendarView.week
-                                ? 7
-                                : 1;
-
-                            final double timeRulerWidth = 40.0;
-                            // Compute exact day-column width — do NOT subtract scrollbar here;
-                            // doing so breaks N and slotIndexSf calculations.
-                            final double columnWidth =
-                                (calendarWidth - timeRulerWidth) / numDays;
-
-                            // Find N (overlap count) exactly
-                            int N = (columnWidth / bounds.width).round();
-                            if (N < 1) N = 1;
-
-                            if (bounds.width > 0) {
-                              // Get the exact day index (0 to 6) based on the appointment date
-                              final int dayIndex = numDays == 1
-                                  ? 0
-                                  : ((from.weekday - appState.firstDayOfWeek) %
-                                        7);
-
-                              // Calculate start of column i
-                              final double colStart =
-                                  timeRulerWidth + dayIndex * columnWidth;
-
-                              final overlapInfo = _getOverlapLayoutInfo(
-                                appointment: appointment,
-                                actualFrom: from,
-                                actualTo: to,
-                                appState: appState,
+                                isSelected: isSelected,
                               );
-                              final int slotIndex = overlapInfo['index']!;
-                              final int totalOverlaps = overlapInfo['total']!;
+                            }
 
-                              final double startRatio = slotIndex / totalOverlaps;
-                              double cardLeft = colStart + startRatio * columnWidth;
-                              double cardWidth = columnWidth * (1.0 - startRatio);
+                            final isDayOrWeek =
+                                appState.calendarView == CalendarView.day ||
+                                appState.calendarView == CalendarView.week;
+                            if (isDayOrWeek &&
+                                !isAllDay &&
+                                !isReminder &&
+                                !isDummy &&
+                                from != null &&
+                                to != null) {
+                              final bounds = calendarAppointmentDetails.bounds;
+                              final double calendarWidth = constraints.maxWidth;
+                              final int numDays =
+                                  appState.calendarView == CalendarView.week
+                                  ? 7
+                                  : 1;
 
-                              // Add a small right margin (e.g. 2px) to look clean
-                              if (cardWidth > 4.0) {
-                                cardWidth -= 2.0;
-                              }
-                              if (cardWidth < 10) cardWidth = 10;
+                              final double timeRulerWidth = 40.0;
+                              // Compute exact day-column width — do NOT subtract scrollbar here;
+                              // doing so breaks N and slotIndexSf calculations.
+                              final double columnWidth =
+                                  (calendarWidth - timeRulerWidth) / numDays;
 
-                              // Kaydırma farkı
-                              double leftShift = bounds.left - cardLeft;
+                              // Find N (overlap count) exactly
+                              int N = (columnWidth / bounds.width).round();
+                              if (N < 1) N = 1;
 
-                              final bool isShortDuration =
-                                  appState.expandShortDuration &&
-                                  bounds.height < 22.0;
-                              final double visualHeight = isShortDuration
-                                  ? 18.0
-                                  : bounds.height;
+                              if (bounds.width > 0) {
+                                // Get the exact day index (0 to 6) based on the appointment date
+                                final int dayIndex = numDays == 1
+                                    ? 0
+                                    : ((from.weekday -
+                                              appState.firstDayOfWeek) %
+                                          7);
 
-                              return OverflowBox(
-                                alignment: Alignment.topLeft,
-                                maxWidth: cardWidth,
-                                minWidth: cardWidth,
-                                maxHeight: visualHeight,
-                                minHeight: visualHeight,
-                                child: Transform.translate(
-                                  offset: Offset(-leftShift, 0),
-                                  child: wrapWithSelection(
-                                    (() {
-                                      final Widget c = isTask
-                                          ? Container(
-                                              decoration: BoxDecoration(
-                                                color: bgColor,
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                                border: Border(
-                                                  left: BorderSide(
-                                                    color: isSelected
-                                                        ? Colors.green.shade400
-                                                        : (isEvaluated
-                                                              ? (isSkippedEval
-                                                                    ? Colors
-                                                                          .red
-                                                                          .shade400
-                                                                    : Colors
-                                                                          .black)
-                                                              : Colors.black),
-                                                    width: isSelected
-                                                        ? 3.2
-                                                        : 2.2,
-                                                  ),
-                                                  right: BorderSide(
-                                                    color: isSelected
-                                                        ? Colors.green.shade400
-                                                        : (isEvaluated
-                                                              ? (isSkippedEval
-                                                                    ? Colors
-                                                                          .red
-                                                                          .shade400
-                                                                    : Colors
-                                                                          .black)
-                                                              : Colors.black),
-                                                    width: isSelected
-                                                        ? 3.2
-                                                        : 2.2,
-                                                  ),
-                                                ),
-                                              ),
-                                              alignment: Alignment.topLeft,
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: 4,
-                                                vertical: isShortDuration
-                                                    ? 1.0
-                                                    : 2.5,
-                                              ),
-                                              clipBehavior: Clip.hardEdge,
-                                              child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      title,
-                                                      maxLines: 15,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      softWrap: true,
-                                                      style: TextStyle(
-                                                        color: isDummy
-                                                            ? Colors.black
-                                                            : Colors.white,
-                                                        fontSize:
-                                                            (isShortDuration
-                                                                ? 7.5
-                                                                : 9.0) *
-                                                            appState
-                                                                .fontSizeMultiplier,
-                                                        fontWeight: isDummy
-                                                            ? FontWeight.bold
-                                                            : FontWeight.normal,
-                                                        decoration: isCompleted
-                                                            ? TextDecoration
-                                                                  .lineThrough
-                                                            : null,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            )
-                                          : (hasProject
-                                                ? CustomPaint(
-                                                    painter: DashedBorderPainter(
+                                // Calculate start of column i
+                                final double colStart =
+                                    timeRulerWidth + dayIndex * columnWidth;
+
+                                final overlapInfo = _getOverlapLayoutInfo(
+                                  appointment: appointment,
+                                  actualFrom: from,
+                                  actualTo: to,
+                                  appState: appState,
+                                );
+                                final int slotIndex = overlapInfo['index']!;
+                                final int totalOverlaps = overlapInfo['total']!;
+
+                                final double startRatio =
+                                    slotIndex / totalOverlaps;
+                                double cardLeft =
+                                    colStart + startRatio * columnWidth;
+                                double cardWidth =
+                                    columnWidth * (1.0 - startRatio);
+
+                                // Add a small right margin (e.g. 2px) to look clean
+                                if (cardWidth > 4.0) {
+                                  cardWidth -= 2.0;
+                                }
+                                if (cardWidth < 10) cardWidth = 10;
+
+                                // Kaydırma farkı
+                                double leftShift = bounds.left - cardLeft;
+
+                                final bool isShortDuration =
+                                    appState.expandShortDuration &&
+                                    bounds.height < 22.0;
+                                final double visualHeight = isShortDuration
+                                    ? 18.0
+                                    : bounds.height;
+
+                                return OverflowBox(
+                                  alignment: Alignment.topLeft,
+                                  maxWidth: cardWidth,
+                                  minWidth: cardWidth,
+                                  maxHeight: visualHeight,
+                                  minHeight: visualHeight,
+                                  child: Transform.translate(
+                                    offset: Offset(-leftShift, 0),
+                                    child: wrapWithSelection(
+                                      (() {
+                                        final Widget c = isTask
+                                            ? Container(
+                                                decoration: BoxDecoration(
+                                                  color: bgColor,
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  border: Border(
+                                                    left: BorderSide(
                                                       color: isSelected
                                                           ? Colors
                                                                 .green
@@ -2556,30 +2568,188 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                                             .shade400
                                                                       : Colors
                                                                             .black)
-                                                                : (project !=
-                                                                          null
-                                                                      ? Color(
-                                                                          project
-                                                                              .colorValue,
-                                                                        )
-                                                                      : bgColor)),
-                                                      borderRadius: 6,
-                                                      strokeWidth: isSelected
+                                                                : Colors.black),
+                                                      width: isSelected
                                                           ? 3.2
-                                                          : (isEvaluated
-                                                                ? 1.0
-                                                                : 2.2),
-                                                      dashWidth: 5.0,
-                                                      dashSpace: 3.5,
-                                                      isSolid: isEvaluated,
+                                                          : 2.2,
                                                     ),
-                                                    child: Container(
+                                                    right: BorderSide(
+                                                      color: isSelected
+                                                          ? Colors
+                                                                .green
+                                                                .shade400
+                                                          : (isEvaluated
+                                                                ? (isSkippedEval
+                                                                      ? Colors
+                                                                            .red
+                                                                            .shade400
+                                                                      : Colors
+                                                                            .black)
+                                                                : Colors.black),
+                                                      width: isSelected
+                                                          ? 3.2
+                                                          : 2.2,
+                                                    ),
+                                                  ),
+                                                ),
+                                                alignment: Alignment.topLeft,
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 4,
+                                                  vertical: isShortDuration
+                                                      ? 1.0
+                                                      : 2.5,
+                                                ),
+                                                clipBehavior: Clip.hardEdge,
+                                                child: Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        title,
+                                                        maxLines: 15,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        softWrap: true,
+                                                        style: TextStyle(
+                                                          color: isDummy
+                                                              ? Colors.black
+                                                              : Colors.white,
+                                                          fontSize:
+                                                              (isShortDuration
+                                                                  ? 7.5
+                                                                  : 9.0) *
+                                                              appState
+                                                                  .fontSizeMultiplier,
+                                                          fontWeight: isDummy
+                                                              ? FontWeight.bold
+                                                              : FontWeight
+                                                                    .normal,
+                                                          decoration:
+                                                              isCompleted
+                                                              ? TextDecoration
+                                                                    .lineThrough
+                                                              : null,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
+                                            : (hasProject
+                                                  ? CustomPaint(
+                                                      painter: DashedBorderPainter(
+                                                        color: isSelected
+                                                            ? Colors
+                                                                  .green
+                                                                  .shade400
+                                                            : (isEvaluated
+                                                                  ? (isSkippedEval
+                                                                        ? Colors
+                                                                              .red
+                                                                              .shade400
+                                                                        : Colors
+                                                                              .black)
+                                                                  : (project !=
+                                                                            null
+                                                                        ? Color(
+                                                                            project.colorValue,
+                                                                          )
+                                                                        : bgColor)),
+                                                        borderRadius: 6,
+                                                        strokeWidth: isSelected
+                                                            ? 3.2
+                                                            : (isEvaluated
+                                                                  ? 1.0
+                                                                  : 2.2),
+                                                        dashWidth: 5.0,
+                                                        dashSpace: 3.5,
+                                                        isSolid: isEvaluated,
+                                                      ),
+                                                      child: Container(
+                                                        decoration: BoxDecoration(
+                                                          color: bgColor,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                6,
+                                                              ),
+                                                        ),
+                                                        alignment:
+                                                            Alignment.topLeft,
+                                                        padding:
+                                                            EdgeInsets.symmetric(
+                                                              horizontal: 4,
+                                                              vertical:
+                                                                  isShortDuration
+                                                                  ? 1.0
+                                                                  : 2.5,
+                                                            ),
+                                                        clipBehavior:
+                                                            Clip.hardEdge,
+                                                        child: Row(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Expanded(
+                                                              child: Text(
+                                                                title,
+                                                                maxLines: 15,
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                                softWrap: true,
+                                                                style: TextStyle(
+                                                                  color: isDummy
+                                                                      ? Colors
+                                                                            .black
+                                                                      : Colors
+                                                                            .white,
+                                                                  fontSize:
+                                                                      (isShortDuration
+                                                                          ? 7.5
+                                                                          : 9.0) *
+                                                                      appState
+                                                                          .fontSizeMultiplier,
+                                                                  fontWeight:
+                                                                      isDummy
+                                                                      ? FontWeight
+                                                                            .bold
+                                                                      : FontWeight
+                                                                            .normal,
+                                                                  decoration:
+                                                                      isCompleted
+                                                                      ? TextDecoration
+                                                                            .lineThrough
+                                                                      : null,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    )
+                                                  : Container(
                                                       decoration: BoxDecoration(
                                                         color: bgColor,
                                                         borderRadius:
                                                             BorderRadius.circular(
                                                               6,
                                                             ),
+                                                        border: Border.all(
+                                                          color: isSelected
+                                                              ? Colors
+                                                                    .green
+                                                                    .shade400
+                                                              : Colors.white
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.25,
+                                                                    ),
+                                                          width: isSelected
+                                                              ? 2.5
+                                                              : 1.0,
+                                                        ),
                                                       ),
                                                       alignment:
                                                           Alignment.topLeft,
@@ -2634,186 +2804,54 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                           ),
                                                         ],
                                                       ),
-                                                    ),
-                                                  )
-                                                : Container(
-                                                    decoration: BoxDecoration(
-                                                      color: bgColor,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            6,
-                                                          ),
-                                                      border: Border.all(
-                                                        color: isSelected
-                                                            ? Colors
-                                                                  .green
-                                                                  .shade400
-                                                            : Colors.white
-                                                                  .withValues(
-                                                                    alpha: 0.25,
-                                                                  ),
-                                                        width: isSelected
-                                                            ? 2.5
-                                                            : 1.0,
-                                                      ),
-                                                    ),
-                                                    alignment:
-                                                        Alignment.topLeft,
-                                                    padding:
-                                                        EdgeInsets.symmetric(
-                                                          horizontal: 4,
-                                                          vertical:
-                                                              isShortDuration
-                                                              ? 1.0
-                                                              : 2.5,
-                                                        ),
-                                                    clipBehavior: Clip.hardEdge,
-                                                    child: Row(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Expanded(
-                                                          child: Text(
-                                                            title,
-                                                            maxLines: 15,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                            softWrap: true,
-                                                            style: TextStyle(
-                                                              color: isDummy
-                                                                  ? Colors.black
-                                                                  : Colors
-                                                                        .white,
-                                                              fontSize:
-                                                                  (isShortDuration
-                                                                      ? 7.5
-                                                                      : 9.0) *
-                                                                  appState
-                                                                      .fontSizeMultiplier,
-                                                              fontWeight:
-                                                                  isDummy
-                                                                  ? FontWeight
-                                                                        .bold
-                                                                  : FontWeight
-                                                                        .normal,
-                                                              decoration:
-                                                                  isCompleted
-                                                                  ? TextDecoration
-                                                                        .lineThrough
-                                                                  : null,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ));
-                                      if (isHighImportance) {
-                                        final Color protrusionColor = isSelected
-                                            ? Colors.green.shade400
-                                            : bgColor;
-                                        return Stack(
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            c,
-                                            Positioned(
-                                              left: -6,
-                                              top: visualHeight / 2 - 1,
-                                              width: 6,
-                                              height: 2,
-                                              child: Container(
-                                                color: protrusionColor,
+                                                    ));
+                                        if (isHighImportance) {
+                                          final Color protrusionColor =
+                                              isSelected
+                                              ? Colors.green.shade400
+                                              : bgColor;
+                                          return Stack(
+                                            clipBehavior: Clip.none,
+                                            children: [
+                                              c,
+                                              Positioned(
+                                                left: -6,
+                                                top: visualHeight / 2 - 1,
+                                                width: 6,
+                                                height: 2,
+                                                child: Container(
+                                                  color: protrusionColor,
+                                                ),
                                               ),
-                                            ),
-                                            Positioned(
-                                              right: -6,
-                                              top: visualHeight / 2 - 1,
-                                              width: 6,
-                                              height: 2,
-                                              child: Container(
-                                                color: protrusionColor,
+                                              Positioned(
+                                                right: -6,
+                                                top: visualHeight / 2 - 1,
+                                                width: 6,
+                                                height: 2,
+                                                child: Container(
+                                                  color: protrusionColor,
+                                                ),
                                               ),
-                                            ),
-                                          ],
-                                        );
-                                      }
-                                      return c;
-                                    })(),
-                                    isSelected: isSelected,
+                                            ],
+                                          );
+                                        }
+                                        return c;
+                                      })(),
+                                      isSelected: isSelected,
+                                    ),
                                   ),
-                                ),
-                              );
+                                );
+                              }
                             }
-                          }
 
-                          return wrapWithSelection(
-                            isTask
-                                ? Container(
-                                    decoration: BoxDecoration(
-                                      color: bgColor,
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border(
-                                        left: BorderSide(
-                                          color: isSelected
-                                              ? Colors.green.shade400
-                                              : (isEvaluated
-                                                    ? (isSkippedEval
-                                                          ? Colors.red.shade400
-                                                          : Colors.black)
-                                                    : Colors.black),
-                                          width: isSelected ? 3.2 : 2.2,
-                                        ),
-                                        right: BorderSide(
-                                          color: isSelected
-                                              ? Colors.green.shade400
-                                              : (isEvaluated
-                                                    ? (isSkippedEval
-                                                          ? Colors.red.shade400
-                                                          : Colors.black)
-                                                    : Colors.black),
-                                          width: isSelected ? 3.2 : 2.2,
-                                        ),
-                                      ),
-                                    ),
-                                    alignment: Alignment.topLeft,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 2.5,
-                                    ),
-                                    clipBehavior: Clip.hardEdge,
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            title,
-                                            maxLines: 3,
-                                            overflow: TextOverflow.ellipsis,
-                                            softWrap: true,
-                                            style: TextStyle(
-                                              color: isDummy
-                                                  ? Colors.black
-                                                  : Colors.white,
-                                              fontSize:
-                                                  9.0 *
-                                                  appState.fontSizeMultiplier,
-                                              fontWeight: isDummy
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                              decoration: isCompleted
-                                                  ? TextDecoration.lineThrough
-                                                  : null,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : (hasProject
-                                      ? CustomPaint(
-                                          painter: DashedBorderPainter(
+                            return wrapWithSelection(
+                              isTask
+                                  ? Container(
+                                      decoration: BoxDecoration(
+                                        color: bgColor,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border(
+                                          left: BorderSide(
                                             color: isSelected
                                                 ? Colors.green.shade400
                                                 : (isEvaluated
@@ -2822,25 +2860,142 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                                   .red
                                                                   .shade400
                                                             : Colors.black)
-                                                      : (project != null
-                                                            ? Color(
-                                                                project
-                                                                    .colorValue,
-                                                              )
-                                                            : bgColor)),
-                                            borderRadius: 6,
-                                            strokeWidth: isSelected
-                                                ? 3.2
-                                                : (isEvaluated ? 1.0 : 2.2),
-                                            dashWidth: 5.0,
-                                            dashSpace: 3.5,
-                                            isSolid: isEvaluated,
+                                                      : Colors.black),
+                                            width: isSelected ? 3.2 : 2.2,
                                           ),
-                                          child: Container(
+                                          right: BorderSide(
+                                            color: isSelected
+                                                ? Colors.green.shade400
+                                                : (isEvaluated
+                                                      ? (isSkippedEval
+                                                            ? Colors
+                                                                  .red
+                                                                  .shade400
+                                                            : Colors.black)
+                                                      : Colors.black),
+                                            width: isSelected ? 3.2 : 2.2,
+                                          ),
+                                        ),
+                                      ),
+                                      alignment: Alignment.topLeft,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2.5,
+                                      ),
+                                      clipBehavior: Clip.hardEdge,
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              title,
+                                              maxLines: 3,
+                                              overflow: TextOverflow.ellipsis,
+                                              softWrap: true,
+                                              style: TextStyle(
+                                                color: isDummy
+                                                    ? Colors.black
+                                                    : Colors.white,
+                                                fontSize:
+                                                    9.0 *
+                                                    appState.fontSizeMultiplier,
+                                                fontWeight: isDummy
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                                decoration: isCompleted
+                                                    ? TextDecoration.lineThrough
+                                                    : null,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : (hasProject
+                                        ? CustomPaint(
+                                            painter: DashedBorderPainter(
+                                              color: isSelected
+                                                  ? Colors.green.shade400
+                                                  : (isEvaluated
+                                                        ? (isSkippedEval
+                                                              ? Colors
+                                                                    .red
+                                                                    .shade400
+                                                              : Colors.black)
+                                                        : (project != null
+                                                              ? Color(
+                                                                  project
+                                                                      .colorValue,
+                                                                )
+                                                              : bgColor)),
+                                              borderRadius: 6,
+                                              strokeWidth: isSelected
+                                                  ? 3.2
+                                                  : (isEvaluated ? 1.0 : 2.2),
+                                              dashWidth: 5.0,
+                                              dashSpace: 3.5,
+                                              isSolid: isEvaluated,
+                                            ),
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: bgColor,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              alignment: Alignment.topLeft,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                    vertical: 2.5,
+                                                  ),
+                                              clipBehavior: Clip.hardEdge,
+                                              child: Row(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      title,
+                                                      maxLines: 3,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      softWrap: true,
+                                                      style: TextStyle(
+                                                        color: isDummy
+                                                            ? Colors.black
+                                                            : Colors.white,
+                                                        fontSize:
+                                                            9.0 *
+                                                            appState
+                                                                .fontSizeMultiplier,
+                                                        fontWeight: isDummy
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                        decoration: isCompleted
+                                                            ? TextDecoration
+                                                                  .lineThrough
+                                                            : null,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          )
+                                        : Container(
                                             decoration: BoxDecoration(
                                               color: bgColor,
                                               borderRadius:
                                                   BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? Colors.green.shade400
+                                                    : Colors.white.withValues(
+                                                        alpha: 0.25,
+                                                      ),
+                                                width: isSelected ? 2.5 : 1.0,
+                                              ),
                                             ),
                                             alignment: Alignment.topLeft,
                                             padding: const EdgeInsets.symmetric(
@@ -2879,182 +3034,71 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                 ),
                                               ],
                                             ),
-                                          ),
-                                        )
-                                      : Container(
-                                          decoration: BoxDecoration(
-                                            color: bgColor,
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                            border: Border.all(
-                                              color: isSelected
-                                                  ? Colors.green.shade400
-                                                  : Colors.white.withValues(
-                                                      alpha: 0.25,
-                                                    ),
-                                              width: isSelected ? 2.5 : 1.0,
-                                            ),
-                                          ),
-                                          alignment: Alignment.topLeft,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 2.5,
-                                          ),
-                                          clipBehavior: Clip.hardEdge,
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  title,
-                                                  maxLines: 3,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  softWrap: true,
-                                                  style: TextStyle(
-                                                    color: isDummy
-                                                        ? Colors.black
-                                                        : Colors.white,
-                                                    fontSize:
-                                                        9.0 *
-                                                        appState
-                                                            .fontSizeMultiplier,
-                                                    fontWeight: isDummy
-                                                        ? FontWeight.bold
-                                                        : FontWeight.normal,
-                                                    decoration: isCompleted
-                                                        ? TextDecoration
-                                                              .lineThrough
-                                                        : null,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        )),
-                            isSelected: isSelected,
-                          );
-                        },
-                        monthViewSettings: const MonthViewSettings(
-                          appointmentDisplayMode:
-                              MonthAppointmentDisplayMode.none,
-                        ),
-                        monthCellBuilder:
-                            (
-                              BuildContext buildContext,
-                              MonthCellDetails details,
-                            ) {
-                              final resolvedAppointments = details.appointments
-                                  .map(
-                                    (appt) => _getOriginalItem(appt, appState),
-                                  )
-                                  .toList();
+                                          )),
+                              isSelected: isSelected,
+                            );
+                          },
+                          monthViewSettings: const MonthViewSettings(
+                            appointmentDisplayMode:
+                                MonthAppointmentDisplayMode.none,
+                          ),
+                          monthCellBuilder: (BuildContext buildContext, MonthCellDetails details) {
+                            final resolvedAppointments = details.appointments
+                                .map((appt) => _getOriginalItem(appt, appState))
+                                .toList();
 
-                              final dayEvents = resolvedAppointments
-                                  .whereType<Event>()
-                                  .toList();
-                              final dayTasks = resolvedAppointments
-                                  .whereType<TaskItem>()
-                                  .toList();
+                            final dayEvents = resolvedAppointments
+                                .whereType<Event>()
+                                .toList();
+                            final dayTasks = resolvedAppointments
+                                .whereType<TaskItem>()
+                                .toList();
 
-                              final allStrips = _getActiveStrips(appState);
-                              final stripSlots = _assignStripSlots(allStrips);
-                              
-                              final DateTime dateStart = DateTime(details.date.year, details.date.month, details.date.day);
-                              final DateTime dateEnd = dateStart.add(const Duration(days: 1));
-                              final dayStrips = allStrips.where((s) {
-                                return s.startDate.isBefore(dateEnd) && s.endDate.isAfter(dateStart);
-                              }).toList();
-                              
-                              int maxSlot = -1;
-                              for (var s in dayStrips) {
-                                final slot = stripSlots[s.id] ?? 0;
-                                if (slot > maxSlot) maxSlot = slot;
-                              }
-                              
-                              final bool hasStrips = appState.showSeritOverlay && dayStrips.isNotEmpty;
-                              final totalItems = dayEvents.length + dayTasks.length + (hasStrips ? dayStrips.length : 0);
+                            final allStrips = _getActiveStrips(appState);
+                            final stripSlots = _assignStripSlots(allStrips);
 
-                              final now = DateTime.now();
-                              final isToday =
-                                  details.date.year == now.year &&
-                                  details.date.month == now.month &&
-                                  details.date.day == now.day;
+                            final DateTime dateStart = DateTime(
+                              details.date.year,
+                              details.date.month,
+                              details.date.day,
+                            );
+                            final DateTime dateEnd = dateStart.add(
+                              const Duration(days: 1),
+                            );
+                            final dayStrips = allStrips.where((s) {
+                              return s.startDate.isBefore(dateEnd) &&
+                                  s.endDate.isAfter(dateStart);
+                            }).toList();
 
-                              final hasNote = appState.dayNotes.any(
-                                (n) {
-                                  final localDate = n.date.toLocal();
-                                  return localDate.year == details.date.year &&
-                                         localDate.month == details.date.month &&
-                                         localDate.day == details.date.day &&
-                                         n.note.trim().isNotEmpty;
-                                },
-                              );
+                            int maxSlot = -1;
+                            for (var s in dayStrips) {
+                              final slot = stripSlots[s.id] ?? 0;
+                              if (slot > maxSlot) maxSlot = slot;
+                            }
 
-                              if (totalItems == 0) {
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: isToday
-                                        ? Theme.of(
-                                            buildContext,
-                                          ).primaryColor.withValues(alpha: 0.1)
-                                        : null,
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      Positioned(
-                                        top: 4,
-                                        left: 4,
-                                        child: Text(
-                                          details.date.day.toString(),
-                                          style: TextStyle(
-                                            fontWeight: isToday
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                            color: isToday
-                                                ? Theme.of(
-                                                    buildContext,
-                                                  ).primaryColor
-                                                : null,
-                                          ),
-                                        ),
-                                      ),
-                                      if (hasNote)
-                                        Positioned(
-                                          top: 4,
-                                          right: 4,
-                                          child: Icon(
-                                            Icons.note_alt_outlined,
-                                            size: 9,
-                                            color: Colors.orange.shade700,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              }
+                            final bool hasStrips =
+                                appState.showSeritOverlay &&
+                                dayStrips.isNotEmpty;
+                            final totalItems =
+                                dayEvents.length +
+                                dayTasks.length +
+                                (hasStrips ? dayStrips.length : 0);
 
-                              int maxImportance = 0;
-                              int highImportanceCount = 0;
-                              for (var e in dayEvents) {
-                                if (e.importance > maxImportance) {
-                                  maxImportance = e.importance;
-                                }
-                                if (e.importance == 2) highImportanceCount++;
-                              }
-                              for (var t in dayTasks) {
-                                if (t.importance > maxImportance) {
-                                  maxImportance = t.importance;
-                                }
-                                if (t.importance == 2) highImportanceCount++;
-                              }
+                            final now = DateTime.now();
+                            final isToday =
+                                details.date.year == now.year &&
+                                details.date.month == now.month &&
+                                details.date.day == now.day;
 
+                            final hasNote = appState.dayNotes.any((n) {
+                              final localDate = n.date.toLocal();
+                              return localDate.year == details.date.year &&
+                                  localDate.month == details.date.month &&
+                                  localDate.day == details.date.day &&
+                                  n.note.trim().isNotEmpty;
+                            });
+
+                            if (totalItems == 0) {
                               return Container(
                                 decoration: BoxDecoration(
                                   color: isToday
@@ -3069,98 +3113,143 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 ),
                                 child: Stack(
                                   children: [
-                                    LayoutBuilder(
-                                      builder: (context, constraints) {
-                                        final List<dynamic> allItems = [
-                                          ...dayEvents,
-                                          ...dayTasks,
-                                        ];
-                                        allItems.sort((a, b) {
-                                          bool aIsAllDay = a is Event
-                                              ? a.isAllDay
-                                              : (a as TaskItem).isAllDay;
-                                          bool bIsAllDay = b is Event
-                                              ? b.isAllDay
-                                              : (b as TaskItem).isAllDay;
+                                    Positioned(
+                                      top: 4,
+                                      left: 4,
+                                      child: Text(
+                                        details.date.day.toString(),
+                                        style: TextStyle(
+                                          fontWeight: isToday
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: isToday
+                                              ? Theme.of(
+                                                  buildContext,
+                                                ).primaryColor
+                                              : null,
+                                        ),
+                                      ),
+                                    ),
+                                    if (hasNote)
+                                      Positioned(
+                                        top: 4,
+                                        right: 4,
+                                        child: Icon(
+                                          Icons.note_alt_outlined,
+                                          size: 9,
+                                          color: Colors.orange.shade700,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            }
 
-                                          if (aIsAllDay && !bIsAllDay) {
-                                            return -1;
+                            int maxImportance = 0;
+                            int highImportanceCount = 0;
+                            for (var e in dayEvents) {
+                              if (e.importance > maxImportance) {
+                                maxImportance = e.importance;
+                              }
+                              if (e.importance == 2) highImportanceCount++;
+                            }
+                            for (var t in dayTasks) {
+                              if (t.importance > maxImportance) {
+                                maxImportance = t.importance;
+                              }
+                              if (t.importance == 2) highImportanceCount++;
+                            }
+
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: isToday
+                                    ? Theme.of(
+                                        buildContext,
+                                      ).primaryColor.withValues(alpha: 0.1)
+                                    : null,
+                                border: Border.all(
+                                  color: Colors.grey.shade300,
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Stack(
+                                children: [
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final List<dynamic> allItems = [
+                                        ...dayEvents,
+                                        ...dayTasks,
+                                      ];
+                                      allItems.sort((a, b) {
+                                        bool aIsAllDay = a is Event
+                                            ? a.isAllDay
+                                            : (a as TaskItem).isAllDay;
+                                        bool bIsAllDay = b is Event
+                                            ? b.isAllDay
+                                            : (b as TaskItem).isAllDay;
+
+                                        if (aIsAllDay && !bIsAllDay) {
+                                          return -1;
+                                        }
+                                        if (!aIsAllDay && bIsAllDay) return 1;
+
+                                        if (!aIsAllDay && !bIsAllDay) {
+                                          DateTime aFrom = a is Event
+                                              ? a.from
+                                              : (a as TaskItem).from!;
+                                          DateTime bFrom = b is Event
+                                              ? b.from
+                                              : (b as TaskItem).from!;
+                                          int timeCompare = aFrom.compareTo(
+                                            bFrom,
+                                          );
+                                          if (timeCompare != 0) {
+                                            return timeCompare;
                                           }
-                                          if (!aIsAllDay && bIsAllDay) return 1;
+                                        }
 
-                                          if (!aIsAllDay && !bIsAllDay) {
-                                            DateTime aFrom = a is Event
-                                                ? a.from
-                                                : (a as TaskItem).from!;
-                                            DateTime bFrom = b is Event
-                                                ? b.from
-                                                : (b as TaskItem).from!;
-                                            int timeCompare = aFrom.compareTo(
-                                              bFrom,
-                                            );
-                                            if (timeCompare != 0) {
-                                              return timeCompare;
-                                            }
-                                          }
+                                        int impA = a is Event
+                                            ? a.importance
+                                            : (a as TaskItem).importance;
+                                        int impB = b is Event
+                                            ? b.importance
+                                            : (b as TaskItem).importance;
+                                        return impB.compareTo(impA);
+                                      });
 
-                                          int impA = a is Event
-                                              ? a.importance
-                                              : (a as TaskItem).importance;
-                                          int impB = b is Event
-                                              ? b.importance
-                                              : (b as TaskItem).importance;
-                                          return impB.compareTo(impA);
-                                        });
+                                      final int stripsHeight =
+                                          (appState.showSeritOverlay &&
+                                              maxSlot >= 0)
+                                          ? (maxSlot + 1) * 16
+                                          : 0;
 
-                                        final int stripsHeight = (appState.showSeritOverlay && maxSlot >= 0)
-                                            ? (maxSlot + 1) * 16
-                                            : 0;
+                                      final int availableHeight =
+                                          (constraints.maxHeight -
+                                                  28 -
+                                                  stripsHeight)
+                                              .toInt();
+                                      final int maxLines = availableHeight > 0
+                                          ? (availableHeight ~/ 14)
+                                          : 0;
 
-                                        final int availableHeight =
-                                            (constraints.maxHeight - 28 - stripsHeight)
-                                                .toInt();
-                                        final int maxLines = availableHeight > 0
-                                            ? (availableHeight ~/ 14)
-                                            : 0;
-
-                                        List<Widget> itemWidgets = [];
-                                        if (maxLines > 0 &&
-                                            allItems.isNotEmpty) {
-                                          if (allItems.length <= maxLines) {
-                                            for (var item in allItems) {
-                                              itemWidgets.add(
-                                                _buildCellItemLine(item),
-                                              );
-                                            }
-                                          } else {
-                                            for (
-                                              int i = 0;
-                                              i < maxLines - 1;
-                                              i++
-                                            ) {
-                                              itemWidgets.add(
-                                                _buildCellItemLine(allItems[i]),
-                                              );
-                                            }
+                                      List<Widget> itemWidgets = [];
+                                      if (maxLines > 0 && allItems.isNotEmpty) {
+                                        if (allItems.length <= maxLines) {
+                                          for (var item in allItems) {
                                             itemWidgets.add(
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  left: 4.0,
-                                                  top: 1.0,
-                                                ),
-                                                child: Text(
-                                                  '+ ${allItems.length - (maxLines - 1)} daha',
-                                                  maxLines: 1,
-                                                  style: const TextStyle(
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.black87,
-                                                  ),
-                                                ),
-                                              ),
+                                              _buildCellItemLine(item),
                                             );
                                           }
-                                        } else if (allItems.isNotEmpty) {
+                                        } else {
+                                          for (
+                                            int i = 0;
+                                            i < maxLines - 1;
+                                            i++
+                                          ) {
+                                            itemWidgets.add(
+                                              _buildCellItemLine(allItems[i]),
+                                            );
+                                          }
                                           itemWidgets.add(
                                             Padding(
                                               padding: const EdgeInsets.only(
@@ -3168,7 +3257,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                 top: 1.0,
                                               ),
                                               child: Text(
-                                                '+ ${allItems.length} daha',
+                                                '+ ${allItems.length - (maxLines - 1)} daha',
                                                 maxLines: 1,
                                                 style: const TextStyle(
                                                   fontSize: 9,
@@ -3179,208 +3268,254 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             ),
                                           );
                                         }
-
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                4.0,
+                                      } else if (allItems.isNotEmpty) {
+                                        itemWidgets.add(
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 4.0,
+                                              top: 1.0,
+                                            ),
+                                            child: Text(
+                                              '+ ${allItems.length} daha',
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
                                               ),
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                children: [
-                                                  Builder(
-                                                    builder: (context) {
-                                                      final dayText = Text(
-                                                        details.date.day.toString(),
-                                                        style: TextStyle(
-                                                          fontWeight: isToday
-                                                              ? FontWeight.bold
-                                                              : FontWeight.normal,
-                                                          color: isToday
-                                                              ? Theme.of(
-                                                                  context,
-                                                                ).primaryColor
-                                                              : null,
-                                                        ),
-                                                      );
+                                            ),
+                                          ),
+                                        );
+                                      }
 
-                                                      if (highImportanceCount ==
-                                                          0) {
-                                                        return dayText;
-                                                      }
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.all(4.0),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Builder(
+                                                  builder: (context) {
+                                                    final dayText = Text(
+                                                      details.date.day
+                                                          .toString(),
+                                                      style: TextStyle(
+                                                        fontWeight: isToday
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                        color: isToday
+                                                            ? Theme.of(
+                                                                context,
+                                                              ).primaryColor
+                                                            : null,
+                                                      ),
+                                                    );
 
-                                                      final List<Widget>
-                                                      children = [
-                                                        Container(
-                                                          width: 26,
-                                                          height: 26,
-                                                          decoration: BoxDecoration(
-                                                            shape: BoxShape.circle,
-                                                            border: Border.all(
-                                                              color: Colors.red,
-                                                              width: 2,
-                                                            ),
-                                                          ),
-                                                          alignment:
-                                                              Alignment.center,
-                                                          child: dayText,
-                                                        ),
-                                                      ];
+                                                    if (highImportanceCount ==
+                                                        0) {
+                                                      return dayText;
+                                                    }
 
-                                                      final double radius = 13.0;
-                                                      final double centerX = 13.0;
-                                                      final double centerY = 13.0;
-                                                      final double dotRadius = 2.0;
-
-                                                      for (
-                                                        int i = 0;
-                                                        i < highImportanceCount;
-                                                        i++
-                                                      ) {
-                                                        double angle =
-                                                            -3.1415926535 / 2 +
-                                                            (i *
-                                                                2 *
-                                                                3.1415926535 /
-                                                                highImportanceCount);
-                                                        double x =
-                                                            centerX +
-                                                            radius *
-                                                                math.cos(angle) -
-                                                            dotRadius;
-                                                        double y =
-                                                            centerY +
-                                                            radius *
-                                                                math.sin(angle) -
-                                                            dotRadius;
-
-                                                        children.add(
-                                                          Positioned(
-                                                            left: x,
-                                                            top: y,
-                                                            child: Container(
-                                                              width: dotRadius * 2,
-                                                              height: dotRadius * 2,
-                                                              decoration:
-                                                                  const BoxDecoration(
-                                                                    color:
-                                                                        Colors.red,
-                                                                    shape: BoxShape
-                                                                        .circle,
-                                                                  ),
-                                                            ),
-                                                          ),
-                                                        );
-                                                      }
-
-                                                      return SizedBox(
+                                                    final List<Widget>
+                                                    children = [
+                                                      Container(
                                                         width: 26,
                                                         height: 26,
-                                                        child: Stack(
-                                                          clipBehavior: Clip.none,
-                                                          children: children,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                              border: Border.all(
+                                                                color:
+                                                                    Colors.red,
+                                                                width: 2,
+                                                              ),
+                                                            ),
+                                                        alignment:
+                                                            Alignment.center,
+                                                        child: dayText,
+                                                      ),
+                                                    ];
+
+                                                    final double radius = 13.0;
+                                                    final double centerX = 13.0;
+                                                    final double centerY = 13.0;
+                                                    final double dotRadius =
+                                                        2.0;
+
+                                                    for (
+                                                      int i = 0;
+                                                      i < highImportanceCount;
+                                                      i++
+                                                    ) {
+                                                      double angle =
+                                                          -3.1415926535 / 2 +
+                                                          (i *
+                                                              2 *
+                                                              3.1415926535 /
+                                                              highImportanceCount);
+                                                      double x =
+                                                          centerX +
+                                                          radius *
+                                                              math.cos(angle) -
+                                                          dotRadius;
+                                                      double y =
+                                                          centerY +
+                                                          radius *
+                                                              math.sin(angle) -
+                                                          dotRadius;
+
+                                                      children.add(
+                                                        Positioned(
+                                                          left: x,
+                                                          top: y,
+                                                          child: Container(
+                                                            width:
+                                                                dotRadius * 2,
+                                                            height:
+                                                                dotRadius * 2,
+                                                            decoration:
+                                                                const BoxDecoration(
+                                                                  color: Colors
+                                                                      .red,
+                                                                  shape: BoxShape
+                                                                      .circle,
+                                                                ),
+                                                          ),
                                                         ),
                                                       );
-                                                    },
-                                                  ),
-                                                  if (hasNote)
-                                                    Icon(
-                                                      Icons.note_alt_outlined,
-                                                      size: 9,
-                                                      color: Colors.orange.shade700,
-                                                    ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (appState.showSeritOverlay && maxSlot >= 0)
-                                              Padding(
-                                                padding: const EdgeInsets.symmetric(vertical: 2.0),
-                                                child: Column(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: List.generate(maxSlot + 1, (slot) {
-                                                    final s = dayStrips.where((x) => stripSlots[x.id] == slot).firstOrNull;
-                                                    if (s == null) {
-                                                      return const SizedBox(height: 16);
                                                     }
-                                                    return _buildStripWidget(s, details.date, appState);
-                                                  }),
+
+                                                    return SizedBox(
+                                                      width: 26,
+                                                      height: 26,
+                                                      child: Stack(
+                                                        clipBehavior: Clip.none,
+                                                        children: children,
+                                                      ),
+                                                    );
+                                                  },
                                                 ),
-                                              ),
-                                            Expanded(
-                                              child: Container(
-                                                alignment: Alignment.bottomLeft,
-                                                child: SingleChildScrollView(
-                                                  physics:
-                                                      const NeverScrollableScrollPhysics(),
-                                                  reverse: true,
-                                                  child: Column(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      ...itemWidgets,
-                                                      const SizedBox(height: 2),
-                                                    ],
+                                                if (hasNote)
+                                                  Icon(
+                                                    Icons.note_alt_outlined,
+                                                    size: 9,
+                                                    color:
+                                                        Colors.orange.shade700,
                                                   ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (appState.showSeritOverlay &&
+                                              maxSlot >= 0)
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 2.0,
+                                                  ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: List.generate(
+                                                  maxSlot + 1,
+                                                  (slot) {
+                                                    final s = dayStrips
+                                                        .where(
+                                                          (x) =>
+                                                              stripSlots[x
+                                                                  .id] ==
+                                                              slot,
+                                                        )
+                                                        .firstOrNull;
+                                                    if (s == null) {
+                                                      return const SizedBox(
+                                                        height: 16,
+                                                      );
+                                                    }
+                                                    return _buildStripWidget(
+                                                      s,
+                                                      details.date,
+                                                      appState,
+                                                    );
+                                                  },
                                                 ),
                                               ),
                                             ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                        onLongPress: (CalendarLongPressDetails details) {
-                          final appState = Provider.of<AppState>(
-                            context,
-                            listen: false,
-                          );
-                          if (details.targetElement ==
-                                  CalendarElement.appointment &&
-                              details.appointments!.isNotEmpty) {
-                            final rawAppointment = details.appointments!.last;
-                            final appointment = _getOriginalItem(
-                              rawAppointment,
-                              appState,
+                                          Expanded(
+                                            child: Container(
+                                              alignment: Alignment.bottomLeft,
+                                              child: SingleChildScrollView(
+                                                physics:
+                                                    const NeverScrollableScrollPhysics(),
+                                                reverse: true,
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    ...itemWidgets,
+                                                    const SizedBox(height: 2),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
                             );
-                            if (appointment is Event) {
-                              if (appointment.id != 'dummy_t' &&
-                                  appointment.id != 'dummy_e' &&
-                                  appointment.id != 'dummy_eval') {
-                                DateTime? occurrenceFrom;
-                                if (rawAppointment is Appointment) {
-                                  occurrenceFrom = rawAppointment.startTime;
-                                } else {
-                                  occurrenceFrom = appointment.from;
+                          },
+                          onLongPress: (CalendarLongPressDetails details) {
+                            final appState = Provider.of<AppState>(
+                              context,
+                              listen: false,
+                            );
+                            if (details.targetElement ==
+                                    CalendarElement.appointment &&
+                                details.appointments!.isNotEmpty) {
+                              final rawAppointment = details.appointments!.last;
+                              final appointment = _getOriginalItem(
+                                rawAppointment,
+                                appState,
+                              );
+                              if (appointment is Event) {
+                                if (appointment.id != 'dummy_t' &&
+                                    appointment.id != 'dummy_e' &&
+                                    appointment.id != 'dummy_eval') {
+                                  DateTime? occurrenceFrom;
+                                  if (rawAppointment is Appointment) {
+                                    occurrenceFrom = rawAppointment.startTime;
+                                  } else {
+                                    occurrenceFrom = appointment.from;
+                                  }
+                                  final String selectionId =
+                                      appointment.recurrenceRule != null
+                                      ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
+                                      : appointment.id;
+                                  appState.setBulkMode(true);
+                                  appState.toggleEventSelection(selectionId);
+                                  return;
                                 }
-                                final String selectionId =
-                                    appointment.recurrenceRule != null
-                                    ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
-                                    : appointment.id;
-                                appState.setBulkMode(true);
-                                appState.toggleEventSelection(selectionId);
-                                return;
                               }
                             }
-                          }
-                          if (details.date != null) {
-                            _showAddSelection(
-                              context,
-                              initialDate: details.date,
-                            );
-                          }
-                        },
+                            if (details.date != null) {
+                              _showAddSelection(
+                                context,
+                                initialDate: details.date,
+                              );
+                            }
+                          },
+                        ),
                       ),
                     ),
-                  ),
                     if (appState.calendarView == CalendarView.day ||
                         appState.calendarView == CalendarView.week)
                       Positioned(
@@ -3410,33 +3545,54 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   String _getShortDateString(DateTime date) {
-    const months = ['oca', 'şub', 'mar', 'nis', 'may', 'haz', 'tem', 'ağu', 'eyl', 'eki', 'kas', 'ara'];
+    const months = [
+      'oca',
+      'şub',
+      'mar',
+      'nis',
+      'may',
+      'haz',
+      'tem',
+      'ağu',
+      'eyl',
+      'eki',
+      'kas',
+      'ara',
+    ];
     return '${date.day}${months[date.month - 1]}';
   }
 
-  Widget _buildCustomHeaderCell(DateTime date, AppState appState, bool isWeek, double width) {
+  Widget _buildCustomHeaderCell(
+    DateTime date,
+    AppState appState,
+    bool isWeek,
+    double width,
+  ) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
-    final noteIndex = appState.dayNotes.indexWhere(
-      (n) {
-        final localDate = n.date.toLocal();
-        return localDate.year == normalizedDate.year &&
-               localDate.month == normalizedDate.month &&
-               localDate.day == normalizedDate.day;
-      },
-    );
-    final DayNote? dayNote = noteIndex != -1 ? appState.dayNotes[noteIndex] : null;
-    
-    final hasEmoji = dayNote != null && dayNote.emoji != null && dayNote.emoji!.trim().isNotEmpty;
-    final hasRating = dayNote != null && dayNote.rating != null && dayNote.rating! > 0;
-    final hasNote = dayNote != null &&
-        (dayNote.note.trim().isNotEmpty ||
-            hasEmoji ||
-            hasRating);
-    
+    final noteIndex = appState.dayNotes.indexWhere((n) {
+      final localDate = n.date.toLocal();
+      return localDate.year == normalizedDate.year &&
+          localDate.month == normalizedDate.month &&
+          localDate.day == normalizedDate.day;
+    });
+    final DayNote? dayNote = noteIndex != -1
+        ? appState.dayNotes[noteIndex]
+        : null;
+
+    final hasEmoji =
+        dayNote != null &&
+        dayNote.emoji != null &&
+        dayNote.emoji!.trim().isNotEmpty;
+    final hasRating =
+        dayNote != null && dayNote.rating != null && dayNote.rating! > 0;
+    final hasNote =
+        dayNote != null &&
+        (dayNote.note.trim().isNotEmpty || hasEmoji || hasRating);
+
     final daysOfWeekTr = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     final String dayLetter = daysOfWeekTr[date.weekday - 1][0];
     final isDark = appState.isDarkMode;
-    
+
     return GestureDetector(
       onTap: () {
         DayNoteDialog.show(context, appState, normalizedDate);
@@ -3447,7 +3603,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: hasNote
-              ? (isDark ? Colors.amber.shade900.withValues(alpha: 0.15) : Colors.amber.shade50.withValues(alpha: 0.5))
+              ? (isDark
+                    ? Colors.amber.shade900.withValues(alpha: 0.15)
+                    : Colors.amber.shade50.withValues(alpha: 0.5))
               : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
           border: Border(
             bottom: BorderSide(
@@ -3516,17 +3674,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildCustomHeaderRow(BuildContext context, AppState appState, BoxConstraints constraints) {
+  Widget _buildCustomHeaderRow(
+    BuildContext context,
+    AppState appState,
+    BoxConstraints constraints,
+  ) {
     final isWeek = appState.calendarView == CalendarView.week;
     final isDay = appState.calendarView == CalendarView.day;
     if (!isWeek && !isDay) return const SizedBox.shrink();
-    
+
     final double timeRulerWidth = 40.0;
-    
+
     if (isWeek) {
       if (_visibleDates.length < 7) return const SizedBox.shrink();
       final double cellWidth = (constraints.maxWidth - timeRulerWidth) / 7;
-      
+
       return Positioned(
         left: 0,
         top: 0,
@@ -3539,14 +3701,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
               height: 55.0,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: appState.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                color: appState.isDarkMode
+                    ? const Color(0xFF1E1E1E)
+                    : Colors.white,
                 border: Border(
                   bottom: BorderSide(
-                    color: appState.isDarkMode ? Colors.white12 : Colors.grey.shade300,
+                    color: appState.isDarkMode
+                        ? Colors.white12
+                        : Colors.grey.shade300,
                     width: 0.5,
                   ),
                   right: BorderSide(
-                    color: appState.isDarkMode ? Colors.white12 : Colors.grey.shade300,
+                    color: appState.isDarkMode
+                        ? Colors.white12
+                        : Colors.grey.shade300,
                     width: 0.5,
                   ),
                 ),
@@ -3572,9 +3740,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
       );
     } else {
-      final DateTime date = appState.calendarController.displayDate ?? DateTime.now();
+      final DateTime date =
+          appState.calendarController.displayDate ?? DateTime.now();
       final double cellWidth = constraints.maxWidth - timeRulerWidth;
-      
+
       return Positioned(
         left: 0,
         top: 0,
@@ -3586,10 +3755,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
               width: timeRulerWidth,
               height: 55.0,
               decoration: BoxDecoration(
-                color: appState.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                color: appState.isDarkMode
+                    ? const Color(0xFF1E1E1E)
+                    : Colors.white,
                 border: Border(
                   bottom: BorderSide(
-                    color: appState.isDarkMode ? Colors.white12 : Colors.grey.shade300,
+                    color: appState.isDarkMode
+                        ? Colors.white12
+                        : Colors.grey.shade300,
                     width: 0.5,
                   ),
                 ),
@@ -3602,19 +3775,31 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
-  Widget _buildWeekStripsPanel(BuildContext context, AppState appState, BoxConstraints constraints) {
+  Widget _buildWeekStripsPanel(
+    BuildContext context,
+    AppState appState,
+    BoxConstraints constraints,
+  ) {
     final isWeek = appState.calendarView == CalendarView.week;
     if (!isWeek || _visibleDates.isEmpty) return const SizedBox.shrink();
-    
+
     // Find all active strips for the week
     final allStrips = _getActiveStrips(appState);
-    final weekStart = DateTime(_visibleDates.first.year, _visibleDates.first.month, _visibleDates.first.day);
-    final weekEnd = DateTime(_visibleDates.last.year, _visibleDates.last.month, _visibleDates.last.day).add(const Duration(days: 1));
-    
+    final weekStart = DateTime(
+      _visibleDates.first.year,
+      _visibleDates.first.month,
+      _visibleDates.first.day,
+    );
+    final weekEnd = DateTime(
+      _visibleDates.last.year,
+      _visibleDates.last.month,
+      _visibleDates.last.day,
+    ).add(const Duration(days: 1));
+
     final weekStrips = allStrips.where((s) {
       return s.startDate.isBefore(weekEnd) && s.endDate.isAfter(weekStart);
     }).toList();
-    
+
     if (weekStrips.isEmpty) {
       return Positioned(
         bottom: 0,
@@ -3624,7 +3809,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
           height: 50,
           color: appState.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
           decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: appState.isDarkMode ? Colors.white10 : Colors.grey.shade300)),
+            border: Border(
+              top: BorderSide(
+                color: appState.isDarkMode
+                    ? Colors.white10
+                    : Colors.grey.shade300,
+              ),
+            ),
           ),
           alignment: Alignment.center,
           child: Row(
@@ -3636,7 +3827,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   'Bu haftaya ait şerit bulunmamaktadır.',
                   style: TextStyle(
                     fontSize: 10,
-                    color: appState.isDarkMode ? Colors.white60 : Colors.black54,
+                    color: appState.isDarkMode
+                        ? Colors.white60
+                        : Colors.black54,
                   ),
                 ),
               ),
@@ -3653,18 +3846,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
       );
     }
-    
+
     final stripSlots = _assignStripSlots(weekStrips);
     int maxSlot = -1;
     for (var s in weekStrips) {
       final slot = stripSlots[s.id] ?? 0;
       if (slot > maxSlot) maxSlot = slot;
     }
-    
+
     final double panelHeight = (maxSlot + 1) * 20.0 + 36.0;
     final double columnWidth = (constraints.maxWidth - 40.0) / 7;
     final isDark = appState.isDarkMode;
-    
+
     return Positioned(
       bottom: 0,
       left: 0,
@@ -3723,26 +3916,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
               child: Stack(
                 children: weekStrips.map((s) {
                   final slot = stripSlots[s.id] ?? 0;
-                  
+
                   // Calculate start column
                   int startCol = 0;
                   if (s.startDate.isAfter(weekStart)) {
-                    startCol = (s.startDate.weekday - appState.firstDayOfWeek) % 7;
+                    startCol =
+                        (s.startDate.weekday - appState.firstDayOfWeek) % 7;
                   }
-                  
+
                   // Calculate end column
                   int endCol = 6;
                   if (s.endDate.isBefore(weekEnd)) {
                     endCol = (s.endDate.weekday - appState.firstDayOfWeek) % 7;
                   }
-                  
+
                   if (startCol < 0) startCol = 0;
                   if (endCol > 6) endCol = 6;
                   if (endCol < startCol) endCol = startCol;
-                  
+
                   final double left = 40.0 + startCol * columnWidth;
                   final double width = (endCol - startCol + 1) * columnWidth;
-                  
+
                   return Positioned(
                     left: left,
                     width: width,
@@ -3852,16 +4046,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
   /// Returns occurrences of recurring all-day events/tasks that fall on [date].
   /// Uses a month-wide search window so monthly/yearly rules are reliably found.
   List<dynamic> _getRecurringAllDayOccurrencesForDate(
-      DateTime date, AppState appState) {
+    DateTime date,
+    AppState appState,
+  ) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final result = <dynamic>[];
 
     // Use the full month as search window to ensure monthly/yearly rules are found
-    final searchStart =
-        DateTime(normalizedDate.year, normalizedDate.month, 1);
-    final searchEnd =
-        DateTime(normalizedDate.year, normalizedDate.month + 1, 1)
-            .subtract(const Duration(milliseconds: 1));
+    final searchStart = DateTime(normalizedDate.year, normalizedDate.month, 1);
+    final searchEnd = DateTime(
+      normalizedDate.year,
+      normalizedDate.month + 1,
+      1,
+    ).subtract(const Duration(milliseconds: 1));
 
     // Recurring all-day events
     for (var e in appState.filteredEvents) {
@@ -3878,21 +4075,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
           final d = occ.toLocal();
           if (d.year != normalizedDate.year ||
               d.month != normalizedDate.month ||
-              d.day != normalizedDate.day) continue;
+              d.day != normalizedDate.day) {
+            continue;
+          }
           final isEx =
-              e.recurrenceExceptionDates?.any((ex) =>
-                  ex.year == d.year &&
-                  ex.month == d.month &&
-                  ex.day == d.day) ??
+              e.recurrenceExceptionDates?.any(
+                (ex) =>
+                    ex.year == d.year && ex.month == d.month && ex.day == d.day,
+              ) ??
               false;
           if (!isEx) {
-            result.add(e.copyWith(
-              id: 'occ_${e.id}_${occ.millisecondsSinceEpoch}',
-              from: occ,
-              to: occ.add(e.to.difference(e.from)),
-              clearRecurrenceRule: true,
-              clearRecurrenceExceptionDates: true,
-            ));
+            result.add(
+              e.copyWith(
+                id: 'occ_${e.id}_${occ.millisecondsSinceEpoch}',
+                from: occ,
+                to: occ.add(e.to.difference(e.from)),
+                clearRecurrenceRule: true,
+                clearRecurrenceExceptionDates: true,
+              ),
+            );
           }
         }
       } catch (_) {}
@@ -3900,11 +4101,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     // Recurring all-day tasks
     final tasks = appState.filteredTasks
-        .where((t) =>
-            t.from != null &&
-            t.isAllDay &&
-            t.recurrenceRule != null &&
-            t.recurrenceRule!.isNotEmpty)
+        .where(
+          (t) =>
+              t.from != null &&
+              t.isAllDay &&
+              t.recurrenceRule != null &&
+              t.recurrenceRule!.isNotEmpty,
+        )
         .toList();
     for (var t in tasks) {
       try {
@@ -3918,25 +4121,31 @@ class _CalendarScreenState extends State<CalendarScreen> {
           final d = occ.toLocal();
           if (d.year != normalizedDate.year ||
               d.month != normalizedDate.month ||
-              d.day != normalizedDate.day) continue;
+              d.day != normalizedDate.day) {
+            continue;
+          }
           final isEx =
-              t.recurrenceExceptionDates?.any((ex) =>
-                  ex.year == occ.year &&
-                  ex.month == occ.month &&
-                  ex.day == occ.day) ??
+              t.recurrenceExceptionDates?.any(
+                (ex) =>
+                    ex.year == occ.year &&
+                    ex.month == occ.month &&
+                    ex.day == occ.day,
+              ) ??
               false;
           if (!isEx) {
             final dur = t.to != null
                 ? t.to!.difference(t.from!)
                 : const Duration(hours: 1);
-            result.add(t.copyWith(
-              id: 'occ_${t.id}_${occ.millisecondsSinceEpoch}',
-              from: occ,
-              to: occ.add(dur),
-              parentTaskId: t.id,
-              clearRecurrenceRule: true,
-              clearRecurrenceExceptionDates: true,
-            ));
+            result.add(
+              t.copyWith(
+                id: 'occ_${t.id}_${occ.millisecondsSinceEpoch}',
+                from: occ,
+                to: occ.add(dur),
+                parentTaskId: t.id,
+                clearRecurrenceRule: true,
+                clearRecurrenceExceptionDates: true,
+              ),
+            );
           }
         }
       } catch (_) {}
@@ -3957,18 +4166,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
             builder: (context, appState, child) {
               final rawItems = _getAllDayItemsForDate(date, appState);
               // Add recurring all-day items (not returned by _getAllDayItemsForDate)
-              final recurringItems =
-                  _getRecurringAllDayOccurrencesForDate(date, appState);
+              final recurringItems = _getRecurringAllDayOccurrencesForDate(
+                date,
+                appState,
+              );
               final allRawItems = [...rawItems, ...recurringItems];
               final List<dynamic> displayItems = [];
               final seenIds = <String>{};
               for (var raw in allRawItems) {
                 String idKey = '';
-                if (raw is Event) idKey = raw.id;
-                else if (raw is TaskItem) idKey = raw.id;
-                else if (raw is Serit) idKey = raw.id;
-                else if (raw is ProjectEvaluation) idKey = raw.id;
-                
+                if (raw is Event) {
+                  idKey = raw.id;
+                } else if (raw is TaskItem)
+                  idKey = raw.id;
+                else if (raw is Serit)
+                  idKey = raw.id;
+                else if (raw is ProjectEvaluation)
+                  idKey = raw.id;
+
                 if (idKey.isEmpty || !seenIds.contains(idKey)) {
                   if (idKey.isNotEmpty) seenIds.add(idKey);
                   displayItems.add(raw);
@@ -4248,7 +4463,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                             vertical: -4.0,
                                                           ),
                                                       onChanged: (bool? value) {
-                                                        appState.toggleTaskCompletion(item.id);
+                                                        appState
+                                                            .toggleTaskCompletion(
+                                                              item.id,
+                                                            );
                                                       },
                                                     ),
                                                   ),
@@ -4808,14 +5026,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
         String dateInfo = '';
         if (item is Event) {
-          final startStr = "${item.from.day}/${item.from.month}/${item.from.year}${item.isAllDay ? '' : ' ' + item.from.hour.toString().padLeft(2, '0') + ':' + item.from.minute.toString().padLeft(2, '0')}";
-          final endStr = "${item.to.day}/${item.to.month}/${item.to.year}${item.isAllDay ? '' : ' ' + item.to.hour.toString().padLeft(2, '0') + ':' + item.to.minute.toString().padLeft(2, '0')}";
-          dateInfo = item.isAllDay ? "Tüm Gün: ${item.from.day}/${item.from.month}/${item.from.year}" : "$startStr - $endStr";
+          final startStr =
+              "${item.from.day}/${item.from.month}/${item.from.year}${item.isAllDay ? '' : ' ${item.from.hour.toString().padLeft(2, '0')}:${item.from.minute.toString().padLeft(2, '0')}'}";
+          final endStr =
+              "${item.to.day}/${item.to.month}/${item.to.year}${item.isAllDay ? '' : ' ${item.to.hour.toString().padLeft(2, '0')}:${item.to.minute.toString().padLeft(2, '0')}'}";
+          dateInfo = item.isAllDay
+              ? "Tüm Gün: ${item.from.day}/${item.from.month}/${item.from.year}"
+              : "$startStr - $endStr";
         } else if (item is TaskItem && item.from != null) {
           final toDate = item.to ?? item.from!;
-          final startStr = "${item.from!.day}/${item.from!.month}/${item.from!.year}${item.isAllDay ? '' : ' ' + item.from!.hour.toString().padLeft(2, '0') + ':' + item.from!.minute.toString().padLeft(2, '0')}";
-          final endStr = "${toDate.day}/${toDate.month}/${toDate.year}${item.isAllDay ? '' : ' ' + toDate.hour.toString().padLeft(2, '0') + ':' + toDate.minute.toString().padLeft(2, '0')}";
-          dateInfo = item.isAllDay ? "Tüm Gün: ${item.from!.day}/${item.from!.month}/${item.from!.year}" : "$startStr - $endStr";
+          final startStr =
+              "${item.from!.day}/${item.from!.month}/${item.from!.year}${item.isAllDay ? '' : ' ${item.from!.hour.toString().padLeft(2, '0')}:${item.from!.minute.toString().padLeft(2, '0')}'}";
+          final endStr =
+              "${toDate.day}/${toDate.month}/${toDate.year}${item.isAllDay ? '' : ' ${toDate.hour.toString().padLeft(2, '0')}:${toDate.minute.toString().padLeft(2, '0')}'}";
+          dateInfo = item.isAllDay
+              ? "Tüm Gün: ${item.from!.day}/${item.from!.month}/${item.from!.year}"
+              : "$startStr - $endStr";
         }
 
         return AlertDialog(
@@ -4836,12 +5062,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.access_time_outlined, size: 14, color: Colors.blueGrey),
+                    const Icon(
+                      Icons.access_time_outlined,
+                      size: 14,
+                      color: Colors.blueGrey,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         dateInfo,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.blueGrey),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blueGrey,
+                        ),
                       ),
                     ),
                   ],
@@ -4992,7 +5226,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   item.isInProgress ? 'Yapılmıyor Yap' : 'Yapılıyor Yap',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: item.isInProgress ? Colors.blueGrey : Colors.amber.shade700,
+                    color: item.isInProgress
+                        ? Colors.blueGrey
+                        : Colors.amber.shade700,
                   ),
                 ),
               ),
@@ -5264,8 +5500,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       text: existingEval != null
           ? existingEval.durationHours.toInt().toString()
           : (project.defaultDuration != null
-              ? project.defaultDuration!.toInt().toString()
-              : initialHours.toString()),
+                ? project.defaultDuration!.toInt().toString()
+                : initialHours.toString()),
     );
     final TextEditingController minutesCtrl = TextEditingController(
       text: existingEval != null
@@ -5274,8 +5510,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 .round()
                 .toString()
           : (project.defaultDuration != null
-              ? ((project.defaultDuration! - project.defaultDuration!.toInt()) * 60).round().toString()
-              : initialMinutes.toString()),
+                ? ((project.defaultDuration! -
+                              project.defaultDuration!.toInt()) *
+                          60)
+                      .round()
+                      .toString()
+                : initialMinutes.toString()),
     );
     final TextEditingController noteCtrl = TextEditingController(
       text: existingEval?.note ?? '',
@@ -5319,7 +5559,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         TextField(
                           controller: numericCtrl,
                           decoration: InputDecoration(
-                            labelText: 'Elde Edilen Sayı (Hedef: ${project.targetValue})',
+                            labelText:
+                                'Elde Edilen Sayı (Hedef: ${project.targetValue})',
                           ),
                           keyboardType: TextInputType.number,
                         ),
@@ -5399,7 +5640,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       if (!confirm) return;
                     }
                     if (!context.mounted) return;
-                    
+
                     double score = 0.0;
                     double? pctVal;
 
@@ -5432,8 +5673,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       sessionDate: normalizedDate,
                       score: score,
                       isSkipped: isSkipped,
-                      durationHours: (isSkipped || !project.trackDuration) ? 0.0 : duration,
-                      note: (project.trackNote && noteCtrl.text.trim().isNotEmpty)
+                      durationHours: (isSkipped || !project.trackDuration)
+                          ? 0.0
+                          : duration,
+                      note:
+                          (project.trackNote && noteCtrl.text.trim().isNotEmpty)
                           ? noteCtrl.text.trim()
                           : null,
                       performancePercent: pctVal,
@@ -5518,7 +5762,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     );
                     if (isTask) {
                       final deletedTasks = appState.tasks
-                          .where((t) => t.seriesId == item.seriesId && t.isCompleted)
+                          .where(
+                            (t) => t.seriesId == item.seriesId && t.isCompleted,
+                          )
                           .toList();
                       appState.deleteCompletedTasksInSeries(item.seriesId);
                       _showUndoSnackBar(
@@ -5534,14 +5780,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           .where((e) => e.seriesId == item.seriesId)
                           .toList();
                       appState.deleteEventSeries(item.seriesId);
-                      _showUndoSnackBar(
-                        'Serideki tüm kopyalar silindi',
-                        () {
-                          for (var e in deletedEvents) {
-                            appState.addEvent(e);
-                          }
-                        },
-                      );
+                      _showUndoSnackBar('Serideki tüm kopyalar silindi', () {
+                        for (var e in deletedEvents) {
+                          appState.addEvent(e);
+                        }
+                      });
                     }
                   },
                 ),

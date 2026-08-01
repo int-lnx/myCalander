@@ -53,7 +53,12 @@ void main() async {
     } else if (isDesktop) {
       await Firebase.initializeApp(options: firebaseOptions);
     } else {
-      await Firebase.initializeApp();
+      try {
+        await Firebase.initializeApp();
+      } catch (e) {
+        debugPrint('Platform default Firebase initialization failed, trying with firebaseOptions: $e');
+        await Firebase.initializeApp(options: firebaseOptions);
+      }
     }
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
