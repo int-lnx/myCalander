@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
@@ -1176,23 +1177,32 @@ class _AppDrawerState extends State<AppDrawer> {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
-                    child: TextField(
-                      controller: textCtrl,
-                      enableInteractiveSelection: true,
-                      maxLines: null,
-                      keyboardType: TextInputType.multiline,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 14,
-                        color: Colors.black87,
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context).copyWith(
+                        dragDevices: {
+                          PointerDeviceKind.touch,
+                          PointerDeviceKind.trackpad,
+                          PointerDeviceKind.stylus,
+                        },
                       ),
-                      decoration: const InputDecoration(
-                        hintText: 'Bir şeyler yazın... (Otomatik kaydedilir)',
-                        border: InputBorder.none,
+                      child: TextField(
+                        controller: textCtrl,
+                        enableInteractiveSelection: true,
+                        maxLines: null,
+                        keyboardType: TextInputType.multiline,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Bir şeyler yazın... (Otomatik kaydedilir)',
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (val) {
+                          appState.updateQuickNote(val);
+                        },
                       ),
-                      onChanged: (val) {
-                        appState.updateQuickNote(val);
-                      },
                     ),
                   ),
                 ),
