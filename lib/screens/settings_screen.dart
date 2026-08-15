@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
@@ -127,6 +127,65 @@ class SettingsScreen extends StatelessWidget {
                   );
                 }
               },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmClearLocalCache(BuildContext context, AppState appState) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Önbelleği Temizle?'),
+          content: const Text(
+            'Bu işlem cihazınızdaki yerel verileri ve çerezleri temizleyecektir. Buluttaki (Firebase) verileriniz silinmeyecek ve tekrar senkronize edilecektir. Devam etmek istiyor musunuz?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Vazgeç'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                Navigator.pop(context); // dialogu kapat
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+                try {
+                  await appState.clearLocalCache();
+                  if (context.mounted) {
+                    Navigator.pop(context); // yükleniyor ekranını kapat
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Yerel önbellek başarıyla temizlendi.'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Navigator.pop(context); // yükleniyor ekranını kapat
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Hata oluştu: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Önbelleği Temizle'),
             ),
           ],
         );
@@ -366,6 +425,12 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('Aktivite Tablosunu İçe Aktar'),
             subtitle: const Text('Kopyaladığınız CSV/Excel tablosundaki verileri geri yükleyin.'),
             onTap: () => _importEvaluations(context, appState),
+          ),
+          ListTile(
+            leading: const Icon(Icons.cleaning_services, color: Colors.orange),
+            title: const Text('Önbelleği Temizle'),
+            subtitle: const Text('Yerel verileri ve çerezleri temizleyerek buluttan yeniden senkronize eder.'),
+            onTap: () => _confirmClearLocalCache(context, appState),
           ),
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.red),

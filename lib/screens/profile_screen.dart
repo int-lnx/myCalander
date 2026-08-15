@@ -40,8 +40,53 @@ class ProfileScreen extends StatelessWidget {
                 },
               ),
             ] else ...[
-              const Center(
-                child: Text('Giriş yapılmış bir kullanıcı bulunamadı.'),
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.cloud_off, size: 64, color: Colors.orange),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Giriş Yapılmadı',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Bulut yedeklemesini etkinleştirmek, verilerinizin kaybolmasını önlemek ve diğer cihazlarınızla eşitlemek için lütfen Google ile giriş yapın.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.login),
+                  label: const Text('Google ile Giriş Yap'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () async {
+                    try {
+                      await appState.loginWithGoogle();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Google Girişi Başarılı!')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Giriş Hatası: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
               ),
             ]
           ],

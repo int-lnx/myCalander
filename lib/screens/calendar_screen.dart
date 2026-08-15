@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -21,6 +22,7 @@ import 'project_form_screen.dart';
 import 'all_timeline_screen.dart';
 import 'recent_items_screen.dart';
 import 'package:my_plan/screens/plan_screen.dart' show PlanScreen;
+import '../dialogs/project_evaluation_dialog.dart';
 
 String? _sanitizeRRule(String? rule, DateTime startDate) {
   if (rule == null || rule.isEmpty) return rule;
@@ -78,6 +80,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   double _baseTimeIntervalHeight = 60.0;
   double _timeIntervalHeight = 60.0;
   double _initialDistance = 0.0;
+  DateTime? _lastSwipeTime;
 
   void _handlePointerDown(PointerDownEvent event) {
     _activePointers[event.pointer] = event.position;
@@ -524,7 +527,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final todayStart = DateTime(now.year, now.month, now.day);
     if (normalizedDate == todayStart) {
       for (var t in tasks) {
-        if (!t.isCompleted) {
+        final bool isCompletedToday = t.isCompleted &&
+            t.completedDate != null &&
+            DateTime(t.completedDate!.year, t.completedDate!.month, t.completedDate!.day) == todayStart;
+
+        if (!t.isCompleted || isCompletedToday) {
           if (t.recurrenceRule == null || t.recurrenceRule!.isEmpty) {
             final taskEnd = t.to ?? t.from!;
             final taskEndDate = DateTime(
@@ -536,7 +543,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               dayTasks.add(
                 TaskItem(
                   id: 'rollover_${t.id}',
-                  title: '⚠️ ${t.title}',
+                  title: t.isCompleted ? t.title : '⚠️ ${t.title}',
                   details: t.details,
                   isCompleted: t.isCompleted,
                   from: todayStart,
@@ -553,10 +560,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   projectTag: t.projectTag,
                   recurrenceRule: null,
                   recurrenceExceptionDates: null,
+                  completedDate: t.completedDate,
                 ),
               );
             }
-          } else {
+          } else if (!t.isCompleted) {
             try {
               final occurrences = SfCalendar.getRecurrenceDateTimeCollection(
                 _sanitizeRRule(t.recurrenceRule, t.from!)!,
@@ -1515,7 +1523,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
         int shownTasks = shownItems.whereType<TaskItem>().length;
 
         int remainingEvents = dayEvents.length - shownEvents;
-        int remainingTasks = dayTasks.length - shownTasks;
+        int remainingTasks = dayTasks.where((t) => !t.isCompleted).length -
+            shownItems.whereType<TaskItem>().where((t) => !t.isCompleted).length;
 
         if (remainingEvents > 0) {
           calendarItems.add(
@@ -1741,6 +1750,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         onPointerMove: _handlePointerMove,
                         onPointerUp: _handlePointerUp,
                         onPointerCancel: _handlePointerUp,
+                        onPointerSignal: (pointerSignal) {
+                          if (pointerSignal is PointerScrollEvent) {
+                            final dx = pointerSignal.scrollDelta.dx;
+                            final dy = pointerSignal.scrollDelta.dy;
+                            if (dx.abs() > dy.abs() && dx.abs() > 15) {
+                              final now = DateTime.now();
+                              if (_lastSwipeTime == null ||
+                                  now.difference(_lastSwipeTime!).inMilliseconds > 600) {
+                                _lastSwipeTime = now;
+                                if (dx > 0) {
+                                  calendarController.forward?.call();
+                                } else {
+                                  calendarController.backward?.call();
+                                }
+                              }
+                            }
+                          }
+                        },
                         child: SfCalendar(
                           controller: calendarController,
                           view: appState.calendarView,
@@ -2164,7 +2191,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     ? Colors.red.shade400
                                     : Color(proj.colorValue);
                                 title = appointment.isSkipped
-                                    ? '📊 ${proj.title}: Pas'
+                                    ? '📊 ${proj.title}: Pas ${appState.getPasCount(proj.id, appointment.sessionDate)}'
                                     : '📊 ${proj.title}: %${appointment.score.toStringAsFixed(0)}';
                               } catch (_) {
                                 bgColor = Colors.grey.shade400;
@@ -3090,13 +3117,66 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 details.date.month == now.month &&
                                 details.date.day == now.day;
 
-                            final hasNote = appState.dayNotes.any((n) {
+                            final noteIndex = appState.dayNotes.indexWhere((n) {
                               final localDate = n.date.toLocal();
                               return localDate.year == details.date.year &&
                                   localDate.month == details.date.month &&
-                                  localDate.day == details.date.day &&
-                                  n.note.trim().isNotEmpty;
+                                  localDate.day == details.date.day;
                             });
+                            final DayNote? dayNote = noteIndex != -1
+                                ? appState.dayNotes[noteIndex]
+                                : null;
+
+                            final hasEmoji = dayNote != null &&
+                                dayNote.emoji != null &&
+                                dayNote.emoji!.trim().isNotEmpty;
+                            final hasRating = dayNote != null &&
+                                dayNote.rating != null &&
+                                dayNote.rating! > 0;
+                            final hasNote = dayNote != null &&
+                                (dayNote.note.trim().isNotEmpty || hasEmoji || hasRating);
+
+                            Widget? noteInfoWidget;
+                            if (hasNote) {
+                              final List<Widget> rowChildren = [];
+                              if (hasEmoji) {
+                                rowChildren.add(
+                                  Text(
+                                    dayNote.emoji!,
+                                    style: const TextStyle(fontSize: 8),
+                                  ),
+                                );
+                                rowChildren.add(const SizedBox(width: 2));
+                              }
+                              if (hasRating) {
+                                rowChildren.add(
+                                  Text(
+                                    '★${dayNote.rating}',
+                                    style: TextStyle(
+                                      fontSize: 7,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.amber.shade800,
+                                    ),
+                                  ),
+                                );
+                                rowChildren.add(const SizedBox(width: 2));
+                              }
+                              if (dayNote != null && dayNote.note.trim().isNotEmpty) {
+                                rowChildren.add(
+                                  Icon(
+                                    Icons.note_alt_outlined,
+                                    size: 9,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                );
+                              }
+                              if (rowChildren.isNotEmpty) {
+                                noteInfoWidget = Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: rowChildren,
+                                );
+                              }
+                            }
 
                             if (totalItems == 0) {
                               return Container(
@@ -3130,15 +3210,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         ),
                                       ),
                                     ),
-                                    if (hasNote)
+                                    if (noteInfoWidget != null)
                                       Positioned(
                                         top: 4,
                                         right: 4,
-                                        child: Icon(
-                                          Icons.note_alt_outlined,
-                                          size: 9,
-                                          color: Colors.orange.shade700,
-                                        ),
+                                        child: noteInfoWidget,
                                       ),
                                   ],
                                 ),
@@ -3302,112 +3378,70 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                 Builder(
                                                   builder: (context) {
                                                     final dayText = Text(
-                                                      details.date.day
-                                                          .toString(),
+                                                      details.date.day.toString(),
                                                       style: TextStyle(
                                                         fontWeight: isToday
                                                             ? FontWeight.bold
                                                             : FontWeight.normal,
                                                         color: isToday
-                                                            ? Theme.of(
-                                                                context,
-                                                              ).primaryColor
+                                                            ? Theme.of(context).primaryColor
                                                             : null,
                                                       ),
                                                     );
 
-                                                    if (highImportanceCount ==
-                                                        0) {
-                                                      return dayText;
+                                                    final List<Color> importantColors = [];
+                                                    for (var e in dayEvents) {
+                                                      if (e.importance == 2) {
+                                                        importantColors.add(Color(e.colorValue));
+                                                      }
+                                                    }
+                                                    for (var t in dayTasks) {
+                                                      if (t.importance == 2) {
+                                                        importantColors.add(Color(t.colorValue));
+                                                      }
                                                     }
 
-                                                    final List<Widget>
-                                                    children = [
-                                                      Container(
+                                                    if (importantColors.isNotEmpty) {
+                                                      final displayColors = importantColors.take(3).toList();
+                                                      Widget currentWidget = dayText;
+                                                      for (int i = 0; i < displayColors.length; i++) {
+                                                        final color = displayColors[i];
+                                                        final size = 26.0 + i * 5.0; // 26, 31, 36
+                                                        currentWidget = Container(
+                                                          width: size,
+                                                          height: size,
+                                                          decoration: BoxDecoration(
+                                                            shape: BoxShape.circle,
+                                                            border: Border.all(
+                                                              color: color,
+                                                              width: 1.5,
+                                                            ),
+                                                          ),
+                                                          alignment: Alignment.center,
+                                                          child: currentWidget,
+                                                        );
+                                                      }
+                                                      final double maxSize = 26.0 + (displayColors.length - 1) * 5.0;
+                                                      return SizedBox(
+                                                        width: maxSize,
+                                                        height: maxSize,
+                                                        child: Center(
+                                                          child: currentWidget,
+                                                        ),
+                                                      );
+                                                    } else {
+                                                      return SizedBox(
                                                         width: 26,
                                                         height: 26,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                              border: Border.all(
-                                                                color:
-                                                                    Colors.red,
-                                                                width: 2,
-                                                              ),
-                                                            ),
-                                                        alignment:
-                                                            Alignment.center,
-                                                        child: dayText,
-                                                      ),
-                                                    ];
-
-                                                    final double radius = 13.0;
-                                                    final double centerX = 13.0;
-                                                    final double centerY = 13.0;
-                                                    final double dotRadius =
-                                                        2.0;
-
-                                                    for (
-                                                      int i = 0;
-                                                      i < highImportanceCount;
-                                                      i++
-                                                    ) {
-                                                      double angle =
-                                                          -3.1415926535 / 2 +
-                                                          (i *
-                                                              2 *
-                                                              3.1415926535 /
-                                                              highImportanceCount);
-                                                      double x =
-                                                          centerX +
-                                                          radius *
-                                                              math.cos(angle) -
-                                                          dotRadius;
-                                                      double y =
-                                                          centerY +
-                                                          radius *
-                                                              math.sin(angle) -
-                                                          dotRadius;
-
-                                                      children.add(
-                                                        Positioned(
-                                                          left: x,
-                                                          top: y,
-                                                          child: Container(
-                                                            width:
-                                                                dotRadius * 2,
-                                                            height:
-                                                                dotRadius * 2,
-                                                            decoration:
-                                                                const BoxDecoration(
-                                                                  color: Colors
-                                                                      .red,
-                                                                  shape: BoxShape
-                                                                      .circle,
-                                                                ),
-                                                          ),
+                                                        child: Center(
+                                                          child: dayText,
                                                         ),
                                                       );
                                                     }
-
-                                                    return SizedBox(
-                                                      width: 26,
-                                                      height: 26,
-                                                      child: Stack(
-                                                        clipBehavior: Clip.none,
-                                                        children: children,
-                                                      ),
-                                                    );
                                                   },
                                                 ),
-                                                if (hasNote)
-                                                  Icon(
-                                                    Icons.note_alt_outlined,
-                                                    size: 9,
-                                                    color:
-                                                        Colors.orange.shade700,
-                                                  ),
+                                                if (noteInfoWidget != null)
+                                                  noteInfoWidget,
                                               ],
                                             ),
                                           ),
@@ -3474,38 +3508,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             );
                           },
                           onLongPress: (CalendarLongPressDetails details) {
-                            final appState = Provider.of<AppState>(
-                              context,
-                              listen: false,
-                            );
-                            if (details.targetElement ==
-                                    CalendarElement.appointment &&
-                                details.appointments!.isNotEmpty) {
-                              final rawAppointment = details.appointments!.last;
-                              final appointment = _getOriginalItem(
-                                rawAppointment,
-                                appState,
-                              );
-                              if (appointment is Event) {
-                                if (appointment.id != 'dummy_t' &&
-                                    appointment.id != 'dummy_e' &&
-                                    appointment.id != 'dummy_eval') {
-                                  DateTime? occurrenceFrom;
-                                  if (rawAppointment is Appointment) {
-                                    occurrenceFrom = rawAppointment.startTime;
-                                  } else {
-                                    occurrenceFrom = appointment.from;
-                                  }
-                                  final String selectionId =
-                                      appointment.recurrenceRule != null
-                                      ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
-                                      : appointment.id;
-                                  appState.setBulkMode(true);
-                                  appState.toggleEventSelection(selectionId);
-                                  return;
-                                }
-                              }
-                            }
                             if (details.date != null) {
                               _showAddSelection(
                                 context,
@@ -4189,6 +4191,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   displayItems.add(raw);
                 }
               }
+
+              // Sort completed TaskItems to the end
+              displayItems.sort((a, b) {
+                final aDone = (a is TaskItem && a.isCompleted);
+                final bDone = (b is TaskItem && b.isCompleted);
+                if (aDone && !bDone) return 1;
+                if (!aDone && bDone) return -1;
+                return 0;
+              });
+
               final remainingEvents = 0;
               final remainingTasks = 0;
 
@@ -4664,7 +4676,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             );
                                       } catch (_) {}
                                       final titleText = linkedProject != null
-                                          ? '📊 ${linkedProject.title}: ${item.isSkipped ? "Pas" : "%${item.score.toStringAsFixed(0)}"}'
+                                          ? '📊 ${linkedProject.title}: ${item.isSkipped ? "Pas ${appState.getPasCount(linkedProject.id, item.sessionDate)}" : "%${item.score.toStringAsFixed(0)}"}'
                                           : '📊 Değerlendirme';
                                       final color = linkedProject != null
                                           ? (item.isSkipped
@@ -5468,229 +5480,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     DateTime sessionDate, {
     double? defaultDuration,
   }) {
-    final appState = Provider.of<AppState>(context, listen: false);
-    final normalizedDate = DateTime(
-      sessionDate.year,
-      sessionDate.month,
-      sessionDate.day,
-    );
-
-    final existingEvalIndex = appState.evaluations.indexWhere(
-      (e) => e.projectId == project.id && e.sessionDate == normalizedDate,
-    );
-    ProjectEvaluation? existingEval = existingEvalIndex != -1
-        ? appState.evaluations[existingEvalIndex]
-        : null;
-
-    final double dur = defaultDuration ?? 1.0;
-    final int initialHours = dur.toInt();
-    final int initialMinutes = ((dur - initialHours) * 60).round();
-
-    final TextEditingController percentCtrl = TextEditingController(
-      text: existingEval != null
-          ? (existingEval.performancePercent ?? existingEval.score).toString()
-          : (project.defaultPercentage?.toStringAsFixed(0) ?? ''),
-    );
-    final TextEditingController numericCtrl = TextEditingController(
-      text: existingEval != null
-          ? existingEval.score.toString()
-          : (project.defaultNumeric?.toString() ?? ''),
-    );
-    final TextEditingController hoursCtrl = TextEditingController(
-      text: existingEval != null
-          ? existingEval.durationHours.toInt().toString()
-          : (project.defaultDuration != null
-                ? project.defaultDuration!.toInt().toString()
-                : initialHours.toString()),
-    );
-    final TextEditingController minutesCtrl = TextEditingController(
-      text: existingEval != null
-          ? ((existingEval.durationHours - existingEval.durationHours.toInt()) *
-                    60)
-                .round()
-                .toString()
-          : (project.defaultDuration != null
-                ? ((project.defaultDuration! -
-                              project.defaultDuration!.toInt()) *
-                          60)
-                      .round()
-                      .toString()
-                : initialMinutes.toString()),
-    );
-    final TextEditingController noteCtrl = TextEditingController(
-      text: existingEval?.note ?? '',
-    );
-    bool isSkipped = existingEval?.isSkipped ?? false;
-
-    showDialog(
+    showProjectEvaluationDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text('${project.title} Değerlendirmesi'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${normalizedDate.day}/${normalizedDate.month}/${normalizedDate.year} tarihli oturum',
-                    ),
-                    const SizedBox(height: 16),
-                    SwitchListTile(
-                      title: const Text('Bugünü Boş Geçtim'),
-                      value: isSkipped,
-                      onChanged: (v) {
-                        setState(() => isSkipped = v);
-                      },
-                    ),
-                    if (!isSkipped) ...[
-                      if (project.trackPercentage) ...[
-                        TextField(
-                          controller: percentCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Başarı Yüzdesi (%)',
-                          ),
-                          keyboardType: TextInputType.number,
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      if (project.trackNumeric) ...[
-                        TextField(
-                          controller: numericCtrl,
-                          decoration: InputDecoration(
-                            labelText:
-                                'Elde Edilen Sayı (Hedef: ${project.targetValue})',
-                          ),
-                          keyboardType: TextInputType.number,
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      if (project.trackDuration) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: hoursCtrl,
-                                decoration: const InputDecoration(
-                                  labelText: 'Saat',
-                                  suffixText: 'saat',
-                                ),
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextField(
-                                controller: minutesCtrl,
-                                decoration: const InputDecoration(
-                                  labelText: 'Dakika',
-                                  suffixText: 'dk',
-                                ),
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ],
-                    if (project.trackNote) ...[
-                      TextField(
-                        controller: noteCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Not Ekle',
-                          hintText: 'Oturumla ilgili notlar yazın...',
-                        ),
-                        maxLines: 3,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                if (existingEval != null)
-                  TextButton(
-                    onPressed: () async {
-                      final confirm = await _showWarningDialog(
-                        context,
-                        'silmek',
-                      );
-                      if (confirm && context.mounted) {
-                        appState.deleteEvaluation(project.id, normalizedDate);
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text(
-                      'Sil',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('İptal'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (existingEval != null) {
-                      final confirm = await _showWarningDialog(
-                        context,
-                        'değiştirmek',
-                      );
-                      if (!confirm) return;
-                    }
-                    if (!context.mounted) return;
-
-                    double score = 0.0;
-                    double? pctVal;
-
-                    if (!isSkipped) {
-                      if (project.trackNumeric) {
-                        score = double.tryParse(numericCtrl.text) ?? 0.0;
-                      }
-                      if (project.trackPercentage) {
-                        final pVal = double.tryParse(percentCtrl.text) ?? 0.0;
-                        pctVal = pVal;
-                        if (!project.trackNumeric) {
-                          score = pVal;
-                        }
-                      }
-                    }
-
-                    int hrs = int.tryParse(hoursCtrl.text) ?? 0;
-                    int mins = int.tryParse(minutesCtrl.text) ?? 0;
-                    double duration = hrs + (mins / 60.0);
-                    if (duration < 0.0) duration = 0.0;
-
-                    final eval = ProjectEvaluation(
-                      id:
-                          existingEval?.id ??
-                          IdGenerator.generate(
-                            'degerlendirme_${project.title}',
-                            date: normalizedDate,
-                          ),
-                      projectId: project.id,
-                      sessionDate: normalizedDate,
-                      score: score,
-                      isSkipped: isSkipped,
-                      durationHours: (isSkipped || !project.trackDuration)
-                          ? 0.0
-                          : duration,
-                      note:
-                          (project.trackNote && noteCtrl.text.trim().isNotEmpty)
-                          ? noteCtrl.text.trim()
-                          : null,
-                      performancePercent: pctVal,
-                    );
-                    appState.addOrUpdateEvaluation(eval);
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Kaydet'),
-                ),
-              ],
-            );
-          },
-        );
+      project: project,
+      date: sessionDate,
+      onSaved: () {
+        setState(() {});
       },
     );
   }
@@ -6236,7 +6031,7 @@ class EventDataSource extends CalendarDataSource {
         final project = appState!.projects.firstWhere(
           (p) => p.id == item.projectId,
         );
-        if (item.isSkipped) return '📊 ${project.title}: Pas';
+        if (item.isSkipped) return '📊 ${project.title}: Pas ${appState!.getPasCount(project.id, item.sessionDate)}';
         return '📊 ${project.title}: %${item.score.toStringAsFixed(0)}';
       } catch (_) {
         return '📊 Değerlendirme';

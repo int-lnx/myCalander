@@ -1,4 +1,21 @@
-import '../models/project_evaluation.dart';
+import 'project_evaluation.dart';
+
+class ProjectStep {
+  final String title;
+  final double? weight;
+
+  const ProjectStep({required this.title, this.weight});
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'weight': weight,
+  };
+
+  factory ProjectStep.fromJson(Map<String, dynamic> json) => ProjectStep(
+    title: json['title'] as String? ?? '',
+    weight: (json['weight'] as num?)?.toDouble(),
+  );
+}
 
 class Project {
   final String id;
@@ -22,6 +39,7 @@ class Project {
   final double? defaultNumeric;
   final double? defaultDuration;
   final List<String> dataOrder; // e.g. ['BRUT', 'PERCENTAGE', 'NET', 'NUMERIC', 'NOTE']
+  final List<ProjectStep> checkSteps;
 
   const Project({
     required this.id,
@@ -45,6 +63,7 @@ class Project {
     this.defaultNumeric,
     this.defaultDuration,
     this.dataOrder = const ['BRUT', 'PERCENTAGE', 'NET', 'NUMERIC', 'NOTE'],
+    this.checkSteps = const [],
   });
 
   double calculateSingleSuccessPercentage(double score) {
@@ -93,6 +112,7 @@ class Project {
     double? defaultNumeric,
     double? defaultDuration,
     List<String>? dataOrder,
+    List<ProjectStep>? checkSteps,
     bool clearSubTag = false,
   }) {
     return Project(
@@ -117,6 +137,7 @@ class Project {
       defaultNumeric: defaultNumeric ?? this.defaultNumeric,
       defaultDuration: defaultDuration ?? this.defaultDuration,
       dataOrder: dataOrder ?? this.dataOrder,
+      checkSteps: checkSteps ?? this.checkSteps,
     );
   }
 
@@ -143,6 +164,7 @@ class Project {
       'defaultNumeric': defaultNumeric,
       'defaultDuration': defaultDuration,
       'dataOrder': dataOrder,
+      'checkSteps': checkSteps.map((s) => s.toJson()).toList(),
     };
   }
 
@@ -168,6 +190,13 @@ class Project {
       order = List<String>.from(json['dataOrder']);
     }
 
+    List<ProjectStep> steps = [];
+    if (json['checkSteps'] is List) {
+      steps = (json['checkSteps'] as List)
+          .map((s) => ProjectStep.fromJson(s as Map<String, dynamic>))
+          .toList();
+    }
+
     return Project(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
@@ -190,6 +219,7 @@ class Project {
       defaultNumeric: defaultNum,
       defaultDuration: defaultDur,
       dataOrder: order,
+      checkSteps: steps,
     );
   }
 }

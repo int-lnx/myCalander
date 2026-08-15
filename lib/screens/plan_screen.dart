@@ -1,10 +1,12 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/app_state.dart';
 import '../models/topic_plan.dart';
 import '../models/project.dart';
 import '../models/project_evaluation.dart';
+import '../dialogs/project_evaluation_dialog.dart';
 
 class PlanScreen extends StatefulWidget {
   final String? projectId;
@@ -24,7 +26,7 @@ class _PlanScreenState extends State<PlanScreen> {
   double _dailyCapacityHours = 2.0;
   late TextEditingController _capacityController;
   final List<int> _generalExcludedWeekdays = [];
-  final Set<DateTime> _generalExcludedDates = {};
+  final List<ExcludedDateItem> _generalExcludedExclusions = [];
   bool _hasScrolledToToday = false;
 
   final List<String> _monthNames = [
@@ -46,18 +48,82 @@ class _PlanScreenState extends State<PlanScreen> {
   final double _colWidth = 150.0;
   final double _dateColWidth = 100.0;
 
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    double cap = prefs.getDouble('plan_dailyCapacityHours') ?? 2.0;
+    List<int> wk = [];
+    final wkList = prefs.getStringList('plan_generalExcludedWeekdays');
+    if (wkList != null) wk.addAll(wkList.map(int.parse));
+    List<ExcludedDateItem> dt = [];
+    final dtList = prefs.getStringList('plan_generalExcludedDates');
+    if (dtList != null) {
+      dt.addAll(dtList.map((s) => ExcludedDateItem.fromJsonString(s)));
+    }
+
+    if (widget.projectId != null) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      final remoteSettings = await appState.loadPlanSettings(widget.projectId!);
+      if (remoteSettings != null) {
+        if (remoteSettings['dailyCapacityHours'] != null) {
+          cap = (remoteSettings['dailyCapacityHours'] as num).toDouble();
+        }
+        if (remoteSettings['excludedWeekdays'] != null) {
+          wk = List<int>.from(remoteSettings['excludedWeekdays']);
+        }
+        if (remoteSettings['excludedDates'] != null) {
+          dt = (remoteSettings['excludedDates'] as List<dynamic>)
+              .map((s) => ExcludedDateItem.fromJsonString(s as String))
+              .toList();
+        }
+        await prefs.setDouble('plan_dailyCapacityHours', cap);
+        await prefs.setStringList('plan_generalExcludedWeekdays', wk.map((w) => w.toString()).toList());
+        await prefs.setStringList('plan_generalExcludedDates', dt.map((e) => e.toJsonString()).toList());
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _dailyCapacityHours = cap;
+        _capacityController.text = _dailyCapacityHours.toString();
+        _generalExcludedWeekdays.clear();
+        _generalExcludedWeekdays.addAll(wk);
+        _generalExcludedExclusions.clear();
+        _generalExcludedExclusions.addAll(dt);
+      });
+    }
+  }
+
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('plan_dailyCapacityHours', _dailyCapacityHours);
+    await prefs.setStringList('plan_generalExcludedWeekdays', _generalExcludedWeekdays.map((w) => w.toString()).toList());
+    await prefs.setStringList('plan_generalExcludedDates', _generalExcludedExclusions.map((e) => e.toJsonString()).toList());
+
+    if (widget.projectId != null) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      await appState.savePlanSettings(
+        widget.projectId!,
+        _dailyCapacityHours,
+        _generalExcludedWeekdays,
+        _generalExcludedExclusions.map((e) => e.toJsonString()).toList(),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _capacityController = TextEditingController(
       text: _dailyCapacityHours.toString(),
     );
+    _loadSettings();
     _capacityController.addListener(() {
       final val = double.tryParse(_capacityController.text);
       if (val != null && val > 0 && val != _dailyCapacityHours) {
         setState(() {
           _dailyCapacityHours = val;
         });
+        _saveSettings();
       }
     });
     _verticalScrollController = ScrollController();
@@ -562,138 +628,210 @@ class _PlanScreenState extends State<PlanScreen> {
       ),
     );
 
-    final percentController = TextEditingController(
-      text: existingEval != null
-          ? (existingEval.performancePercent ?? existingEval.score)
-                .toStringAsFixed(0)
-          : (project.defaultPercentage?.toStringAsFixed(0) ?? ''),
+    showProjectEvaluationDialog(
+      context: context,
+      project: project,
+      date: date,
+      onSaved: () {
+        setState(() {});
+      },
     );
-    final numericController = TextEditingController(
-      text: existingEval != null
-          ? existingEval.score.toStringAsFixed(0)
-          : (project.defaultNumeric?.toStringAsFixed(0) ?? ''),
-    );
-    final durationController = TextEditingController(
-      text: existingEval != null
-          ? existingEval.durationHours.toString()
-          : (project.defaultDuration?.toString() ?? ''),
-    );
-    final noteController = TextEditingController(
-      text: existingEval?.note ?? '',
-    );
+  }
 
+  Color _getDistinctPredictionColor(String planId, int baseColorValue, bool isPredicted) {
+    if (!isPredicted) return Color(baseColorValue);
+    final hash = planId.hashCode;
+    final hues = [45, 75, 105, 135, 165, 195, 220, 240, 265, 285];
+    final hue = hues[hash.abs() % hues.length].toDouble();
+    return HSLColor.fromAHSL(1.0, hue, 0.75, 0.42).toColor();
+  }
+
+  Future<String?> _showGetExclusionNoteDialog(BuildContext context, {String? initialValue}) async {
+    final controller = TextEditingController(text: initialValue ?? '');
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Pas Günü Açıklaması'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'Örn: Ara Tatil, Yıllık İzin (İsteğe bağlı)',
+            labelText: 'Açıklama',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showManageExcludedDatesDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Text(
-                'Değerlendirme / Genel Log\n${date.day} ${_monthNames[date.month - 1]} ${date.year}',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: SingleChildScrollView(
+              title: const Text('Pas Geçilecek Özel Tarihler'),
+              content: SizedBox(
+                width: 340,
+                height: 400,
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (project.trackPercentage)
-                      TextField(
-                        controller: percentController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Tarih Ekle', style: TextStyle(fontSize: 12)),
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) {
+                              final note = await _showGetExclusionNoteDialog(context);
+                              setState(() {
+                                _generalExcludedExclusions.add(ExcludedDateItem(
+                                  date: DateTime(picked.year, picked.month, picked.day),
+                                  note: note,
+                                ));
+                              });
+                              _saveSettings();
+                              setDialogState(() {});
+                            }
+                          },
                         ),
-                        decoration: const InputDecoration(
-                          labelText: 'Başarı Yüzdesi (%)',
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.date_range, size: 16),
+                          label: const Text('Aralık Ekle', style: TextStyle(fontSize: 12)),
+                          onPressed: () async {
+                            final pickedRange = await showDateRangePicker(
+                              context: context,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
+                            );
+                            if (pickedRange != null) {
+                              final note = await _showGetExclusionNoteDialog(context);
+                              setState(() {
+                                _generalExcludedExclusions.add(ExcludedDateItem(
+                                  start: DateTime(pickedRange.start.year, pickedRange.start.month, pickedRange.start.day),
+                                  end: DateTime(pickedRange.end.year, pickedRange.end.month, pickedRange.end.day),
+                                  note: note,
+                                ));
+                              });
+                              _saveSettings();
+                              setDialogState(() {});
+                            }
+                          },
                         ),
-                      ),
-                    if (project.trackNumeric)
-                      TextField(
-                        controller: numericController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: InputDecoration(
-                          labelText:
-                              'Sayısal Değer (Hedef: ${project.targetValue})',
-                        ),
-                      ),
-                    if (project.trackDuration)
-                      TextField(
-                        controller: durationController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Çalışılan Saat (Süre)',
-                        ),
-                      ),
-                    if (project.trackNote)
-                      TextField(
-                        controller: noteController,
-                        decoration: const InputDecoration(
-                          labelText: 'Not / Açıklama',
-                        ),
-                      ),
+                      ],
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: _generalExcludedExclusions.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'Eklenmiş özel pas günü bulunmuyor.',
+                                style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: _generalExcludedExclusions.length,
+                              itemBuilder: (context, index) {
+                                final d = _generalExcludedExclusions[index];
+                                String dateStr = '';
+                                if (d.date != null) {
+                                  dateStr = '${d.date!.day}.${d.date!.month}.${d.date!.year} (${_getWeekdayShortName(d.date!.weekday)})';
+                                } else if (d.start != null && d.end != null) {
+                                  dateStr = '${d.start!.day}.${d.start!.month}.${d.start!.year} - ${d.end!.day}.${d.end!.month}.${d.end!.year}';
+                                }
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(dateStr, style: const TextStyle(fontSize: 12)),
+                                  subtitle: d.note != null && d.note!.isNotEmpty
+                                      ? Text(d.note!, style: const TextStyle(fontSize: 10, color: Colors.grey))
+                                      : null,
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.edit, size: 16, color: Colors.blue),
+                                        onPressed: () async {
+                                          if (d.date != null) {
+                                            final picked = await showDatePicker(
+                                              context: context,
+                                              initialDate: d.date!,
+                                              firstDate: DateTime(2020),
+                                              lastDate: DateTime(2100),
+                                            );
+                                            if (picked != null) {
+                                              final note = await _showGetExclusionNoteDialog(context, initialValue: d.note);
+                                              setState(() {
+                                                _generalExcludedExclusions[index] = ExcludedDateItem(
+                                                  date: DateTime(picked.year, picked.month, picked.day),
+                                                  note: note,
+                                                );
+                                              });
+                                              _saveSettings();
+                                              setDialogState(() {});
+                                            }
+                                          } else if (d.start != null && d.end != null) {
+                                            final pickedRange = await showDateRangePicker(
+                                              context: context,
+                                              initialDateRange: DateTimeRange(start: d.start!, end: d.end!),
+                                              firstDate: DateTime(2020),
+                                              lastDate: DateTime(2100),
+                                            );
+                                            if (pickedRange != null) {
+                                              final note = await _showGetExclusionNoteDialog(context, initialValue: d.note);
+                                              setState(() {
+                                                _generalExcludedExclusions[index] = ExcludedDateItem(
+                                                  start: DateTime(pickedRange.start.year, pickedRange.start.month, pickedRange.start.day),
+                                                  end: DateTime(pickedRange.end.year, pickedRange.end.month, pickedRange.end.day),
+                                                  note: note,
+                                                );
+                                              });
+                                              _saveSettings();
+                                              setDialogState(() {});
+                                            }
+                                          }
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                                        onPressed: () {
+                                          setState(() {
+                                            _generalExcludedExclusions.removeAt(index);
+                                          });
+                                          _saveSettings();
+                                          setDialogState(() {});
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
                   ],
                 ),
               ),
               actions: [
-                if (existingEval != null)
-                  TextButton(
-                    onPressed: () {
-                      appState.deleteEvaluation(widget.projectId!, date);
-                      Navigator.pop(context);
-                      setState(() {});
-                    },
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('Sil'),
-                  ),
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('İptal'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    double scoreVal = 0.0;
-                    double? pctVal;
-
-                    if (project.trackNumeric) {
-                      scoreVal = double.tryParse(numericController.text) ?? 0.0;
-                    }
-                    if (project.trackPercentage) {
-                      final pVal =
-                          double.tryParse(percentController.text) ?? 0.0;
-                      pctVal = pVal;
-                      if (!project.trackNumeric) {
-                        scoreVal = pVal;
-                      }
-                    }
-
-                    final duration =
-                        double.tryParse(durationController.text) ?? 0.0;
-                    final note = noteController.text.trim();
-
-                    final eval = ProjectEvaluation(
-                      id: '${widget.projectId}_${date.millisecondsSinceEpoch}',
-                      projectId: widget.projectId!,
-                      sessionDate: DateTime(date.year, date.month, date.day),
-                      score: scoreVal,
-                      durationHours: project.trackDuration ? duration : 0.0,
-                      note: project.trackNote && note.isNotEmpty ? note : null,
-                      performancePercent: pctVal,
-                      isSkipped: false,
-                    );
-                    appState.addOrUpdateEvaluation(eval);
-                    Navigator.pop(context);
-                    setState(() {});
-                  },
-                  child: const Text('Kaydet'),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Kapat'),
                 ),
               ],
             );
@@ -706,6 +844,7 @@ class _PlanScreenState extends State<PlanScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
+    final isDark = appState.isDarkMode;
 
     // Attempt auto-scroll to today
     if (!_hasScrolledToToday) {
@@ -804,7 +943,7 @@ class _PlanScreenState extends State<PlanScreen> {
           final isGenExcludedWeekday = _generalExcludedWeekdays.contains(
             current.weekday,
           );
-          final isGenExcludedDate = _generalExcludedDates.contains(current);
+          final isGenExcludedDate = _generalExcludedExclusions.any((e) => e.contains(current));
 
           if (!isGenExcludedWeekday && !isGenExcludedDate) {
             double availableCapacity = _dailyCapacityHours;
@@ -1071,6 +1210,7 @@ class _PlanScreenState extends State<PlanScreen> {
                                 _generalExcludedWeekdays.add(weekday);
                               }
                             });
+                            _saveSettings();
                           },
                           child: Container(
                             margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -1108,6 +1248,13 @@ class _PlanScreenState extends State<PlanScreen> {
                     ),
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.date_range, color: Colors.red, size: 20),
+                  tooltip: 'Özel Pas Günlerini Yönet',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _showManageExcludedDatesDialog(context),
+                ),
               ],
             ),
           ),
@@ -1142,25 +1289,45 @@ class _PlanScreenState extends State<PlanScreen> {
                             final date = _timelineStartDate.add(
                               Duration(days: index),
                             );
-                            final dateStr =
-                                '${date.day} ${_monthNames[date.month - 1]}';
+                            final dateText = '${date.day} ${_monthNames[date.month - 1]}';
+                            final weekdayText = '(${_getWeekdayShortName(date.weekday)})';
+                            final now = DateTime.now();
+                            final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
                             return Container(
                               height: _rowHeight,
                               decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
+                                border: isToday
+                                    ? Border.all(color: Colors.orange.shade700, width: 2.0)
+                                    : Border(
+                                        bottom: BorderSide(
+                                          color: Colors.grey.shade200,
+                                        ),
+                                      ),
                               ),
                               child: InkWell(
                                 onTap: () => _handleLeftDateTap(date),
                                 child: Container(
                                   alignment: Alignment.center,
-                                  color: Colors.blue.shade50,
-                                  child: Text(
-                                    dateStr,
-                                    style: const TextStyle(fontSize: 12),
+                                  color: isToday ? Colors.orange.shade100 : Colors.blue.shade50,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        dateText,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                          color: isToday ? Colors.orange.shade900 : (isDark ? Colors.white70 : Colors.black87),
+                                        ),
+                                      ),
+                                      Text(
+                                        weekdayText,
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          color: isToday ? Colors.orange.shade800 : Colors.grey,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -1261,14 +1428,28 @@ class _PlanScreenState extends State<PlanScreen> {
                                     alpha: 0.5,
                                   );
                                   final parts = <String>[];
-                                  if (dayEval.score > 0)
-                                    parts.add(
-                                      '%${dayEval.score.toStringAsFixed(0)}',
-                                    );
-                                  if (dayEval.durationHours > 0)
-                                    parts.add(
-                                      '${dayEval.durationHours.toStringAsFixed(1)} sa',
-                                    );
+                                  if (dayEval.isSkipped) {
+                                    parts.add('Pas');
+                                    ExcludedDateItem? matchedExc;
+                                    for (var exc in _generalExcludedExclusions) {
+                                      if (exc.contains(date)) {
+                                        matchedExc = exc;
+                                        break;
+                                      }
+                                    }
+                                    if (matchedExc != null && matchedExc.note != null && matchedExc.note!.isNotEmpty) {
+                                      parts.add('(${matchedExc.note})');
+                                    }
+                                  } else {
+                                    if (dayEval.score > 0)
+                                      parts.add(
+                                        '%${dayEval.score.toStringAsFixed(0)}',
+                                      );
+                                    if (dayEval.durationHours > 0)
+                                      parts.add(
+                                        '${dayEval.durationHours.toStringAsFixed(1)} sa',
+                                      );
+                                  }
                                   evalText = parts.join(' - ');
                                   if (dayEval.note != null &&
                                       dayEval.note!.isNotEmpty) {
@@ -1343,10 +1524,6 @@ class _PlanScreenState extends State<PlanScreen> {
                                                 )) &&
                                             (date.isBefore(pEnd) ||
                                                 date.isAtSameMomentAs(pEnd))) {
-                                          cellColor = Color(
-                                            plan.colorValue,
-                                          ).withValues(alpha: 0.12);
-
                                           final isFirstDay = date
                                               .isAtSameMomentAs(pStart);
                                           final isCompletedDay =
@@ -1363,7 +1540,54 @@ class _PlanScreenState extends State<PlanScreen> {
                                               predictionMap[plan.id]!
                                                   .containsKey(dayKey);
 
-                                          if (isFirstDay) {
+                                          cellColor = _getDistinctPredictionColor(
+                                            plan.id,
+                                            plan.colorValue,
+                                            isPredicted,
+                                          ).withValues(alpha: 0.12);
+
+                                          final isGenExcludedWeekday = _generalExcludedWeekdays.contains(date.weekday);
+                                          final isGenExcludedDate = _generalExcludedExclusions.any(
+                                            (e) => e.contains(date)
+                                          );
+                                          final isPlanExcludedWeekend = plan.excludeWeekends && (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday);
+                                          final isPlanExcludedWeekday = plan.excludedWeekdays.contains(date.weekday);
+                                          final isPlanExcludedDate = plan.excludedDates.any(
+                                            (d) => d.year == date.year && d.month == date.month && d.day == date.day
+                                          );
+                                          
+                                          ExcludedDateItem? matchedExclusion;
+                                          for (var exc in _generalExcludedExclusions) {
+                                            if (exc.contains(date)) {
+                                              matchedExclusion = exc;
+                                              break;
+                                            }
+                                          }
+                                          final isExcluded = isGenExcludedWeekday || (matchedExclusion != null) || isPlanExcludedWeekend || isPlanExcludedWeekday || isPlanExcludedDate;
+
+                                          if (isExcluded) {
+                                            bool isFirstExclusionDay = false;
+                                            if (matchedExclusion != null) {
+                                              if (matchedExclusion.date != null) {
+                                                isFirstExclusionDay = true;
+                                              } else if (matchedExclusion.start != null) {
+                                                isFirstExclusionDay = (date.year == matchedExclusion.start!.year &&
+                                                                      date.month == matchedExclusion.start!.month &&
+                                                                      date.day == matchedExclusion.start!.day);
+                                              }
+                                            }
+                                            String noteText = '';
+                                            if (isFirstExclusionDay && matchedExclusion?.note != null && matchedExclusion!.note!.isNotEmpty) {
+                                              noteText = '\n(${matchedExclusion.note})';
+                                            }
+
+                                            if (isFirstDay) {
+                                              cellText = '${plan.title}\n(Pas)$noteText';
+                                            } else {
+                                              cellText = 'Pas$noteText';
+                                            }
+                                            cellColor = Theme.of(context).brightness == Brightness.dark ? Colors.red.shade900.withOpacity(0.3) : Colors.red.shade50;
+                                          } else if (isFirstDay) {
                                             if (isCompletedDay) {
                                               cellText = hours > 0
                                                   ? '🏁 ${plan.title}\n($hours sa)'
@@ -1374,21 +1598,36 @@ class _PlanScreenState extends State<PlanScreen> {
                                                       .id]![dayKey]!;
                                               cellText =
                                                   '🔮 ${plan.title}\n(${predHours.toStringAsFixed(1)} sa)';
+                                            } else if (rep?.isWaiting == true) {
+                                              cellText = '${plan.title}\n⌛';
+                                            } else if (rep?.offset == 1) {
+                                              final taskPasCount = appState.getTaskPasCount(plan, date);
+                                              cellText = '${plan.title}\nPas $taskPasCount';
                                             } else {
                                               cellText = hours > 0
                                                   ? '${plan.title}\n($hours sa)'
                                                   : plan.title;
                                             }
-                                            cellColor = Color(plan.colorValue)
-                                                .withValues(
-                                                  alpha: isPredicted
-                                                      ? 0.2
-                                                      : 0.35,
-                                                );
+
+                                            if (rep?.offset == 1) {
+                                              cellColor = Theme.of(context).brightness == Brightness.dark ? Colors.red.shade900.withOpacity(0.3) : Colors.red.shade50;
+                                            } else {
+                                              cellColor = _getDistinctPredictionColor(
+                                                plan.id,
+                                                plan.colorValue,
+                                                isPredicted,
+                                              ).withValues(
+                                                alpha: isPredicted
+                                                    ? 0.2
+                                                    : 0.35,
+                                              );
+                                            }
                                           } else {
                                             if (hours > 0 ||
                                                 isCompletedDay ||
-                                                isPredicted) {
+                                                isPredicted ||
+                                                rep?.isWaiting == true ||
+                                                rep?.offset == 1) {
                                               if (isCompletedDay) {
                                                 cellText = hours > 0
                                                     ? '🏁\n($hours sa)'
@@ -1399,15 +1638,27 @@ class _PlanScreenState extends State<PlanScreen> {
                                                         .id]![dayKey]!;
                                                 cellText =
                                                     '🔮\n(${predHours.toStringAsFixed(1)} sa)';
+                                              } else if (rep?.isWaiting == true) {
+                                                cellText = '⌛';
+                                              } else if (rep?.offset == 1) {
+                                                final taskPasCount = appState.getTaskPasCount(plan, date);
+                                                cellText = 'Pas $taskPasCount';
                                               } else {
                                                 cellText = '($hours sa)';
                                               }
-                                              cellColor = Color(plan.colorValue)
-                                                  .withValues(
-                                                    alpha: isPredicted
-                                                        ? 0.2
-                                                        : 0.35,
-                                                  );
+                                              if (rep?.offset == 1) {
+                                                cellColor = Theme.of(context).brightness == Brightness.dark ? Colors.red.shade900.withOpacity(0.3) : Colors.red.shade50;
+                                              } else {
+                                                cellColor = _getDistinctPredictionColor(
+                                                  plan.id,
+                                                  plan.colorValue,
+                                                  isPredicted,
+                                                ).withValues(
+                                                  alpha: isPredicted
+                                                      ? 0.2
+                                                      : 0.35,
+                                                );
+                                              }
                                             }
                                           }
                                           break;
@@ -1504,8 +1755,10 @@ class _PlanScreenState extends State<PlanScreen> {
                                           child: Center(
                                             child: Text(
                                               cellText,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 10,
+                                                color: cellText.contains('Pas') ? (isDark ? Colors.red.shade300 : Colors.red.shade800) : null,
+                                                fontWeight: cellText.contains('Pas') ? FontWeight.bold : FontWeight.normal,
                                               ),
                                               textAlign: TextAlign.center,
                                               maxLines: 2,
@@ -1531,5 +1784,54 @@ class _PlanScreenState extends State<PlanScreen> {
         ],
       ),
     );
+  }
+}
+
+class ExcludedDateItem {
+  final DateTime? date; // For single date
+  final DateTime? start; // For range
+  final DateTime? end; // For range
+  final String? note; // Note/description
+
+  ExcludedDateItem({this.date, this.start, this.end, this.note});
+
+  bool contains(DateTime d) {
+    if (date != null) {
+      return date!.year == d.year && date!.month == d.month && date!.day == d.day;
+    }
+    if (start != null && end != null) {
+      final target = DateTime(d.year, d.month, d.day);
+      final s = DateTime(start!.year, start!.month, start!.day);
+      final e = DateTime(end!.year, end!.month, end!.day);
+      return (target.isAfter(s) || target.isAtSameMomentAs(s)) &&
+             (target.isBefore(e) || target.isAtSameMomentAs(e));
+    }
+    return false;
+  }
+
+  String toJsonString() {
+    final notePart = note != null ? note! : '';
+    if (date != null) {
+      return 'SINGLE:${date!.toIso8601String()}|$notePart';
+    } else {
+      return 'RANGE:${start!.toIso8601String()}|${end!.toIso8601String()}|$notePart';
+    }
+  }
+
+  factory ExcludedDateItem.fromJsonString(String s) {
+    if (s.startsWith('SINGLE:')) {
+      final content = s.substring(7);
+      final parts = content.split('|');
+      final date = DateTime.parse(parts[0]);
+      final note = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
+      return ExcludedDateItem(date: date, note: note);
+    } else {
+      final content = s.substring(6);
+      final parts = content.split('|');
+      final start = DateTime.parse(parts[0]);
+      final end = DateTime.parse(parts[1]);
+      final note = parts.length > 2 && parts[2].isNotEmpty ? parts[2] : null;
+      return ExcludedDateItem(start: start, end: end, note: note);
+    }
   }
 }

@@ -12,6 +12,7 @@ class ProjectEvaluation {
   final double? performancePercent;
   final bool isTimeless;
   final List<TrackingValue> trackingValues;
+  final List<String> checkedSteps;
 
   const ProjectEvaluation({
     required this.id,
@@ -25,6 +26,7 @@ class ProjectEvaluation {
     this.performancePercent,
     this.isTimeless = false,
     this.trackingValues = const [],
+    this.checkedSteps = const [],
   });
 
   ProjectEvaluation copyWith({
@@ -39,6 +41,7 @@ class ProjectEvaluation {
     double? performancePercent,
     bool? isTimeless,
     List<TrackingValue>? trackingValues,
+    List<String>? checkedSteps,
     bool clearNote = false,
     bool clearStepId = false,
     bool clearPerformancePercent = false,
@@ -55,6 +58,7 @@ class ProjectEvaluation {
       performancePercent: clearPerformancePercent ? null : (performancePercent ?? this.performancePercent),
       isTimeless: isTimeless ?? this.isTimeless,
       trackingValues: trackingValues ?? this.trackingValues,
+      checkedSteps: checkedSteps ?? this.checkedSteps,
     );
   }
 
@@ -71,6 +75,7 @@ class ProjectEvaluation {
       'performancePercent': performancePercent,
       'isTimeless': isTimeless,
       'trackingValues': trackingValues.map((v) => v.toJson()).toList(),
+      'checkedSteps': checkedSteps,
     };
   }
 
@@ -81,6 +86,11 @@ class ProjectEvaluation {
       tValues = rawTValues
           .map((v) => TrackingValue.fromJson(v as Map<String, dynamic>))
           .toList();
+    }
+
+    List<String> cSteps = [];
+    if (json['checkedSteps'] is List) {
+      cSteps = List<String>.from(json['checkedSteps']);
     }
 
     return ProjectEvaluation(
@@ -95,6 +105,7 @@ class ProjectEvaluation {
       performancePercent: (json['performancePercent'] as num?)?.toDouble(),
       isTimeless: json['isTimeless'] as bool? ?? false,
       trackingValues: tValues,
+      checkedSteps: cSteps,
     );
   }
 }

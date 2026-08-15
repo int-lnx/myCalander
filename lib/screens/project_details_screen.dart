@@ -9,6 +9,7 @@ import 'project_form_screen.dart';
 import 'plan_screen.dart';
 import 'plan_form_screen.dart';
 import 'step_logs_screen.dart';
+import '../dialogs/project_evaluation_dialog.dart';
 
 class ProjectDetailsScreen extends StatefulWidget {
   final Project project;
@@ -252,114 +253,12 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
   }
 
   void _showAddEvaluationDialog(BuildContext context, AppState appState) {
-    DateTime selectedDate = DateTime.now();
-    final project = widget.project;
-    final percentController = TextEditingController(
-      text: project.defaultPercentage?.toStringAsFixed(0) ?? '',
-    );
-    final numericController = TextEditingController(
-      text: project.defaultNumeric?.toStringAsFixed(0) ?? '',
-    );
-    final durationController = TextEditingController(
-      text: project.defaultDuration?.toString() ?? '',
-    );
-    final noteController = TextEditingController();
-
-    showDialog(
+    showProjectEvaluationDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Tarih Seç ve Değerlendir'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      title: Text('Seçilen Tarih: ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2100),
-                        );
-                        if (picked != null) {
-                          setState(() => selectedDate = picked);
-                        }
-                      },
-                    ),
-                    if (project.trackPercentage)
-                      TextField(
-                        controller: percentController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Başarı Yüzdesi (%)'),
-                      ),
-                    if (project.trackNumeric)
-                      TextField(
-                        controller: numericController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(labelText: 'Sayısal Değer (Hedef: ${project.targetValue})'),
-                      ),
-                    if (project.trackDuration)
-                      TextField(
-                        controller: durationController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Çalışılan Saat (Süre)'),
-                      ),
-                    if (project.trackNote)
-                      TextField(
-                        controller: noteController,
-                        decoration: const InputDecoration(labelText: 'Not / Açıklama'),
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('İptal'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    double scoreVal = 0.0;
-                    double? pctVal;
-
-                    if (project.trackNumeric) {
-                      scoreVal = double.tryParse(numericController.text) ?? 0.0;
-                    }
-                    if (project.trackPercentage) {
-                      final pVal = double.tryParse(percentController.text) ?? 0.0;
-                      pctVal = pVal;
-                      if (!project.trackNumeric) {
-                        scoreVal = pVal;
-                      }
-                    }
-
-                    final duration = double.tryParse(durationController.text) ?? 0.0;
-                    final note = noteController.text.trim();
-
-                    final eval = ProjectEvaluation(
-                      id: '${widget.project.id}_${selectedDate.millisecondsSinceEpoch}',
-                      projectId: widget.project.id,
-                      sessionDate: DateTime(selectedDate.year, selectedDate.month, selectedDate.day),
-                      score: scoreVal,
-                      durationHours: project.trackDuration ? duration : 0.0,
-                      note: project.trackNote && note.isNotEmpty ? note : null,
-                      performancePercent: pctVal,
-                      isSkipped: false,
-                    );
-                    appState.addOrUpdateEvaluation(eval);
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Değerlendir'),
-                ),
-              ],
-            );
-          },
-        );
+      project: widget.project,
+      date: DateTime.now(),
+      onSaved: () {
+        setState(() {});
       },
     );
   }
@@ -571,26 +470,73 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
                                           );
                                         }).toList(),
                                         onChanged: (newVal) {
-                                           if (newVal != null) {
-                                             DateTime completionDate = plan.endDate;
-                                             if (newVal == 'Yapılanlar') {
-                                               DateTime? maxDate;
-                                               for (var key in plan.dayReports.keys) {
-                                                 try {
-                                                   final parsed = DateTime.parse(key);
-                                                   if (maxDate == null || parsed.isAfter(maxDate)) {
-                                                     maxDate = parsed;
-                                                   }
-                                                 } catch (_) {}
-                                               }
-                                               completionDate = maxDate ?? DateTime.now();
-                                             }
-                                             appState.updateTopicPlan(plan.copyWith(
-                                               status: newVal,
-                                               endDate: newVal == 'Yapılanlar' ? completionDate : plan.endDate,
-                                             ));
-                                           }
-                                         },
+                                          if (newVal != null) {
+                                            if (plan.status == 'Yapılıyor') {
+                                              showDialog(
+                                                context: context,
+                                                builder: (ctx) => AlertDialog(
+                                                  title: const Text('Uyarı'),
+                                                  content: const Text('Lütfen bu durumu zaman planı üzerinden değiştirin.'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(ctx),
+                                                      child: const Text('Tamam'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              return;
+                                            }
+
+                                            void executeChange() {
+                                              DateTime completionDate = plan.endDate;
+                                              if (newVal == 'Yapılanlar') {
+                                                DateTime? maxDate;
+                                                for (var key in plan.dayReports.keys) {
+                                                  try {
+                                                    final parsed = DateTime.parse(key);
+                                                    if (maxDate == null || parsed.isAfter(maxDate)) {
+                                                      maxDate = parsed;
+                                                    }
+                                                  } catch (_) {}
+                                                }
+                                                completionDate = maxDate ?? DateTime.now();
+                                              }
+                                              appState.updateTopicPlan(
+                                                plan.copyWith(
+                                                  status: newVal,
+                                                  endDate: newVal == 'Yapılanlar' ? completionDate : plan.endDate,
+                                                ),
+                                                forceStatus: true,
+                                              );
+                                            }
+
+                                            if (plan.status == 'Yapılanlar') {
+                                              showDialog(
+                                                context: context,
+                                                builder: (ctx) => AlertDialog(
+                                                  title: const Text('Emin misiniz?'),
+                                                  content: const Text('Taşınma durumunda ilgili kayıtlar değişecektir, emin misiniz?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(ctx),
+                                                      child: const Text('Vazgeç'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () {
+                                                        Navigator.pop(ctx);
+                                                        executeChange();
+                                                      },
+                                                      child: const Text('Evet'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            } else {
+                                              executeChange();
+                                            }
+                                          }
+                                        },
                                       ),
                                     ),
                                   ),

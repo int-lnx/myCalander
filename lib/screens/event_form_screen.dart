@@ -699,8 +699,26 @@ class _EventFormScreenState extends State<EventFormScreen> {
                           enabled: _projectId == null,
                         ),
                         items: [
-                          ...eventTags.map((t) =>
-                              DropdownMenuItem<String>(value: t, child: Text(t))),
+                          ...eventTags.map((t) {
+                            final tagColorVal = appState.getEventTagColor(t) ?? 0xFF2196F3;
+                            return DropdownMenuItem<String>(
+                              value: t,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: Color(tagColorVal),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(t),
+                                ],
+                              ),
+                            );
+                          }),
                           const DropdownMenuItem<String>(
                             value: 'add_new_tag',
                             child: Text('+ Yeni Kategori Ekle...',

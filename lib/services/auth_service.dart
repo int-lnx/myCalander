@@ -39,6 +39,28 @@ class AuthService {
     await _auth.signOut();
   }
 
+  Future<UserCredential?> signInSilently() async {
+    try {
+      if (kIsWeb) {
+        return null;
+      } else {
+        final GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
+        if (googleUser == null) return null;
+
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final OAuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        return await _auth.signInWithCredential(credential);
+      }
+    } catch (e) {
+      debugPrint('Google Silent Sign-In Error: $e');
+      return null;
+    }
+  }
+
   Future<void> deleteAccount() async {
     final currentUser = _auth.currentUser;
     if (currentUser != null) {

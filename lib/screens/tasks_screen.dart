@@ -456,11 +456,11 @@ class _TasksScreenState extends State<TasksScreen> {
 
     // Sadece tek bir grup ve adı "" ise (hiç subTag yok) → düz liste göster
     // Ayrıca "Tüm Tarihliler" veya "Tüm Tarihsizler" sekmelerinde kategori gruplamayı kaldırıyoruz.
-    final hasSubGroups = (selectedTag != 'Tüm Tarihliler' && selectedTag != 'Tüm Tarihsizler') &&
+    final hasSubGroups = (selectedTag != 'Tüm Tarihliler' && selectedTag != 'Tüm Tarihsizler' && selectedTag != 'Yapılanlar') &&
         (sortedKeys.length > 1 || (sortedKeys.length == 1 && sortedKeys.first.isNotEmpty));
 
     // Mevcut tab'ın tag değeri
-    final currentTag = (selectedTag == 'Tüm Tarihliler' || selectedTag == 'Tüm Tarihsizler') ? null : selectedTag;
+    final currentTag = (selectedTag == 'Tüm Tarihliler' || selectedTag == 'Tüm Tarihsizler' || selectedTag == 'Yapılanlar') ? null : selectedTag;
 
     if (!hasSubGroups) {
       if (_sortMode == 'CUSTOM') {
@@ -651,6 +651,7 @@ class _TasksScreenState extends State<TasksScreen> {
     final displayedTasks = tasks.where((t) {
       if (_selectedTab == 'Tüm Tarihliler') return t.from != null;
       if (_selectedTab == 'Tüm Tarihsizler') return t.from == null;
+      if (_selectedTab == 'Yapılanlar') return t.isInProgress == true;
       return t.tag == _selectedTab;
     }).toList();
 
@@ -717,7 +718,7 @@ class _TasksScreenState extends State<TasksScreen> {
     }
 
     // Group tags
-    final tabs = ['Tüm Tarihliler', 'Tüm Tarihsizler', ...appState.taskTags];
+    final tabs = ['Tüm Tarihliler', 'Tüm Tarihsizler', 'Yapılanlar', ...appState.taskTags];
 
     final now = DateTime.now();
 
@@ -772,7 +773,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: () {
-                    final isAllTab = _selectedTab == 'Tüm Tarihliler' || _selectedTab == 'Tüm Tarihsizler';
+                    final isAllTab = _selectedTab == 'Tüm Tarihliler' || _selectedTab == 'Tüm Tarihsizler' || _selectedTab == 'Yapılanlar';
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -806,7 +807,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     }
                   },
                   itemBuilder: (context) {
-                    final isAllTab = _selectedTab == 'Tüm Tarihliler' || _selectedTab == 'Tüm Tarihsizler';
+                    final isAllTab = _selectedTab == 'Tüm Tarihliler' || _selectedTab == 'Tüm Tarihsizler' || _selectedTab == 'Yapılanlar';
                     return [
                       PopupMenuItem(
                         enabled: false,
@@ -880,6 +881,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   if (t.isCompleted) return false;
                   if (tab == 'Tüm Tarihliler') return t.from != null;
                   if (tab == 'Tüm Tarihsizler') return t.from == null;
+                  if (tab == 'Yapılanlar') return t.isInProgress == true;
                   return t.tag == tab;
                 }).length;
                 return GestureDetector(
@@ -888,7 +890,7 @@ class _TasksScreenState extends State<TasksScreen> {
                       _selectedTab = tab;
                     });
                   },
-                  onLongPress: (tab == 'Tüm Tarihliler' || tab == 'Tüm Tarihsizler')
+                  onLongPress: (tab == 'Tüm Tarihliler' || tab == 'Tüm Tarihsizler' || tab == 'Yapılanlar')
                       ? null
                       : () {
                           Navigator.push(

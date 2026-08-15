@@ -25,12 +25,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-  } catch (e) {
-    debugPrint('Failed to clear SharedPreferences on startup: $e');
-  }
-  try {
     const firebaseOptions = FirebaseOptions(
       apiKey: 'AIzaSyAALVX3X_i3MDD6HAd63whTtW9mNDnFG8c',
       appId: '1:446668780386:web:24e024b2f85b4fb0cb323b',
@@ -115,7 +109,7 @@ class MyApp extends StatelessWidget {
           child: child!,
         );
       },
-      home: const SplashScreen(),
+      home: const MainScreen(),
     );
   }
 }
@@ -191,11 +185,47 @@ class _MainScreenState extends State<MainScreen> {
     ];
   }
 
+  Widget _buildProfileButton(BuildContext context, AppState appState) {
+    final user = appState.firebaseUser;
+    if (user != null) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 12.0, top: 8.0, bottom: 8.0),
+        child: GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfileScreen()),
+            );
+          },
+          child: Tooltip(
+            message: '${user.displayName ?? "Profil"} (Senkronize)',
+            child: CircleAvatar(
+              radius: 16,
+              backgroundImage: user.photoURL != null ? NetworkImage(user.photoURL!) : null,
+              child: user.photoURL == null 
+                  ? const Icon(Icons.person, size: 20)
+                  : null,
+            ),
+          ),
+        ),
+      );
+    } else {
+      return IconButton(
+        icon: const Icon(Icons.person_outline),
+        tooltip: 'Giriş Yapılmadı',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ProfileScreen()),
+          );
+        },
+      );
+    }
+  }
+
   Widget _buildViewTypeSelectorBar(BuildContext context, AppState appState) {
     final currentView = appState.calendarView;
     final views = [
-      {'view': 'plan', 'label': 'Plan', 'icon': Icons.view_column},
-      {'view': 'serit', 'label': 'Şerit', 'icon': Icons.layers},
       {
         'view': CalendarView.month,
         'label': 'Aylık',
@@ -583,18 +613,7 @@ class _MainScreenState extends State<MainScreen> {
                                   ),
                                   onPressed: () => appState.toggleDarkMode(),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.person),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const ProfileScreen(),
-                                      ),
-                                    );
-                                  },
-                                ),
+                                _buildProfileButton(context, appState),
                               ],
                       )
                     : null,
@@ -648,17 +667,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     onPressed: () => appState.toggleDarkMode(),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.person),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProfileScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                  _buildProfileButton(context, appState),
                 ],
         ),
         drawer: AppDrawer(

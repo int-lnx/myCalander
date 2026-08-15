@@ -15,7 +15,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Read more about iOS versioning at
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # IMPORTANT FOR AI AGENTS: Her kod değişikliğinden sonra revizyon numarası (version) 0.01 artırılacaktır (örneğin 2.54.0 iken 2.55.0 olacaktır).
-version: 2.58.0
+version: 2.67.0
 
 environment:
   sdk: ^3.11.3

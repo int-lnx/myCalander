@@ -26,410 +26,7 @@ class _AppDrawerState extends State<AppDrawer> {
   bool _projectsExpanded = true;
   final Map<String, bool> _expandedCategories = {};
 
-  Widget _buildCategoryEditor(
-    BuildContext context,
-    AppState appState,
-    bool isEvent,
-  ) {
-    final title = isEvent ? 'Etkinlik Kategorileri' : 'Görev Kategorileri';
-    String? selectedCategory;
-    final categoryCtrl = TextEditingController();
-    final subCategoryCtrl = TextEditingController();
-
-    final List<int> colorsList = [
-      0xFF2196F3, // Blue
-      0xFFF44336, // Red
-      0xFF4CAF50, // Green
-      0xFFFF9800, // Orange
-      0xFF9C27B0, // Purple
-      0xFF009688, // Teal
-      0xFFE91E63, // Pink
-      0xFFFFC107, // Amber
-      0xFF00BCD4, // Cyan
-      0xFF8BC34A, // Light Green
-      0xFFE040FB, // Orchid
-      0xFFFF5722, // Deep Orange
-      0xFF607D8B, // Blue Grey
-      0xFF795548, // Brown
-    ];
-
-    return StatefulBuilder(
-      builder: (context, setDialogState) {
-        final categories = isEvent ? appState.eventTags : appState.taskTags;
-
-        if (selectedCategory == null) {
-          // List View of Categories
-          return AlertDialog(
-            title: Text('$title Düzenle'),
-            content: SizedBox(
-              width: 350,
-              height: 450,
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: categoryCtrl,
-                          decoration: const InputDecoration(
-                            hintText: 'Yeni Kategori Adı',
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add, color: Colors.blue),
-                        onPressed: () {
-                          final name = categoryCtrl.text.trim();
-                          if (name.isNotEmpty) {
-                            if (isEvent) {
-                              appState.addEventCategory(name);
-                            } else {
-                              appState.addTaskCategory(name);
-                            }
-                            categoryCtrl.clear();
-                            setDialogState(() {});
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: ReorderableListView.builder(
-                      itemCount: categories.length,
-                      onReorder: (oldIndex, newIndex) {
-                        if (isEvent) {
-                          appState.reorderEventCategories(oldIndex, newIndex);
-                        } else {
-                          appState.reorderTaskCategories(oldIndex, newIndex);
-                        }
-                        setDialogState(() {});
-                      },
-                      itemBuilder: (context, idx) {
-                        final cat = categories[idx];
-                        final catColor = isEvent
-                            ? (appState.getEventTagColor(cat) ?? 0xFF2196F3)
-                            : (appState.getTaskTagColor(cat) ?? 0xFF2196F3);
-
-                        return ListTile(
-                          key: ValueKey(cat),
-                          leading: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.drag_handle, size: 20, color: Colors.grey),
-                              const SizedBox(width: 8),
-                              CircleAvatar(
-                                radius: 8,
-                                backgroundColor: Color(catColor),
-                              ),
-                            ],
-                          ),
-                          title: Text(cat),
-                          dense: true,
-                          onTap: () {
-                            setDialogState(() {
-                              selectedCategory = cat;
-                            });
-                          },
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
-                                onPressed: () {
-                                  final editCtrl = TextEditingController(text: cat);
-                                  showDialog(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: Text(isEvent ? 'Etkinlik Kategorisini Yeniden Adlandır' : 'Görev Kategorisini Yeniden Adlandır'),
-                                      content: TextField(
-                                        controller: editCtrl,
-                                        decoration: const InputDecoration(
-                                          hintText: 'Yeni Kategori Adı',
-                                        ),
-                                        autofocus: true,
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(ctx),
-                                          child: const Text('İptal'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () {
-                                            final newName = editCtrl.text.trim();
-                                            if (newName.isNotEmpty) {
-                                              if (isEvent) {
-                                                appState.renameEventCategory(cat, newName);
-                                              } else {
-                                                appState.renameTaskCategory(cat, newName);
-                                              }
-                                            }
-                                            Navigator.pop(ctx);
-                                            setDialogState(() {});
-                                          },
-                                          child: const Text('Kaydet'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                              if (cat != 'Genel' && cat != 'Yapılacaklar') ...[
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                                  onPressed: () {
-                                    if (isEvent) {
-                                      appState.deleteEventCategory(cat);
-                                    } else {
-                                      appState.deleteTaskCategory(cat);
-                                    }
-                                    setDialogState(() {});
-                                  },
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Kapat'),
-              ),
-            ],
-          );
-        } else {
-          // Details & Subcategories & Color Picker view
-          final currentCat = selectedCategory!;
-          final catColor = isEvent
-              ? (appState.getEventTagColor(currentCat) ?? 0xFF2196F3)
-              : (appState.getTaskTagColor(currentCat) ?? 0xFF2196F3);
-
-          final subTags = isEvent
-              ? (appState.eventSubTags[currentCat] ?? [])
-              : (appState.taskSubTags[currentCat] ?? []);
-
-          return AlertDialog(
-            title: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () {
-                    setDialogState(() {
-                      selectedCategory = null;
-                    });
-                  },
-                ),
-                Expanded(
-                  child: Text(
-                    currentCat,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 20, color: Colors.blue),
-                  onPressed: () {
-                    final editCtrl = TextEditingController(text: currentCat);
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(isEvent ? 'Kategoriyi Yeniden Adlandır' : 'Görev Kategorisini Yeniden Adlandır'),
-                        content: TextField(
-                          controller: editCtrl,
-                          decoration: const InputDecoration(
-                            hintText: 'Yeni Kategori Adı',
-                          ),
-                          autofocus: true,
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('İptal'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              final newName = editCtrl.text.trim();
-                              if (newName.isNotEmpty) {
-                                if (isEvent) {
-                                  appState.renameEventCategory(currentCat, newName);
-                                } else {
-                                  appState.renameTaskCategory(currentCat, newName);
-                                }
-                                setDialogState(() {
-                                  selectedCategory = newName;
-                                });
-                              }
-                              Navigator.pop(ctx);
-                            },
-                            child: const Text('Kaydet'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            content: SizedBox(
-              width: 350,
-              height: 450,
-              child: ListView(
-                children: [
-                  const Text(
-                    'Kategori Rengi',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: colorsList.map((colVal) {
-                      final isSelected = colVal == catColor;
-                      return GestureDetector(
-                        onTap: () {
-                          if (isEvent) {
-                            appState.setEventTagColor(currentCat, colVal);
-                          } else {
-                            appState.setTaskTagColor(currentCat, colVal);
-                          }
-                          setDialogState(() {});
-                        },
-                        child: CircleAvatar(
-                          radius: 14,
-                          backgroundColor: Color(colVal),
-                          child: isSelected
-                              ? const Icon(Icons.check, size: 14, color: Colors.white)
-                              : null,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const Divider(height: 24),
-                  const Text(
-                    'Alt Kategoriler (Subcategories)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: subCategoryCtrl,
-                          decoration: const InputDecoration(
-                            hintText: 'Yeni Alt Kategori',
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add, color: Colors.blue),
-                        onPressed: () {
-                          final subName = subCategoryCtrl.text.trim();
-                          if (subName.isNotEmpty) {
-                            if (isEvent) {
-                              appState.addEventSubTag(currentCat, subName);
-                            } else {
-                              appState.addTaskSubTag(currentCat, subName);
-                            }
-                            subCategoryCtrl.clear();
-                            setDialogState(() {});
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ...subTags.map((sub) {
-                    return ListTile(
-                      title: Text(sub, style: const TextStyle(fontSize: 12)),
-                      dense: true,
-                      visualDensity: VisualDensity.compact,
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue, size: 16),
-                            onPressed: () {
-                              final editCtrl = TextEditingController(text: sub);
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Alt Kategoriyi Yeniden Adlandır'),
-                                  content: TextField(
-                                    controller: editCtrl,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Yeni ad',
-                                    ),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx),
-                                      child: const Text('İptal'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        final newName = editCtrl.text.trim();
-                                        if (newName.isNotEmpty) {
-                                          if (isEvent) {
-                                            appState.renameEventSubTag(currentCat, sub, newName);
-                                          } else {
-                                            appState.renameTaskSubTag(currentCat, sub, newName);
-                                          }
-                                        }
-                                        Navigator.pop(ctx);
-                                        setDialogState(() {});
-                                      },
-                                      child: const Text('Kaydet'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red, size: 16),
-                            onPressed: () {
-                              if (isEvent) {
-                                appState.deleteEventSubTag(currentCat, sub);
-                              } else {
-                                appState.deleteTaskSubTag(currentCat, sub);
-                              }
-                              setDialogState(() {});
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  setDialogState(() {
-                    selectedCategory = null;
-                  });
-                },
-                child: const Text('Geri Dön'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Kapat'),
-              ),
-            ],
-          );
-        }
-      },
-    );
-  }
+  // CategoryEditorDialog is declared at the bottom of the file as a standalone StatefulWidget to prevent variable reset bugs.
 
 
   @override
@@ -480,6 +77,128 @@ class _AppDrawerState extends State<AppDrawer> {
             ),
             const Divider(height: 1),
 
+            // Auth Status Card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: appState.firebaseUser != null
+                      ? Colors.green.withOpacity(0.08)
+                      : Colors.orange.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: appState.firebaseUser != null
+                        ? Colors.green.withOpacity(0.3)
+                        : Colors.orange.withOpacity(0.3),
+                  ),
+                ),
+                child: appState.firebaseUser != null
+                    ? Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundImage: appState.firebaseUser!.photoURL != null
+                                ? NetworkImage(appState.firebaseUser!.photoURL!)
+                                : null,
+                            child: appState.firebaseUser!.photoURL == null
+                                ? const Icon(Icons.person, size: 16)
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  appState.firebaseUser!.displayName ?? 'Kullanıcı',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white70 : Colors.black87,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.cloud_done, size: 12, color: Colors.green),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Bulut Senkronize',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.green.shade300 : Colors.green.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade700),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Giriş Yapılmadı',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Verileriniz sadece bu cihazda saklanır ve buluta yedeklenmez.',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              visualDensity: VisualDensity.compact,
+                              backgroundColor: Colors.orange.shade700,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.login, size: 14),
+                            label: const Text('Giriş Yap', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            onPressed: () async {
+                              try {
+                                await appState.loginWithGoogle();
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Giriş Başarılı!')),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Giriş Hatası: $e')),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+
+            const Divider(height: 1),
+
             // Drawer content (scrollable)
             Expanded(
               child: ListView(
@@ -497,7 +216,7 @@ class _AppDrawerState extends State<AppDrawer> {
 
                   // Etkinlik Kategorileri
                   _buildHeaderRow(
-                    title: 'Etkinlik Kategorileri',
+                    title: 'Etkinlik',
                     isChecked: appState.selectedEventTags.length == appState.eventTags.length,
                     onCheckChanged: (val) {
                       if (val == true) {
@@ -509,7 +228,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     onEditTap: () {
                       showDialog(
                         context: context,
-                        builder: (ctx) => _buildCategoryEditor(context, appState, true),
+                        builder: (ctx) => CategoryEditorDialog(appState: appState, isEvent: true),
                       );
                     },
                   ),
@@ -634,9 +353,152 @@ class _AppDrawerState extends State<AppDrawer> {
                   }),
                   const Divider(),
 
+                  // Filtreli Takvim (Kayıtlı Filtre Presets)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Filtreli Takvim',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueGrey,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.bookmark_add, color: Colors.blue, size: 20),
+                          tooltip: 'Mevcut Filtreyi Kaydet',
+                          onPressed: () {
+                            final nameCtrl = TextEditingController();
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Filtreyi Kaydet'),
+                                content: TextField(
+                                  controller: nameCtrl,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Filtre adı (ör. Sadece İş)',
+                                  ),
+                                  autofocus: true,
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: const Text('İptal'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      final name = nameCtrl.text.trim();
+                                      if (name.isNotEmpty) {
+                                        appState.saveFilterPreset(name);
+                                      }
+                                      Navigator.pop(ctx);
+                                    },
+                                    child: const Text('Kaydet'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (appState.savedFilterPresets.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 4.0),
+                      child: Text(
+                        'Kayıtlı filtre bulunmuyor.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                      ),
+                    )
+                  else
+                    ...appState.savedFilterPresets.map((preset) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(6.0),
+                          border: Border.all(color: Colors.grey.shade400, width: 0.5),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.bookmark, size: 14, color: Colors.blue),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: InkWell(
+                                onTap: () {
+                                  appState.applyFilterPreset(preset);
+                                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('"${preset.name}" filtresi uygulandı.'),
+                                      duration: const Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  preset.name,
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.sync, size: 14, color: Colors.blue),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Mevcut ayarları bu filtreye kaydet (Güncelle)',
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Filtreyi Güncelle?'),
+                                    content: Text('"${preset.name}" filtresini mevcut ekran ayarları ile güncellemek istediğinize emin misiniz?'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: const Text('Vazgeç'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          appState.saveFilterPreset(preset.name);
+                                          Navigator.pop(ctx);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('"${preset.name}" filtresi güncellendi.'),
+                                              duration: const Duration(seconds: 1),
+                                            ),
+                                          );
+                                        },
+                                        child: const Text('Ok'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 14, color: Colors.red),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                appState.deleteFilterPreset(preset.name);
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  const Divider(),
+
                   // Görev Kategorileri
                   _buildHeaderRow(
-                    title: 'Görev Kategorileri',
+                    title: 'Görev',
                     isChecked: appState.selectedTaskTags.length == appState.taskTags.length,
                     onCheckChanged: (val) {
                       if (val == true) {
@@ -648,7 +510,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     onEditTap: () {
                       showDialog(
                         context: context,
-                        builder: (ctx) => _buildCategoryEditor(context, appState, false),
+                        builder: (ctx) => CategoryEditorDialog(appState: appState, isEvent: false),
                       );
                     },
                   ),
@@ -792,7 +654,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     child: Text(
-                      'Önem Seviyeleri',
+                      'Önem',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -1211,6 +1073,346 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
         );
       },
+    );
+  }
+}
+
+class CategoryEditorDialog extends StatefulWidget {
+  final AppState appState;
+  final bool isEvent;
+
+  const CategoryEditorDialog({
+    super.key,
+    required this.appState,
+    required this.isEvent,
+  });
+
+  @override
+  State<CategoryEditorDialog> createState() => _CategoryEditorDialogState();
+}
+
+class _CategoryEditorDialogState extends State<CategoryEditorDialog> {
+  final _categoryCtrl = TextEditingController();
+
+  final List<int> _colorsList = [
+    0xFF2196F3, // Blue
+    0xFFF44336, // Red
+    0xFF4CAF50, // Green
+    0xFFFF9800, // Orange
+    0xFF9C27B0, // Purple
+    0xFF009688, // Teal
+    0xFFE91E63, // Pink
+    0xFFFFC107, // Amber
+    0xFF00BCD4, // Cyan
+    0xFF8BC34A, // Light Green
+    0xFFE040FB, // Orchid
+    0xFFFF5722, // Deep Orange
+    0xFF607D8B, // Blue Grey
+    0xFF795548, // Brown
+  ];
+
+  @override
+  void dispose() {
+    _categoryCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.isEvent ? 'Etkinlik' : 'Görev';
+    final categories = widget.isEvent ? widget.appState.eventTags : widget.appState.taskTags;
+
+    return AlertDialog(
+      title: Text('$title Kategorilerini Düzenle'),
+      content: SizedBox(
+        width: 380,
+        height: 500,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _categoryCtrl,
+                    decoration: const InputDecoration(
+                      hintText: 'Yeni Kategori Adı',
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add, color: Colors.blue),
+                  onPressed: () {
+                    final name = _categoryCtrl.text.trim();
+                    if (name.isNotEmpty) {
+                      if (widget.isEvent) {
+                        widget.appState.addEventCategory(name);
+                      } else {
+                        widget.appState.addTaskCategory(name);
+                      }
+                      _categoryCtrl.clear();
+                      setState(() {});
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ReorderableListView.builder(
+                itemCount: categories.length,
+                onReorder: (oldIndex, newIndex) {
+                  if (widget.isEvent) {
+                    widget.appState.reorderEventCategories(oldIndex, newIndex);
+                  } else {
+                    widget.appState.reorderTaskCategories(oldIndex, newIndex);
+                  }
+                  setState(() {});
+                },
+                itemBuilder: (context, idx) {
+                  final cat = categories[idx];
+                  final catColor = widget.isEvent
+                      ? (widget.appState.getEventTagColor(cat) ?? 0xFF2196F3)
+                      : (widget.appState.getTaskTagColor(cat) ?? 0xFF2196F3);
+
+                  final subTags = widget.isEvent
+                      ? (widget.appState.eventSubTags[cat] ?? [])
+                      : (widget.appState.taskSubTags[cat] ?? []);
+
+                  return Card(
+                    key: ValueKey(cat),
+                    margin: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: ExpansionTile(
+                      key: PageStorageKey<String>(cat),
+                      leading: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.drag_handle, size: 18, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          CircleAvatar(
+                            radius: 6,
+                            backgroundColor: Color(catColor),
+                          ),
+                        ],
+                      ),
+                      title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 16, color: Colors.blue),
+                            onPressed: () {
+                              final editCtrl = TextEditingController(text: cat);
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: Text(widget.isEvent ? 'Etkinlik Kategorisini Yeniden Adlandır' : 'Görev Kategorisini Yeniden Adlandır'),
+                                  content: TextField(
+                                    controller: editCtrl,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Yeni Kategori Adı',
+                                    ),
+                                    autofocus: true,
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: const Text('İptal'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        final newName = editCtrl.text.trim();
+                                        if (newName.isNotEmpty) {
+                                          if (widget.isEvent) {
+                                            widget.appState.renameEventCategory(cat, newName);
+                                          } else {
+                                            widget.appState.renameTaskCategory(cat, newName);
+                                          }
+                                        }
+                                        Navigator.pop(ctx);
+                                        setState(() {});
+                                      },
+                                      child: const Text('Kaydet'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          if (cat != 'Genel' && cat != 'Yapılacaklar') ...[
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red, size: 16),
+                              onPressed: () {
+                                if (widget.isEvent) {
+                                  widget.appState.deleteEventCategory(cat);
+                                } else {
+                                  widget.appState.deleteTaskCategory(cat);
+                                }
+                                setState(() {});
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Kategori Rengi',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: _colorsList.map((colVal) {
+                                  final isSelected = colVal == catColor;
+                                  return GestureDetector(
+                                    onTap: () {
+                                      if (widget.isEvent) {
+                                        widget.appState.setEventTagColor(cat, colVal);
+                                      } else {
+                                        widget.appState.setTaskTagColor(cat, colVal);
+                                      }
+                                      setState(() {});
+                                    },
+                                    child: CircleAvatar(
+                                      radius: 11,
+                                      backgroundColor: Color(colVal),
+                                      child: isSelected
+                                          ? const Icon(Icons.check, size: 11, color: Colors.white)
+                                          : null,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              const Divider(height: 20),
+                              const Text(
+                                'Alt Kategoriler',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      onSubmitted: (val) {
+                                        final subName = val.trim();
+                                        if (subName.isNotEmpty) {
+                                          if (widget.isEvent) {
+                                            widget.appState.addEventSubTag(cat, subName);
+                                          } else {
+                                            widget.appState.addTaskSubTag(cat, subName);
+                                          }
+                                          setState(() {});
+                                        }
+                                      },
+                                      decoration: const InputDecoration(
+                                        hintText: 'Yeni Alt Kategori Yazıp Giriş Yapın...',
+                                        isDense: true,
+                                        hintStyle: TextStyle(fontSize: 11),
+                                      ),
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              if (subTags.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 4.0),
+                                  child: Text('Alt kategori bulunmuyor.', style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.grey)),
+                                )
+                              else
+                                ...subTags.map((sub) {
+                                  return ListTile(
+                                    title: Text(sub, style: const TextStyle(fontSize: 11)),
+                                    dense: true,
+                                    visualDensity: VisualDensity.compact,
+                                    contentPadding: EdgeInsets.zero,
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.edit, color: Colors.blue, size: 14),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            final editCtrl = TextEditingController(text: sub);
+                                            showDialog(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text('Alt Kategoriyi Yeniden Adlandır'),
+                                                content: TextField(
+                                                  controller: editCtrl,
+                                                  decoration: const InputDecoration(
+                                                    hintText: 'Yeni ad',
+                                                  ),
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(ctx),
+                                                    child: const Text('İptal'),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () {
+                                                      final newName = editCtrl.text.trim();
+                                                      if (newName.isNotEmpty) {
+                                                        if (widget.isEvent) {
+                                                          widget.appState.renameEventSubTag(cat, sub, newName);
+                                                        } else {
+                                                          widget.appState.renameTaskSubTag(cat, sub, newName);
+                                                        }
+                                                      }
+                                                      Navigator.pop(ctx);
+                                                      setState(() {});
+                                                    },
+                                                    child: const Text('Kaydet'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete, color: Colors.red, size: 14),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            if (widget.isEvent) {
+                                              widget.appState.deleteEventSubTag(cat, sub);
+                                            } else {
+                                              widget.appState.deleteTaskSubTag(cat, sub);
+                                            }
+                                            setState(() {});
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Kapat'),
+        ),
+      ],
     );
   }
 }

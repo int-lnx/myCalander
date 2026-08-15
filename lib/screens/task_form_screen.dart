@@ -567,9 +567,23 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                         ),
                         items: [
                           ...appState.taskTags.map((t) {
+                            final tagColorVal = appState.getTaskTagColor(t) ?? 0xFF2196F3;
                             return DropdownMenuItem<String>(
                               value: t,
-                              child: Text(t),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: Color(tagColorVal),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(t),
+                                ],
+                              ),
                             );
                           }),
                           const DropdownMenuItem<String>(
@@ -590,9 +604,13 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                               appState,
                             );
                             if (newTag != null) {
+                              final defaultColor = appState.getTaskTagColor(newTag);
                               setState(() {
                                 _tag = newTag;
                                 _subTag = null;
+                                if (defaultColor != null) {
+                                  _colorValue = defaultColor;
+                                }
                               });
                             } else {
                               setState(() {
@@ -604,13 +622,11 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                             final defaultColor = appState.getTaskTagColor(val);
                             setState(() {
                               if (_tag != val) {
-                                _superTaskId =
-                                    null; // Detach from super task if tag changes
+                                _superTaskId = null; // Detach from super task if tag changes
                               }
                               _tag = val;
                               _subTag = null;
-                              // Apply category default color only if task is new
-                              if (widget.existingTask == null && defaultColor != null) {
+                              if (defaultColor != null) {
                                 _colorValue = defaultColor;
                               }
                             });

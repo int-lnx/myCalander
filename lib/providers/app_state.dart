@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.58';
+  static const String appVersion = '2.74';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -86,6 +86,7 @@ class AppState extends ChangeNotifier {
 
   List<Note> _notes = [];
   List<Note> get notes => _notes;
+  late Future<void> _loadDataFuture;
 
   String _quickNote = '';
   String get quickNote => _quickNote;
@@ -95,11 +96,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('quickNote', _quickNote);
+    await prefs.setString('quickNoteUpdatedAt', DateTime.now().toIso8601String());
     if (_user != null) {
       try {
-        await _firestoreService.saveQuickNote(_user!.uid, _quickNote);
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+          email: _user!.email,
+        );
+        await _firestoreService.saveQuickNote(_firestoreUserId!, _quickNote);
       } catch (e) {
         debugPrint('Firestore save quickNote error: $e');
+        _lastFirebaseError = 'QuickNote: $e';
+        notifyListeners();
       }
     }
   }
@@ -129,11 +137,18 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final List<String> notesJson = _notes.map((n) => json.encode(n.toJson())).toList();
     await prefs.setStringList('keepNotes', notesJson);
+    await prefs.setString('keepNotesUpdatedAt', DateTime.now().toIso8601String());
     if (_user != null) {
       try {
-        await _firestoreService.saveNotes(_user!.uid, _notes.map((n) => n.toJson()).toList());
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
+          _user!.uid,
+          email: _user!.email,
+        );
+        await _firestoreService.saveNotes(_firestoreUserId!, _notes.map((n) => n.toJson()).toList());
       } catch (e) {
         debugPrint('Firestore saveNotes error: $e');
+        _lastFirebaseError = 'Notes: $e';
+        notifyListeners();
       }
     }
   }
@@ -223,9 +238,22 @@ class AppState extends ChangeNotifier {
   StreamSubscription<List<Serit>>? _seritsSubscription;
   StreamSubscription<List<Topic>>? _topicsSubscription;
   StreamSubscription<List<TopicPlan>>? _topicPlansSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _keepNotesSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _quickNoteSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _filterPresetsSubscription;
+
+  List<SavedFilterPreset> _savedFilterPresets = [];
+  List<SavedFilterPreset> get savedFilterPresets => _savedFilterPresets;
 
   final Map<String, bool> _eventTagsExpandedState = {};
   final Map<String, bool> _taskTagsExpandedState = {};
+  String? _lastFirebaseError;
+  String? get lastFirebaseError => _lastFirebaseError;
+
+  void clearFirebaseError() {
+    _lastFirebaseError = null;
+    notifyListeners();
+  }
 
   bool isEventTagExpanded(String tag) => _eventTagsExpandedState[tag] ?? true;
   bool isTaskTagExpanded(String tag) => _taskTagsExpandedState[tag] ?? true;
@@ -261,13 +289,13 @@ class AppState extends ChangeNotifier {
   List<String> _eventTags = ['Genel'];
   List<String> _selectedEventTags = ['Genel'];
   Map<String, List<String>> _eventSubTags = {'Genel': []};
-  final List<String> _selectedEventSubTags = [];
+  List<String> _selectedEventSubTags = [];
 
   // ---- Görev kategorileri ----
   List<String> _taskTags = ['Yapılacaklar'];
   List<String> _selectedTaskTags = ['Yapılacaklar'];
   Map<String, List<String>> _taskSubTags = {'Yapılacaklar': []};
-  final List<String> _selectedTaskSubTags = [];
+  List<String> _selectedTaskSubTags = [];
 
   /// [LEGACY COMPAT] Etkinlik taglarını döner — eski kod için.
   List<String> get availableTags => _eventTags;
@@ -275,7 +303,7 @@ class AppState extends ChangeNotifier {
   Map<String, List<String>> get categorySubTags => _eventSubTags;
   List<String> get selectedSubTags => _selectedEventSubTags;
 
-  final List<int> _selectedImportances = [0, 1, 2];
+  List<int> _selectedImportances = [0, 1, 2];
   String _searchQuery = '';
   int _searchResultIndex = 0;
   List<dynamic> _searchResults = [];
@@ -489,9 +517,29 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
+  bool _silentSignInAttempted = false;
+
+  Future<void> _attemptSilentSignIn() async {
+    if (_silentSignInAttempted) return;
+    _silentSignInAttempted = true;
+    try {
+      final credential = await _authService.signInSilently();
+      if (credential != null && credential.user != null) {
+        _user = credential.user;
+        notifyListeners();
+        if (_autoSync) {
+          await syncDataWithFirebase();
+        }
+      }
+    } catch (e) {
+      debugPrint('Silent sign in failed: $e');
+    }
+  }
+
   AppState() {
-    _loadData();
+    _loadDataFuture = _loadData();
     _authSub = _authService.authStateChanges.listen((user) async {
+      await _loadDataFuture;
       _user = user;
       if (user != null) {
         _firestoreUserId = await _firestoreService.getOrCreateSiralId(
@@ -500,7 +548,7 @@ class AppState extends ChangeNotifier {
         );
         notifyListeners();
         if (_autoSync) {
-          await syncDataWithFirebase();
+          syncDataWithFirebase();
           _startFirestoreListeners(_firestoreUserId!);
         } else {
           _cancelFirestoreListeners();
@@ -509,6 +557,7 @@ class AppState extends ChangeNotifier {
         _firestoreUserId = null;
         _cancelFirestoreListeners();
         notifyListeners();
+        _attemptSilentSignIn();
       }
     });
   }
@@ -655,6 +704,73 @@ class AppState extends ChangeNotifier {
         notifyListeners();
       }
     });
+
+    _quickNoteSubscription = _firestoreService.getQuickNoteStream(userId).listen((snapshot) async {
+      try {
+        if (snapshot.exists && snapshot.data() != null) {
+          final data = snapshot.data()!;
+          final String remoteNote = (data['note'] ?? '').toString();
+          if (_quickNote != remoteNote) {
+            _quickNote = remoteNote;
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('quickNote', _quickNote);
+            notifyListeners();
+          }
+        }
+      } catch (e) {
+        debugPrint('Error in quickNote listener: $e');
+        _lastFirebaseError = 'Listener quickNote: $e';
+        notifyListeners();
+      }
+    });
+
+    _keepNotesSubscription = _firestoreService.getNotesStream(userId).listen((snapshot) async {
+      try {
+        if (snapshot.exists && snapshot.data() != null) {
+          final data = snapshot.data()!;
+          if (data['notes'] != null) {
+            final List<dynamic> remoteList = data['notes'] as List<dynamic>;
+            final List<Note> parsedRemoteNotes = remoteList.map((n) => Note.fromJson(Map<String, dynamic>.from(n as Map))).toList();
+            final oldJson = json.encode(_notes.map((n) => n.toJson()).toList());
+            final newJson = json.encode(parsedRemoteNotes.map((n) => n.toJson()).toList());
+            if (oldJson != newJson) {
+              _notes = parsedRemoteNotes;
+              final prefs = await SharedPreferences.getInstance();
+              final List<String> notesJson = _notes.map((n) => json.encode(n.toJson())).toList();
+              await prefs.setStringList('keepNotes', notesJson);
+              notifyListeners();
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error in keepNotes listener: $e');
+        _lastFirebaseError = 'Listener keepNotes: $e';
+        notifyListeners();
+      }
+    });
+
+    _filterPresetsSubscription = _firestoreService.getFilterPresetsStream(userId).listen((snapshot) async {
+      try {
+        if (snapshot.exists && snapshot.data() != null) {
+          final data = snapshot.data()!;
+          if (data['presets'] != null) {
+            final List<dynamic> remoteList = data['presets'] as List<dynamic>;
+            final List<SavedFilterPreset> parsedRemotePresets = remoteList.map((p) => SavedFilterPreset.fromJson(Map<String, dynamic>.from(p as Map))).toList();
+            final oldJson = json.encode(_savedFilterPresets.map((p) => p.toJson()).toList());
+            final newJson = json.encode(parsedRemotePresets.map((p) => p.toJson()).toList());
+            if (oldJson != newJson) {
+              _savedFilterPresets = parsedRemotePresets;
+              await _saveFilterPresetsToPrefs();
+              notifyListeners();
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error in filterPresets listener: $e');
+        _lastFirebaseError = 'Listener filterPresets: $e';
+        notifyListeners();
+      }
+    });
   }
 
   void _cancelFirestoreListeners() {
@@ -666,6 +782,9 @@ class AppState extends ChangeNotifier {
     _seritsSubscription?.cancel();
     _topicsSubscription?.cancel();
     _topicPlansSubscription?.cancel();
+    _keepNotesSubscription?.cancel();
+    _quickNoteSubscription?.cancel();
+    _filterPresetsSubscription?.cancel();
   }
 
   Future<void> _loadData() async {
@@ -914,6 +1033,16 @@ class AppState extends ChangeNotifier {
         _topicPlans.add(TopicPlan.fromJson(json.decode(p)));
       } catch (err) {
         debugPrint('Error loading topicPlan: $err');
+      }
+    }
+
+    final presetsJson = prefs.getStringList('savedFilterPresets') ?? [];
+    _savedFilterPresets = [];
+    for (final p in presetsJson) {
+      try {
+        _savedFilterPresets.add(SavedFilterPreset.fromJson(json.decode(p)));
+      } catch (err) {
+        debugPrint('Error loading filter preset: $err');
       }
     }
 
@@ -1816,6 +1945,8 @@ class AppState extends ChangeNotifier {
       _tasks[index] = _tasks[index].copyWith(
         isCompleted: newCompleted,
         isInProgress: newCompleted ? false : _tasks[index].isInProgress,
+        completedDate: newCompleted ? DateTime.now() : null,
+        clearCompletedDate: !newCompleted,
       );
       if (_tasks[index].isCompleted) {
         NotificationService.cancelTaskNotifications(_tasks[index]);
@@ -2372,6 +2503,25 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> clearLocalCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    
+    // Clear local memory
+    _events.clear();
+    _tasks.clear();
+    _projects.clear();
+    _evaluations.clear();
+    _dayNotes.clear();
+    _paintedDays.clear();
+    _deletedTaskIds.clear();
+    _deletedEventIds.clear();
+    _deletedDayNoteIds.clear();
+    _deletedProjectIds.clear();
+    
+    notifyListeners();
+  }
+
   Future<void> clearAllUserData() async {
     if (_isSyncing) return;
     _isSyncing = true;
@@ -2551,6 +2701,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> syncDataWithFirebase() async {
+    await _loadDataFuture;
     if (_user == null) return;
     _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(
       _user!.uid,
@@ -2887,18 +3038,46 @@ class AppState extends ChangeNotifier {
 
       // Sync Quick Note
       try {
-        final remoteQuickNoteData = await _firestoreService.getQuickNote(
-          userId,
-        );
-        if (remoteQuickNoteData != null &&
-            remoteQuickNoteData['note'] != null) {
-          final String remoteNote = remoteQuickNoteData['note'].toString();
+        final remoteQuickNoteData = await _firestoreService.getQuickNote(userId);
+        final prefs = await SharedPreferences.getInstance();
+        final localQuickNoteUpdatedAt = prefs.getString('quickNoteUpdatedAt') ?? '';
+        
+        if (remoteQuickNoteData != null) {
+          final String remoteNote = (remoteQuickNoteData['note'] ?? '').toString();
+          final String remoteUpdatedAt = (remoteQuickNoteData['updatedAt'] ?? '').toString();
+          
           if (remoteNote.isNotEmpty && _quickNote.isEmpty) {
             _quickNote = remoteNote;
-            final prefs = await SharedPreferences.getInstance();
             await prefs.setString('quickNote', _quickNote);
-          } else if (_quickNote.isNotEmpty) {
+            await prefs.setString('quickNoteUpdatedAt', remoteUpdatedAt);
+          } else if (_quickNote.isNotEmpty && remoteNote.isEmpty) {
             await _firestoreService.saveQuickNote(userId, _quickNote);
+          } else if (_quickNote.isNotEmpty && remoteNote.isNotEmpty) {
+            if (remoteUpdatedAt.isNotEmpty && localQuickNoteUpdatedAt.isNotEmpty) {
+              final remoteTime = DateTime.tryParse(remoteUpdatedAt);
+              final localTime = DateTime.tryParse(localQuickNoteUpdatedAt);
+              if (remoteTime != null && localTime != null) {
+                if (remoteTime.isAfter(localTime)) {
+                  _quickNote = remoteNote;
+                  await prefs.setString('quickNote', _quickNote);
+                  await prefs.setString('quickNoteUpdatedAt', remoteUpdatedAt);
+                } else if (localTime.isAfter(remoteTime)) {
+                  await _firestoreService.saveQuickNote(userId, _quickNote);
+                }
+              } else {
+                _quickNote = remoteNote;
+                await prefs.setString('quickNote', _quickNote);
+                await prefs.setString('quickNoteUpdatedAt', remoteUpdatedAt);
+              }
+            } else {
+              if (_quickNote != remoteNote) {
+                _quickNote = remoteNote;
+                await prefs.setString('quickNote', _quickNote);
+                if (remoteUpdatedAt.isNotEmpty) {
+                  await prefs.setString('quickNoteUpdatedAt', remoteUpdatedAt);
+                }
+              }
+            }
           }
         } else if (_quickNote.isNotEmpty) {
           await _firestoreService.saveQuickNote(userId, _quickNote);
@@ -2910,15 +3089,47 @@ class AppState extends ChangeNotifier {
       // Sync Notes
       try {
         final remoteNotesData = await _firestoreService.getNotes(userId);
+        final prefs = await SharedPreferences.getInstance();
+        final localNotesUpdatedAt = prefs.getString('keepNotesUpdatedAt') ?? '';
+
         if (remoteNotesData != null && remoteNotesData['notes'] != null) {
           final List<dynamic> remoteList = remoteNotesData['notes'] as List<dynamic>;
+          final String remoteUpdatedAt = (remoteNotesData['updatedAt'] ?? '').toString();
+          
           if (remoteList.isNotEmpty && _notes.isEmpty) {
             _notes = remoteList.map((n) => Note.fromJson(Map<String, dynamic>.from(n as Map))).toList();
-            final prefs = await SharedPreferences.getInstance();
             final List<String> notesJson = _notes.map((n) => json.encode(n.toJson())).toList();
             await prefs.setStringList('keepNotes', notesJson);
-          } else if (_notes.isNotEmpty) {
+            await prefs.setString('keepNotesUpdatedAt', remoteUpdatedAt);
+          } else if (_notes.isNotEmpty && remoteList.isEmpty) {
             await _firestoreService.saveNotes(userId, _notes.map((n) => n.toJson()).toList());
+          } else if (_notes.isNotEmpty && remoteList.isNotEmpty) {
+            if (remoteUpdatedAt.isNotEmpty && localNotesUpdatedAt.isNotEmpty) {
+              final remoteTime = DateTime.tryParse(remoteUpdatedAt);
+              final localTime = DateTime.tryParse(localNotesUpdatedAt);
+              if (remoteTime != null && localTime != null) {
+                if (remoteTime.isAfter(localTime)) {
+                  _notes = remoteList.map((n) => Note.fromJson(Map<String, dynamic>.from(n as Map))).toList();
+                  final List<String> notesJson = _notes.map((n) => json.encode(n.toJson())).toList();
+                  await prefs.setStringList('keepNotes', notesJson);
+                  await prefs.setString('keepNotesUpdatedAt', remoteUpdatedAt);
+                } else if (localTime.isAfter(remoteTime)) {
+                  await _firestoreService.saveNotes(userId, _notes.map((n) => n.toJson()).toList());
+                }
+              } else {
+                _notes = remoteList.map((n) => Note.fromJson(Map<String, dynamic>.from(n as Map))).toList();
+                final List<String> notesJson = _notes.map((n) => json.encode(n.toJson())).toList();
+                await prefs.setStringList('keepNotes', notesJson);
+                await prefs.setString('keepNotesUpdatedAt', remoteUpdatedAt);
+              }
+            } else {
+              _notes = remoteList.map((n) => Note.fromJson(Map<String, dynamic>.from(n as Map))).toList();
+              final List<String> notesJson = _notes.map((n) => json.encode(n.toJson())).toList();
+              await prefs.setStringList('keepNotes', notesJson);
+              if (remoteUpdatedAt.isNotEmpty) {
+                await prefs.setString('keepNotesUpdatedAt', remoteUpdatedAt);
+              }
+            }
           }
         } else if (_notes.isNotEmpty) {
           await _firestoreService.saveNotes(userId, _notes.map((n) => n.toJson()).toList());
@@ -3057,6 +3268,40 @@ class AppState extends ChangeNotifier {
         if (!_topicPlans.any((lp) => lp.id == remotePlan.id)) {
           _topicPlans.add(remotePlan);
         }
+      }
+
+      // Sync Filter Presets
+      try {
+        final remotePresetsData = await _firestoreService.getFilterPresets(userId);
+        if (remotePresetsData != null && remotePresetsData['presets'] != null) {
+          final List<dynamic> remoteList = remotePresetsData['presets'] as List<dynamic>;
+          final List<SavedFilterPreset> parsedRemotePresets = remoteList
+              .map((p) => SavedFilterPreset.fromJson(Map<String, dynamic>.from(p as Map)))
+              .toList();
+
+          if (parsedRemotePresets.isNotEmpty && _savedFilterPresets.isEmpty) {
+            _savedFilterPresets = parsedRemotePresets;
+            await _saveFilterPresetsToPrefs();
+          } else if (_savedFilterPresets.isNotEmpty && parsedRemotePresets.isEmpty) {
+            await _firestoreService.saveFilterPresets(userId, _savedFilterPresets.map((p) => p.toJson()).toList());
+          } else if (_savedFilterPresets.isNotEmpty && parsedRemotePresets.isNotEmpty) {
+            bool changed = false;
+            for (var rp in parsedRemotePresets) {
+              if (!_savedFilterPresets.any((lp) => lp.name == rp.name)) {
+                _savedFilterPresets.add(rp);
+                changed = true;
+              }
+            }
+            if (changed) {
+              await _saveFilterPresetsToPrefs();
+              await _firestoreService.saveFilterPresets(userId, _savedFilterPresets.map((p) => p.toJson()).toList());
+            }
+          }
+        } else if (_savedFilterPresets.isNotEmpty) {
+          await _firestoreService.saveFilterPresets(userId, _savedFilterPresets.map((p) => p.toJson()).toList());
+        }
+      } catch (e) {
+        debugPrint('Sync filter presets error: $e');
       }
 
       _cleanDuplicateTasks();
@@ -4052,20 +4297,22 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void updateTopicPlan(TopicPlan plan) async {
+  void updateTopicPlan(TopicPlan plan, {bool forceStatus = false}) async {
     var updatedPlan = plan;
-    final hasHours = updatedPlan.dayReports.values.any(
-      (r) => r.hoursWorked > 0,
-    );
-    if (hasHours &&
-        (updatedPlan.status == 'Yapılacak' ||
-            updatedPlan.status == 'Bekleyenler' ||
-            updatedPlan.status == 'Başlanmadı')) {
-      updatedPlan = updatedPlan.copyWith(status: 'Yapılıyor');
-    } else if (!hasHours &&
-        (updatedPlan.status == 'Yapılıyor' ||
-            updatedPlan.status == 'Yapılanlar')) {
-      updatedPlan = updatedPlan.copyWith(status: 'Yapılacak');
+    if (!forceStatus) {
+      final hasHours = updatedPlan.dayReports.values.any(
+        (r) => r.hoursWorked > 0,
+      );
+      if (hasHours &&
+          (updatedPlan.status == 'Yapılacak' ||
+              updatedPlan.status == 'Bekleyenler' ||
+              updatedPlan.status == 'Başlanmadı')) {
+        updatedPlan = updatedPlan.copyWith(status: 'Yapılıyor');
+      } else if (!hasHours &&
+          (updatedPlan.status == 'Yapılıyor' ||
+              updatedPlan.status == 'Yapılanlar')) {
+        updatedPlan = updatedPlan.copyWith(status: 'Yapılacak');
+      }
     }
 
     if (updatedPlan.status == 'Bekleyenler') {
@@ -4539,5 +4786,201 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     await _saveTopics();
     await _saveTopicPlans();
+  }
+
+  Future<void> _saveFilterPresetsToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> presetsJson = _savedFilterPresets.map((p) => json.encode(p.toJson())).toList();
+    await prefs.setStringList('savedFilterPresets', presetsJson);
+  }
+
+  Future<void> saveFilterPreset(String name) async {
+    _savedFilterPresets.removeWhere((p) => p.name == name);
+    _savedFilterPresets.add(SavedFilterPreset(
+      name: name,
+      selectedEventTags: List<String>.from(_selectedEventTags),
+      selectedEventSubTags: List<String>.from(_selectedEventSubTags),
+      selectedTaskTags: List<String>.from(_selectedTaskTags),
+      selectedTaskSubTags: List<String>.from(_selectedTaskSubTags),
+      selectedImportances: List<int>.from(_selectedImportances),
+      selectedProjectIds: List<String>.from(_selectedProjectIds),
+    ));
+    await _saveFilterPresetsToPrefs();
+    notifyListeners();
+
+    if (_user != null && _autoSync) {
+      try {
+        final userId = await _firestoreService.getOrCreateSiralId(_user!.uid);
+        await _firestoreService.saveFilterPresets(userId, _savedFilterPresets.map((p) => p.toJson()).toList());
+      } catch (e) {
+        debugPrint('Firestore save presets error: $e');
+      }
+    }
+  }
+
+  Future<void> deleteFilterPreset(String name) async {
+    _savedFilterPresets.removeWhere((p) => p.name == name);
+    await _saveFilterPresetsToPrefs();
+    notifyListeners();
+
+    if (_user != null && _autoSync) {
+      try {
+        final userId = await _firestoreService.getOrCreateSiralId(_user!.uid);
+        await _firestoreService.saveFilterPresets(userId, _savedFilterPresets.map((p) => p.toJson()).toList());
+      } catch (e) {
+        debugPrint('Firestore delete preset error: $e');
+      }
+    }
+  }
+
+  void applyFilterPreset(SavedFilterPreset preset) {
+    _selectedEventTags = List<String>.from(preset.selectedEventTags);
+    _selectedEventSubTags = List<String>.from(preset.selectedEventSubTags);
+    _selectedTaskTags = List<String>.from(preset.selectedTaskTags);
+    _selectedTaskSubTags = List<String>.from(preset.selectedTaskSubTags);
+    _selectedImportances = List<int>.from(preset.selectedImportances);
+    _selectedProjectIds = List<String>.from(preset.selectedProjectIds);
+    notifyListeners();
+  }
+
+  Future<void> savePlanSettings(
+    String projectId,
+    double dailyCapacityHours,
+    List<int> excludedWeekdays,
+    List<String> excludedDatesSerialized,
+  ) async {
+    if (_user != null && _autoSync) {
+      try {
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        await _firestoreService.savePlanSettings(
+          _firestoreUserId!,
+          projectId,
+          dailyCapacityHours,
+          excludedWeekdays,
+          excludedDatesSerialized,
+        );
+      } catch (e) {
+        debugPrint('Firestore save plan settings error: $e');
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>?> loadPlanSettings(String projectId) async {
+    if (_user != null) {
+      try {
+        _firestoreUserId ??= await _firestoreService.getOrCreateSiralId(_user!.uid);
+        return await _firestoreService.getPlanSettings(_firestoreUserId!, projectId);
+      } catch (e) {
+        debugPrint('Firestore load plan settings error: $e');
+      }
+    }
+    return null;
+  }
+
+  int getPasCount(String projectId, DateTime date) {
+    final evals = _evaluations.where((e) => e.projectId == projectId).toList();
+    if (evals.isEmpty) return 0;
+    evals.sort((a, b) => a.sessionDate.compareTo(b.sessionDate));
+    final earliestDate = DateTime(evals.first.sessionDate.year, evals.first.sessionDate.month, evals.first.sessionDate.day);
+    final targetDate = DateTime(date.year, date.month, date.day);
+    if (targetDate.isBefore(earliestDate)) return 0;
+
+    int count = 0;
+    DateTime currentDay = targetDate;
+    while (!currentDay.isBefore(earliestDate)) {
+      final dayEval = evals.firstWhere(
+        (e) => e.sessionDate.year == currentDay.year &&
+               e.sessionDate.month == currentDay.month &&
+               e.sessionDate.day == currentDay.day,
+        orElse: () => ProjectEvaluation(
+          id: '',
+          projectId: '',
+          sessionDate: DateTime(2000),
+          score: 0,
+          isSkipped: false,
+          durationHours: 0,
+        ),
+      );
+
+      if (dayEval.id.isEmpty) {
+        count++;
+      } else if (dayEval.isSkipped) {
+        count++;
+      } else {
+        // Successful log entry found, reset/stop counting!
+        break;
+      }
+      currentDay = currentDay.subtract(const Duration(days: 1));
+    }
+    return count;
+  }
+
+  int getTaskPasCount(TopicPlan plan, DateTime date) {
+    if (plan.dayReports.isEmpty) return 0;
+    final start = plan.startDate;
+    final earliestDate = DateTime(start.year, start.month, start.day);
+    final targetDate = DateTime(date.year, date.month, date.day);
+    if (targetDate.isBefore(earliestDate)) return 0;
+
+    int count = 0;
+    DateTime currentDay = targetDate;
+    while (!currentDay.isBefore(earliestDate)) {
+      final key = '${currentDay.year}-${currentDay.month.toString().padLeft(2, '0')}-${currentDay.day.toString().padLeft(2, '0')}';
+      final report = plan.dayReports[key];
+
+      if (report == null) {
+        count++;
+      } else if (report.offset == 1 || report.isWaiting) {
+        count++;
+      } else if (report.hoursWorked > 0) {
+        break;
+      } else {
+        count++;
+      }
+      currentDay = currentDay.subtract(const Duration(days: 1));
+    }
+    return count;
+  }
+}
+
+class SavedFilterPreset {
+  final String name;
+  final List<String> selectedEventTags;
+  final List<String> selectedEventSubTags;
+  final List<String> selectedTaskTags;
+  final List<String> selectedTaskSubTags;
+  final List<int> selectedImportances;
+  final List<String> selectedProjectIds;
+
+  SavedFilterPreset({
+    required this.name,
+    required this.selectedEventTags,
+    required this.selectedEventSubTags,
+    required this.selectedTaskTags,
+    required this.selectedTaskSubTags,
+    required this.selectedImportances,
+    required this.selectedProjectIds,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'selectedEventTags': selectedEventTags,
+    'selectedEventSubTags': selectedEventSubTags,
+    'selectedTaskTags': selectedTaskTags,
+    'selectedTaskSubTags': selectedTaskSubTags,
+    'selectedImportances': selectedImportances,
+    'selectedProjectIds': selectedProjectIds,
+  };
+
+  factory SavedFilterPreset.fromJson(Map<String, dynamic> json) {
+    return SavedFilterPreset(
+      name: json['name'] as String,
+      selectedEventTags: List<String>.from(json['selectedEventTags'] ?? []),
+      selectedEventSubTags: List<String>.from(json['selectedEventSubTags'] ?? []),
+      selectedTaskTags: List<String>.from(json['selectedTaskTags'] ?? []),
+      selectedTaskSubTags: List<String>.from(json['selectedTaskSubTags'] ?? []),
+      selectedImportances: List<int>.from(json['selectedImportances'] ?? []),
+      selectedProjectIds: List<String>.from(json['selectedProjectIds'] ?? []),
+    );
   }
 }

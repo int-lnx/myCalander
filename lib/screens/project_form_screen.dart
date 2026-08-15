@@ -75,7 +75,10 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     _defaultDurationController = TextEditingController(
       text: proj?.defaultDuration?.toString() ?? '',
     );
+    _checkSteps = List<ProjectStep>.from(proj?.checkSteps ?? []);
   }
+
+  List<ProjectStep> _checkSteps = [];
 
   @override
   void dispose() {
@@ -333,6 +336,137 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                 ],
               ),
             ),
+            const Divider(),
+            const SizedBox(height: 16),
+            const Text(
+              'Proje Kontrol Adımları (Checklist)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _checkSteps.length,
+              itemBuilder: (context, idx) {
+                final step = _checkSteps[idx];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(step.title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                    step.weight != null ? 'Ağırlık: %${step.weight!.toStringAsFixed(0)}' : 'Ağırlık: Otomatik',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                        onPressed: () {
+                          final titleCtrl = TextEditingController(text: step.title);
+                          final weightCtrl = TextEditingController(text: step.weight?.toStringAsFixed(0) ?? '');
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Kontrol Adımını Düzenle'),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextField(
+                                    controller: titleCtrl,
+                                    decoration: const InputDecoration(labelText: 'Adım Adı'),
+                                  ),
+                                  TextField(
+                                    controller: weightCtrl,
+                                    decoration: const InputDecoration(labelText: 'Ağırlık Yüzdesi (Opsiyonel)'),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Vazgeç'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    final title = titleCtrl.text.trim();
+                                    if (title.isNotEmpty) {
+                                      final weight = double.tryParse(weightCtrl.text.trim());
+                                      setState(() {
+                                        _checkSteps[idx] = ProjectStep(title: title, weight: weight);
+                                      });
+                                    }
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Güncelle'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            _checkSteps.removeAt(idx);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Kontrol Adımı Ekle', style: TextStyle(fontSize: 12)),
+              onPressed: () {
+                final titleCtrl = TextEditingController();
+                final weightCtrl = TextEditingController();
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Kontrol Adımı Ekle'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: titleCtrl,
+                          decoration: const InputDecoration(labelText: 'Adım Adı (örn: Spor)'),
+                        ),
+                        TextField(
+                          controller: weightCtrl,
+                          decoration: const InputDecoration(labelText: 'Ağırlık Yüzdesi (Opsiyonel, Örn: 30)'),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Vazgeç'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          final title = titleCtrl.text.trim();
+                          if (title.isNotEmpty) {
+                            final weight = double.tryParse(weightCtrl.text.trim());
+                            setState(() {
+                              _checkSteps.add(ProjectStep(title: title, weight: weight));
+                            });
+                          }
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Ekle'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
             if (widget.existingProject != null) ...[
               const SizedBox(height: 16),
               SwitchListTile(
@@ -380,6 +514,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         defaultNumeric: _trackNumeric ? defNum : null,
         defaultDuration: _trackDuration ? defDur : null,
         dataOrder: _dataOrder,
+        checkSteps: _checkSteps,
       );
 
       if (widget.existingProject == null) {

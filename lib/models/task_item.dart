@@ -25,6 +25,7 @@ class TaskItem {
   final List<int> notificationOffsets;
   final bool isInProgress;
   final DateTime createdAt;
+  final DateTime? completedDate;
 
   TaskItem({
     required this.id,
@@ -52,6 +53,7 @@ class TaskItem {
     this.isInProgress = false,
     String? seriesId,
     DateTime? createdAt,
+    this.completedDate,
   }) : seriesId = seriesId ?? id,
        createdAt = createdAt ?? DateTime.now(),
        from = (isAllDay && from != null) ? DateTime(from.year, from.month, from.day) : from,
@@ -86,6 +88,8 @@ class TaskItem {
     bool clearSubTag = false,
     String? seriesId,
     DateTime? createdAt,
+    DateTime? completedDate,
+    bool clearCompletedDate = false,
   }) {
     return TaskItem(
       id: id ?? this.id,
@@ -113,6 +117,7 @@ class TaskItem {
       isInProgress: isInProgress ?? this.isInProgress,
       seriesId: seriesId ?? this.seriesId,
       createdAt: createdAt ?? this.createdAt,
+      completedDate: clearCompletedDate ? null : (completedDate ?? this.completedDate),
     );
   }
 
@@ -143,6 +148,7 @@ class TaskItem {
       'notificationMinutesBefore': notificationMinutesBefore,
       'notificationOffsets': notificationOffsets,
       'createdAt': createdAt.toIso8601String(),
+      'completedDate': completedDate?.toIso8601String(),
     };
   }
 
@@ -186,6 +192,7 @@ class TaskItem {
             : DateTime(2020, 1, 1);
         return parsed.isAfter(DateTime.now()) ? DateTime(2020, 1, 1) : parsed;
       })(),
+      completedDate: json['completedDate'] != null ? DateTime.parse(json['completedDate']) : null,
     );
   }
 }

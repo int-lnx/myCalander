@@ -14,7 +14,7 @@ class NotesScreen extends StatefulWidget {
 class _NotesScreenState extends State<NotesScreen> {
   bool _isExpanded = false;
   final _titleController = TextEditingController();
-  final _contentController = TextEditingController();
+  final _contentController = FormattedTextEditingController();
   final _tagController = TextEditingController();
   
   int _selectedColorValue = 0xFFFFFFFF; // Default White
@@ -300,6 +300,24 @@ class _NotesScreenState extends State<NotesScreen> {
     final appState = Provider.of<AppState>(context);
     final isDark = appState.isDarkMode;
     final allNotes = appState.notes;
+
+    if (appState.lastFirebaseError != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Firebase Hatası: ${appState.lastFirebaseError}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Kapat',
+              textColor: Colors.white,
+              onPressed: () => appState.clearFirebaseError(),
+            ),
+          ),
+        );
+        appState.clearFirebaseError();
+      });
+    }
 
     final pinnedNotes = allNotes.where((n) => n.isPinned).toList();
     final otherNotes = allNotes.where((n) => !n.isPinned).toList();
@@ -744,7 +762,7 @@ class EditNoteDialog extends StatefulWidget {
 
 class _EditNoteDialogState extends State<EditNoteDialog> {
   late TextEditingController _titleController;
-  late TextEditingController _contentController;
+  late FormattedTextEditingController _contentController;
   late int _colorValue;
   late bool _isPinned;
   late List<String> _tags;
@@ -754,7 +772,7 @@ class _EditNoteDialogState extends State<EditNoteDialog> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.note.title);
-    _contentController = TextEditingController(text: widget.note.content);
+    _contentController = FormattedTextEditingController(text: widget.note.content);
     _colorValue = widget.note.colorValue;
     _isPinned = widget.note.isPinned;
     _tags = List.from(widget.note.tags);
@@ -806,9 +824,12 @@ class _EditNoteDialogState extends State<EditNoteDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 750,
-        height: 500,
+      content: Container(
+        width: double.maxFinite,
+        constraints: BoxConstraints(
+          maxWidth: 750,
+          maxHeight: MediaQuery.of(context).size.height * 0.45,
+        ),
         child: Scrollbar(
           controller: _scrollController,
           thumbVisibility: true,
@@ -868,144 +889,150 @@ class _EditNoteDialogState extends State<EditNoteDialog> {
       ),
       actionsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       actions: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    Icons.format_bold,
-                    color: isNoteDark ? Colors.white70 : Colors.black87,
-                    size: 20,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.format_bold,
+                      color: isNoteDark ? Colors.white70 : Colors.black87,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      final text = _contentController.text;
+                      final selection = _contentController.selection;
+                      if (!selection.isValid) return;
+                      final start = selection.start;
+                      final end = selection.end;
+                      if (start != end) {
+                        final selectedText = text.substring(start, end);
+                        final newText = text.replaceRange(start, end, '**$selectedText**');
+                        _contentController.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection(baseOffset: start, extentOffset: end + 4),
+                        );
+                      } else {
+                        final newText = text.replaceRange(start, end, '****');
+                        _contentController.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection.collapsed(offset: start + 2),
+                        );
+                      }
+                    },
                   ),
-                  onPressed: () {
-                    final text = _contentController.text;
-                    final selection = _contentController.selection;
-                    if (!selection.isValid) return;
-                    final start = selection.start;
-                    final end = selection.end;
-                    if (start != end) {
-                      final selectedText = text.substring(start, end);
-                      final newText = text.replaceRange(start, end, '**$selectedText**');
-                      _contentController.value = TextEditingValue(
-                        text: newText,
-                        selection: TextSelection(baseOffset: start, extentOffset: end + 4),
-                      );
-                    } else {
-                      final newText = text.replaceRange(start, end, '****');
-                      _contentController.value = TextEditingValue(
-                        text: newText,
-                        selection: TextSelection.collapsed(offset: start + 2),
-                      );
-                    }
-                  },
-                ),
-                IconButton(
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    Icons.format_italic,
-                    color: isNoteDark ? Colors.white70 : Colors.black87,
-                    size: 20,
+                  IconButton(
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.format_italic,
+                      color: isNoteDark ? Colors.white70 : Colors.black87,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      final text = _contentController.text;
+                      final selection = _contentController.selection;
+                      if (!selection.isValid) return;
+                      final start = selection.start;
+                      final end = selection.end;
+                      if (start != end) {
+                        final selectedText = text.substring(start, end);
+                        final newText = text.replaceRange(start, end, '*$selectedText*');
+                        _contentController.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection(baseOffset: start, extentOffset: end + 2),
+                        );
+                      } else {
+                        final newText = text.replaceRange(start, end, '**');
+                        _contentController.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection.collapsed(offset: start + 1),
+                        );
+                      }
+                    },
                   ),
-                  onPressed: () {
-                    final text = _contentController.text;
-                    final selection = _contentController.selection;
-                    if (!selection.isValid) return;
-                    final start = selection.start;
-                    final end = selection.end;
-                    if (start != end) {
-                      final selectedText = text.substring(start, end);
-                      final newText = text.replaceRange(start, end, '*$selectedText*');
-                      _contentController.value = TextEditingValue(
-                        text: newText,
-                        selection: TextSelection(baseOffset: start, extentOffset: end + 2),
-                      );
-                    } else {
-                      final newText = text.replaceRange(start, end, '**');
-                      _contentController.value = TextEditingValue(
-                        text: newText,
-                        selection: TextSelection.collapsed(offset: start + 1),
-                      );
-                    }
-                  },
-                ),
-                IconButton(
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    Icons.format_strikethrough,
-                    color: isNoteDark ? Colors.white70 : Colors.black87,
-                    size: 20,
+                  IconButton(
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.format_strikethrough,
+                      color: isNoteDark ? Colors.white70 : Colors.black87,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      final text = _contentController.text;
+                      final selection = _contentController.selection;
+                      if (!selection.isValid) return;
+                      final start = selection.start;
+                      final end = selection.end;
+                      if (start != end) {
+                        final selectedText = text.substring(start, end);
+                        final newText = text.replaceRange(start, end, '~~$selectedText~~');
+                        _contentController.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection(baseOffset: start, extentOffset: end + 4),
+                        );
+                      } else {
+                        final newText = text.replaceRange(start, end, '~~~~');
+                        _contentController.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection.collapsed(offset: start + 2),
+                        );
+                      }
+                    },
                   ),
-                  onPressed: () {
-                    final text = _contentController.text;
-                    final selection = _contentController.selection;
-                    if (!selection.isValid) return;
-                    final start = selection.start;
-                    final end = selection.end;
-                    if (start != end) {
-                      final selectedText = text.substring(start, end);
-                      final newText = text.replaceRange(start, end, '~~$selectedText~~');
-                      _contentController.value = TextEditingValue(
-                        text: newText,
-                        selection: TextSelection(baseOffset: start, extentOffset: end + 4),
-                      );
-                    } else {
-                      final newText = text.replaceRange(start, end, '~~~~');
-                      _contentController.value = TextEditingValue(
-                        text: newText,
-                        selection: TextSelection.collapsed(offset: start + 2),
-                      );
-                    }
-                  },
-                ),
-                IconButton(
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    Icons.palette_outlined,
-                    color: isNoteDark ? Colors.white70 : Colors.black87,
-                    size: 20,
-                  ),
-                  onPressed: () {
-                    widget.onColorPickerRequested((color) {
-                      setState(() {
-                        _colorValue = color;
+                  IconButton(
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.palette_outlined,
+                      color: isNoteDark ? Colors.white70 : Colors.black87,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      widget.onColorPickerRequested((color) {
+                        setState(() {
+                          _colorValue = color;
+                        });
                       });
-                    });
-                  },
-                ),
-                IconButton(
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    Icons.label_outline,
-                    color: isNoteDark ? Colors.white70 : Colors.black87,
-                    size: 20,
+                    },
                   ),
-                  onPressed: () {
-                    widget.onTagsDialogRequested(_tags, (updatedTags) {
-                      setState(() {
-                        _tags = updatedTags;
+                  IconButton(
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.label_outline,
+                      color: isNoteDark ? Colors.white70 : Colors.black87,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      widget.onTagsDialogRequested(_tags, (updatedTags) {
+                        setState(() {
+                          _tags = updatedTags;
+                        });
                       });
-                    });
-                  },
-                ),
-                IconButton(
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                  onPressed: () {
-                    widget.appState.deleteNote(widget.note.id);
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
+                    },
+                  ),
+                  IconButton(
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                    onPressed: () {
+                      widget.appState.deleteNote(widget.note.id);
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
             ),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -1055,3 +1082,63 @@ class _EditNoteDialogState extends State<EditNoteDialog> {
     );
   }
 }
+
+class FormattedTextEditingController extends TextEditingController {
+  FormattedTextEditingController({super.text});
+
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    final baseStyle = style ?? const TextStyle();
+    final RegExp exp = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|~~.*?~~)');
+    final List<TextSpan> spans = [];
+    int start = 0;
+
+    for (final Match match in exp.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start), style: baseStyle));
+      }
+      final String matchText = match.group(0)!;
+      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
+        final innerText = matchText.substring(3, matchText.length - 3);
+        spans.add(TextSpan(text: '***', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+        spans.add(TextSpan(
+          text: innerText,
+          style: baseStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+        ));
+        spans.add(TextSpan(text: '***', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
+        final innerText = matchText.substring(2, matchText.length - 2);
+        spans.add(TextSpan(text: '**', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+        spans.add(TextSpan(
+          text: innerText,
+          style: baseStyle.copyWith(fontWeight: FontWeight.bold),
+        ));
+        spans.add(TextSpan(text: '**', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
+        final innerText = matchText.substring(1, matchText.length - 1);
+        spans.add(TextSpan(text: '*', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+        spans.add(TextSpan(
+          text: innerText,
+          style: baseStyle.copyWith(fontStyle: FontStyle.italic),
+        ));
+        spans.add(TextSpan(text: '*', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+      } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
+        final innerText = matchText.substring(2, matchText.length - 2);
+        spans.add(TextSpan(text: '~~', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+        spans.add(TextSpan(
+          text: innerText,
+          style: baseStyle.copyWith(decoration: TextDecoration.lineThrough),
+        ));
+        spans.add(TextSpan(text: '~~', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+      }
+      start = match.end;
+    }
+
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start), style: baseStyle));
+    }
+
+    return TextSpan(children: spans);
+  }
+}
+

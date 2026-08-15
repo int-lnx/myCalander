@@ -433,5 +433,81 @@ class FirestoreService {
         .get();
     return doc.data();
   }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getNotesStream(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('keepNotes')
+        .snapshots();
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getQuickNoteStream(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('quickNote')
+        .snapshots();
+  }
+
+  Future<void> saveFilterPresets(String userId, List<Map<String, dynamic>> presetsJson) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('filterPresets')
+        .set({'presets': presetsJson, 'updatedAt': DateTime.now().toIso8601String()});
+  }
+
+  Future<Map<String, dynamic>?> getFilterPresets(String userId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('filterPresets')
+        .get();
+    return doc.data();
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getFilterPresetsStream(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('filterPresets')
+        .snapshots();
+  }
+
+  Future<void> savePlanSettings(
+    String userId,
+    String projectId,
+    double dailyCapacityHours,
+    List<int> excludedWeekdays,
+    List<String> excludedDatesSerialized,
+  ) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('planSettings_$projectId')
+        .set({
+          'dailyCapacityHours': dailyCapacityHours,
+          'excludedWeekdays': excludedWeekdays,
+          'excludedDates': excludedDatesSerialized,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+  }
+
+  Future<Map<String, dynamic>?> getPlanSettings(String userId, String projectId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('planSettings_$projectId')
+        .get();
+    return doc.data();
+  }
 }
 

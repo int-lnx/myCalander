@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../providers/app_state.dart';
 import '../models/day_note.dart';
 import '../models/project.dart';
+import '../utils/emoji_data.dart';
 
 class DayNoteDialog extends StatefulWidget {
   final AppState appState;
@@ -62,6 +63,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
   int? _rating;
   String? _emoji;
   bool _showEmojiPicker = false;
+  String _emojiSearchQuery = '';
 
   @override
   void initState() {
@@ -106,9 +108,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
           (e) =>
               e.sessionDate.year == _normalizedDate.year &&
               e.sessionDate.month == _normalizedDate.month &&
-              e.sessionDate.day == _normalizedDate.day &&
-              e.note != null &&
-              e.note!.trim().isNotEmpty,
+              e.sessionDate.day == _normalizedDate.day,
         )
         .toList();
 
@@ -268,7 +268,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                             ),
                             Text(
                               eval.isSkipped
-                                  ? 'Pas'
+                                  ? 'Pas ${widget.appState.getPasCount(project.id, eval.sessionDate)}'
                                   : (project.evaluationType == 'PERCENTAGE'
                                         ? '%${eval.score.toStringAsFixed(0)}'
                                         : '${eval.score.toStringAsFixed(0)} Puan'),
@@ -294,8 +294,19 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                         ],
                         const SizedBox(height: 6),
                         Text(
-                          eval.note ?? '',
-                          style: const TextStyle(fontSize: 13, height: 1.4),
+                          (eval.note != null && eval.note!.trim().isNotEmpty)
+                              ? eval.note!
+                              : (eval.isSkipped
+                                  ? 'Herhangi bir not girilmedi (Pas).'
+                                  : (project.evaluationType == 'PERCENTAGE'
+                                      ? 'Değer: %${eval.score.toStringAsFixed(0)} (Not girilmedi)'
+                                      : 'Değer: ${eval.score.toStringAsFixed(0)} Puan (Not girilmedi)')),
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            fontStyle: (eval.note == null || eval.note!.trim().isEmpty) ? FontStyle.italic : FontStyle.normal,
+                            color: (eval.note == null || eval.note!.trim().isEmpty) ? Colors.grey : (isDark ? Colors.white70 : Colors.black87),
+                          ),
                         ),
                       ],
                     ),
@@ -539,76 +550,16 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          ...[
-                            '😊',
-                            '😐',
-                            '😢',
-                            '😡',
-                            '🎉',
-                            '💪',
-                            '🔥',
-                            '😴',
-                            '🥳',
-                            '😭',
-                            '❤️',
-                            '🌟',
-                            '🎯',
-                            '💼',
-                            '🏠',
-                            '✈️',
-                          ].map((emo) {
-                            final isSelected = _emoji == emo;
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _emoji = isSelected ? null : emo;
-                                  _showEmojiPicker = false;
-                                });
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? Colors.amber.shade100
-                                      : Colors.transparent,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.amber
-                                        : Colors.transparent,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                child: Text(
-                                  emo,
-                                  style: const TextStyle(fontSize: 20),
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                      const Divider(height: 16),
                       Row(
                         children: [
-                          const Text(
-                            'Klavye ile gir:',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          const Icon(Icons.search, size: 16, color: Colors.grey),
                           const SizedBox(width: 8),
                           Expanded(
                             child: SizedBox(
                               height: 36,
                               child: TextField(
                                 decoration: InputDecoration(
-                                  hintText: 'Emoji yazın...',
+                                  hintText: 'Emoji veya anahtar kelime ara...',
                                   hintStyle: const TextStyle(fontSize: 12),
                                   isDense: true,
                                   counterText: '',
@@ -622,18 +573,72 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                                   ),
                                 ),
                                 style: const TextStyle(fontSize: 14),
-                                maxLength: 4,
                                 onChanged: (val) {
-                                  if (val.trim().isNotEmpty) {
-                                    setState(() {
-                                      _emoji = val.trim();
-                                    });
-                                  }
+                                  setState(() {
+                                    _emojiSearchQuery = val;
+                                  });
                                 },
                               ),
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Seçmek için dokunun:',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 180),
+                        child: Scrollbar(
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: searchEmojis(_emojiSearchQuery).map((emoItem) {
+                                final emo = emoItem.emoji;
+                                final isSelected = _emoji == emo;
+                                return Tooltip(
+                                  message: emoItem.name,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _emoji = isSelected ? null : emo;
+                                        _showEmojiPicker = false;
+                                        _emojiSearchQuery = '';
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.amber.shade100
+                                            : Colors.transparent,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? Colors.amber
+                                              : Colors.transparent,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        emo,
+                                        style: const TextStyle(fontSize: 20),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
