@@ -57,6 +57,7 @@ class DayNoteDialog extends StatefulWidget {
 
 class _DayNoteDialogState extends State<DayNoteDialog> {
   late TextEditingController _controller;
+  late TextEditingController _emojiController;
   late DateTime _normalizedDate;
   DayNote? _existingNote;
   late bool _isEditMode;
@@ -64,6 +65,15 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
   String? _emoji;
   bool _showEmojiPicker = false;
   String _emojiSearchQuery = '';
+
+  void _onEmojiChanged() {
+    final text = _emojiController.text.trim();
+    if (_emoji != (text.isNotEmpty ? text : null)) {
+      setState(() {
+        _emoji = text.isNotEmpty ? text : null;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -87,11 +97,15 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
     _controller = TextEditingController(text: _existingNote?.note ?? '');
     _rating = _existingNote?.rating;
     _emoji = _existingNote?.emoji;
+    _emojiController = TextEditingController(text: _emoji ?? '');
+    _emojiController.addListener(_onEmojiChanged);
   }
 
   @override
   void dispose() {
+    _emojiController.removeListener(_onEmojiChanged);
     _controller.dispose();
+    _emojiController.dispose();
     super.dispose();
   }
 
@@ -438,38 +452,41 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      InkWell(
-                        onTap: () {
-                          setState(() {
-                            _showEmojiPicker = !_showEmojiPicker;
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _emoji ?? '😊',
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
+                      SizedBox(
+                        width: 130,
+                        child: TextField(
+                          controller: _emojiController,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 20),
+                          enableInteractiveSelection: true,
+                          decoration: InputDecoration(
+                            hintText: 'Seç',
+                            hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            suffixIcon: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _showEmojiPicker = !_showEmojiPicker;
+                                });
+                              },
+                              child: Icon(
                                 _showEmojiPicker
                                     ? Icons.arrow_drop_up
                                     : Icons.arrow_drop_down,
                                 size: 18,
                                 color: Colors.grey.shade600,
                               ),
-                            ],
+                            ),
                           ),
+                          onChanged: (val) {
+                            setState(() {
+                              _emoji = val.trim().isNotEmpty ? val.trim() : null;
+                            });
+                          },
                         ),
                       ),
                     ],
@@ -610,6 +627,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                                     onTap: () {
                                       setState(() {
                                         _emoji = isSelected ? null : emo;
+                                        _emojiController.text = _emoji ?? '';
                                         _showEmojiPicker = false;
                                         _emojiSearchQuery = '';
                                       });
@@ -658,6 +676,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               const SizedBox(height: 6),
               TextField(
                 controller: _controller,
+                autofocus: true,
                 enableInteractiveSelection: true,
                 minLines: 8,
                 maxLines: 15,
@@ -721,11 +740,12 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
             const SizedBox(width: 8),
             ElevatedButton(
               onPressed: () {
+                final emojiText = _emojiController.text.trim();
                 widget.appState.addOrUpdateDayNote(
                   _normalizedDate,
                   _controller.text,
                   rating: _rating,
-                  emoji: _emoji,
+                  emoji: emojiText.isNotEmpty ? emojiText : null,
                 );
                 Navigator.pop(context);
 

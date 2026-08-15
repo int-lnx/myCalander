@@ -182,6 +182,9 @@ class AppState extends ChangeNotifier {
   bool _showRecentView = false;
   bool get showRecentView => _showRecentView;
 
+  bool _showDailyNotesView = false;
+  bool get showDailyNotesView => _showDailyNotesView;
+
   List<Topic> _topics = [];
   List<Topic> get topics => _topics;
 
@@ -3952,6 +3955,7 @@ class AppState extends ChangeNotifier {
     _showSeritView = false;
     _showPlanView = false;
     _showRecentView = false;
+    _showDailyNotesView = false;
     _calendarView = view;
     notifyListeners();
   }
@@ -3961,6 +3965,7 @@ class AppState extends ChangeNotifier {
     if (value) {
       _showPlanView = false;
       _showRecentView = false;
+      _showDailyNotesView = false;
     }
     notifyListeners();
   }
@@ -3970,6 +3975,7 @@ class AppState extends ChangeNotifier {
     if (value) {
       _showSeritView = false;
       _showRecentView = false;
+      _showDailyNotesView = false;
     }
     notifyListeners();
   }
@@ -3979,6 +3985,17 @@ class AppState extends ChangeNotifier {
     if (value) {
       _showPlanView = false;
       _showSeritView = false;
+      _showDailyNotesView = false;
+    }
+    notifyListeners();
+  }
+
+  void setShowDailyNotesView(bool value) {
+    _showDailyNotesView = value;
+    if (value) {
+      _showPlanView = false;
+      _showSeritView = false;
+      _showRecentView = false;
     }
     notifyListeners();
   }

@@ -21,6 +21,7 @@ import 'task_form_screen.dart';
 import 'project_form_screen.dart';
 import 'all_timeline_screen.dart';
 import 'recent_items_screen.dart';
+import 'daily_notes_screen.dart';
 import 'package:my_plan/screens/plan_screen.dart' show PlanScreen;
 import '../dialogs/project_evaluation_dialog.dart';
 
@@ -1291,6 +1292,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (appState.showRecentView) {
       return const RecentItemsScreen();
     }
+    if (appState.showDailyNotesView) {
+      return const DailyNotesScreen();
+    }
     final calendarController = appState.calendarController;
     final List<Event> events = appState.filteredEvents;
     final List<TaskItem> tasks = appState.filteredTasks
@@ -1479,14 +1483,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final shortMonthClones = _getShortMonthClones(events, tasks);
     final timedClones = shortMonthClones.where((c) => !c.isAllDay).toList();
     calendarItems.addAll(timedClones);
-
-    if (appState.calendarView == CalendarView.schedule) {
-      for (var note in appState.dayNotes) {
-        if (note.note.trim().isNotEmpty) {
-          calendarItems.add(note);
-        }
-      }
-    }
 
     // Group and limit all-day items for visible dates
     final List<DateTime> datesToProcess = _visibleDates.isNotEmpty
@@ -3143,7 +3139,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 rowChildren.add(
                                   Text(
                                     dayNote.emoji!,
-                                    style: const TextStyle(fontSize: 8),
+                                    style: const TextStyle(fontSize: 14),
                                   ),
                                 );
                                 rowChildren.add(const SizedBox(width: 2));
@@ -3161,7 +3157,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 );
                                 rowChildren.add(const SizedBox(width: 2));
                               }
-                              if (dayNote != null && dayNote.note.trim().isNotEmpty) {
+                              if (dayNote != null && dayNote.note.trim().isNotEmpty && !hasEmoji) {
                                 rowChildren.add(
                                   Icon(
                                     Icons.note_alt_outlined,
@@ -3171,9 +3167,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 );
                               }
                               if (rowChildren.isNotEmpty) {
-                                noteInfoWidget = Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: rowChildren,
+                                noteInfoWidget = FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: rowChildren,
+                                  ),
                                 );
                               }
                             }
@@ -3214,7 +3213,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                       Positioned(
                                         top: 4,
                                         right: 4,
-                                        child: noteInfoWidget,
+                                        left: 28,
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: noteInfoWidget,
+                                        ),
                                       ),
                                   ],
                                 ),
@@ -3441,7 +3444,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                   },
                                                 ),
                                                 if (noteInfoWidget != null)
-                                                  noteInfoWidget,
+                                                  Expanded(
+                                                    child: Align(
+                                                      alignment: Alignment.centerRight,
+                                                      child: FittedBox(
+                                                        fit: BoxFit.scaleDown,
+                                                        child: noteInfoWidget,
+                                                      ),
+                                                    ),
+                                                  ),
                                               ],
                                             ),
                                           ),
@@ -3640,7 +3651,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     child: hasEmoji
                         ? Text(
                             dayNote.emoji!,
-                            style: const TextStyle(fontSize: 11),
+                            style: const TextStyle(fontSize: 14),
                           )
                         : const SizedBox.shrink(),
                   ),

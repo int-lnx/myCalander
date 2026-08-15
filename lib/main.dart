@@ -18,9 +18,7 @@ import 'screens/task_form_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/day_note_dialog.dart';
 import 'screens/app_drawer.dart';
-import 'screens/splash_screen.dart';
 
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -238,13 +236,18 @@ class _MainScreenState extends State<MainScreen> {
       },
       {
         'view': CalendarView.day,
-        'label': 'Günlük',
+        'label': 'Gün',
         'icon': Icons.calendar_view_day,
       },
       {
         'view': CalendarView.schedule,
         'label': 'Program',
         'icon': Icons.view_agenda,
+      },
+      {
+        'view': 'daily_notes',
+        'label': 'Günlük',
+        'icon': Icons.book,
       },
       {
         'view': 'recent',
@@ -275,10 +278,13 @@ class _MainScreenState extends State<MainScreen> {
                         ? appState.showSeritView
                         : (view == 'recent'
                             ? appState.showRecentView
-                            : (!appState.showSeritView &&
-                                  !appState.showPlanView &&
-                                  !appState.showRecentView &&
-                                  currentView == view)));
+                            : (view == 'daily_notes'
+                                ? appState.showDailyNotesView
+                                : (!appState.showSeritView &&
+                                      !appState.showPlanView &&
+                                      !appState.showRecentView &&
+                                      !appState.showDailyNotesView &&
+                                      currentView == view))));
 
               return GestureDetector(
                 onTap: () {
@@ -288,10 +294,13 @@ class _MainScreenState extends State<MainScreen> {
                     appState.setShowSeritView(true);
                   } else if (view == 'recent') {
                     appState.setShowRecentView(true);
+                  } else if (view == 'daily_notes') {
+                    appState.setShowDailyNotesView(true);
                   } else {
                     appState.setShowPlanView(false);
                     appState.setShowSeritView(false);
                     appState.setShowRecentView(false);
+                    appState.setShowDailyNotesView(false);
                     appState.setCalendarView(view as CalendarView);
                   }
                 },
