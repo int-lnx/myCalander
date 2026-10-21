@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.74';
+  static const String appVersion = '2.83';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -129,6 +129,12 @@ class AppState extends ChangeNotifier {
 
   Future<void> deleteNote(String noteId) async {
     _notes.removeWhere((n) => n.id == noteId);
+    notifyListeners();
+    await saveNotes();
+  }
+
+  Future<void> reorderNotes(List<Note> reorderedList) async {
+    _notes = List.from(reorderedList);
     notifyListeners();
     await saveNotes();
   }
@@ -1310,12 +1316,120 @@ class AppState extends ChangeNotifier {
     _saveDeletedIds();
     final index = _events.indexWhere((e) => e.id == event.id);
     if (index != -1) {
-      _events[index] = event;
+      final existing = _events[index];
+      var incoming = event;
+      // Bağlantı bilgisi taşımayan formlardan gelen güncellemelerde bağı koru
+      if (incoming.parentEventId == null && existing.parentEventId != null) {
+        incoming = incoming.copyWith(
+          parentEventId: existing.parentEventId,
+          followUpOffsetMinutes: existing.followUpOffsetMinutes,
+          followUpReference: existing.followUpReference,
+        );
+      }
+      incoming = _normalizeFollowUpLink(incoming, existing);
+      _events[index] = incoming;
+      final changed = _syncFollowUpsOf(incoming.id);
       notifyListeners();
       _saveEvents();
-      _firestoreSaveEvent(event);
-      NotificationService.scheduleEventNotifications(event);
+      _firestoreSaveEvent(incoming);
+      NotificationService.scheduleEventNotifications(incoming);
+      for (final c in changed) {
+        _firestoreSaveEvent(c);
+        NotificationService.scheduleEventNotifications(c);
+      }
     }
+  }
+
+  // ── Takip Eden Kayıt (bağlı etkinlik) yardımcıları ─────────────────────────
+
+  Event? getEventById(String id) {
+    final i = _events.indexWhere((e) => e.id == id);
+    return i == -1 ? null : _events[i];
+  }
+
+  List<Event> getFollowUpsOf(String parentId) =>
+      _events.where((e) => e.parentEventId == parentId).toList();
+
+  DateTime _followUpRefTime(Event parent, String reference) =>
+      reference == 'start' ? parent.from : parent.to;
+
+  /// Bağlı etkinliğin bağını doğrular; elle taşındıysa offset'i yeniden hesaplar.
+  Event _normalizeFollowUpLink(Event incoming, Event? existing) {
+    final parentId = incoming.parentEventId;
+    if (parentId == null) return incoming;
+    final parent = getEventById(parentId);
+    if (parent == null || parentId == incoming.id) {
+      return incoming.copyWith(clearParentEventId: true);
+    }
+    if (existing != null && incoming.from != existing.from) {
+      var ref = _followUpRefTime(parent, incoming.followUpReference);
+      if (parent.recurrenceRule != null && parent.recurrenceRule!.isNotEmpty) {
+        ref = DateTime(
+          incoming.from.year,
+          incoming.from.month,
+          incoming.from.day,
+          ref.hour,
+          ref.minute,
+          ref.second,
+        );
+      }
+      return incoming.copyWith(
+        followUpOffsetMinutes: incoming.from.difference(ref).inMinutes,
+      );
+    }
+    return incoming;
+  }
+
+  /// Ana etkinliğe bağlı tüm etkinlikleri (zincirleme) yeniden konumlandırır.
+  /// Konumu değişen etkinlikleri döner (kaydetme/bildirim için).
+  List<Event> _syncFollowUpsOf(String parentId, [Set<String>? visited]) {
+    visited ??= <String>{};
+    final changed = <Event>[];
+    if (!visited.add(parentId)) return changed;
+    final parent = getEventById(parentId);
+    if (parent == null) return changed;
+    // Eğer ana etkinlik tekrarlıysa (recurrenceRule varsa), takip eden kayıt spesifik bir güne eklenmiştir;
+    // ana etkinliğin ilk gününün saatine (parent.from/to) zorla çekilmemelidir.
+    if (parent.recurrenceRule != null && parent.recurrenceRule!.isNotEmpty) {
+      return changed;
+    }
+    for (int i = 0; i < _events.length; i++) {
+      final child = _events[i];
+      if (child.parentEventId != parentId || child.id == parentId) continue;
+      final duration = child.to.difference(child.from);
+      final newFrom = _followUpRefTime(parent, child.followUpReference)
+          .add(Duration(minutes: child.followUpOffsetMinutes));
+      if (newFrom != child.from) {
+        final aligned = child.copyWith(
+          from: newFrom,
+          to: newFrom.add(duration),
+        );
+        _events[i] = aligned;
+        changed.add(aligned);
+      }
+      changed.addAll(_syncFollowUpsOf(child.id, visited));
+    }
+    return changed;
+  }
+
+  /// Ana etkinlik silindiğinde bağlı etkinlikleri serbest bırakır.
+  void _releaseFollowUpsOf(String parentId) {
+    for (int i = 0; i < _events.length; i++) {
+      if (_events[i].parentEventId == parentId) {
+        _events[i] = _events[i].copyWith(clearParentEventId: true);
+        _firestoreSaveEvent(_events[i]);
+      }
+    }
+  }
+
+  /// Bir etkinliğin ana etkinlikle bağlantısını elle kaldırır.
+  void unlinkFollowUp(String eventId) {
+    final index = _events.indexWhere((e) => e.id == eventId);
+    if (index == -1) return;
+    _events[index] = _events[index].copyWith(clearParentEventId: true);
+    notifyListeners();
+    _saveEvents();
+    _firestoreSaveEvent(_events[index]);
   }
 
   void deleteEvent(String id) {
@@ -1323,6 +1437,7 @@ class AppState extends ChangeNotifier {
       _deletedEventIds.add(id);
       _saveDeletedIds();
     }
+    _releaseFollowUpsOf(id);
     final index = _events.indexWhere((e) => e.id == id);
     if (index != -1) {
       final oldEvent = _events[index];
@@ -1456,6 +1571,7 @@ class AppState extends ChangeNotifier {
           NotificationService.cancelEventNotifications(_events[index]);
           _events.removeAt(index);
           _firestoreDeleteEvent(id);
+          _releaseFollowUpsOf(id);
         }
       }
     }
@@ -1602,8 +1718,13 @@ class AppState extends ChangeNotifier {
             isTrackingEnabled:
                 newIsTrackingEnabled ?? existing.isTrackingEnabled,
           );
+          _events[index] = _normalizeFollowUpLink(_events[index], existing);
           _firestoreSaveEvent(_events[index]);
           NotificationService.scheduleEventNotifications(_events[index]);
+          for (final c in _syncFollowUpsOf(id)) {
+            _firestoreSaveEvent(c);
+            NotificationService.scheduleEventNotifications(c);
+          }
         }
       }
     }
@@ -2155,6 +2276,7 @@ class AppState extends ChangeNotifier {
         _deletedEventIds.add(e.id);
       }
       _firestoreDeleteEvent(e.id);
+      _releaseFollowUpsOf(e.id);
     }
     _saveDeletedIds();
     _saveEvents();

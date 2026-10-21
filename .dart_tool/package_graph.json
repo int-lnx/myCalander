@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "my_plan",
-      "version": "2.67.0",
+      "version": "2.83.0",
       "dependencies": [
         "cloud_firestore",
         "cupertino_icons",
@@ -19,6 +19,7 @@
         "intl",
         "path_provider",
         "provider",
+        "reorderables",
         "share_plus",
         "shared_preferences",
         "syncfusion_flutter_calendar",
@@ -54,6 +55,13 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "reorderables",
+      "version": "0.6.0",
+      "dependencies": [
+        "flutter"
       ]
     },
     {

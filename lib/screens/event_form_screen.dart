@@ -10,16 +10,24 @@ import 'custom_recurrence_dialog.dart';
 class EventFormScreen extends StatefulWidget {
   final Event? existingEvent;
   final DateTime? initialDate;
+  final DateTime? initialTo;
   final bool isSingleOccurrenceEdit;
   final String? initialTag;
   final String? initialSubTag;
+  final String? initialParentEventId;
+  final int? initialFollowUpOffsetMinutes;
+  final String? initialFollowUpReference;
   const EventFormScreen({
     super.key,
     this.existingEvent,
     this.initialDate,
+    this.initialTo,
     this.isSingleOccurrenceEdit = false,
     this.initialTag,
     this.initialSubTag,
+    this.initialParentEventId,
+    this.initialFollowUpOffsetMinutes,
+    this.initialFollowUpReference,
   });
 
   @override
@@ -42,6 +50,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
   late bool _isTrackingEnabled;
   String? _projectTag;
   List<int> _notificationOffsets = [];
+  String? _parentEventId;
+  int _followUpOffsetMinutes = 0;
+  String _followUpReference = 'end';
 
   final List<int> _colors = const [
     0xFF2196F3, // Blue
@@ -68,6 +79,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
     _detailsController = TextEditingController(text: event?.description ?? '');
     _from = event?.from ?? widget.initialDate ?? DateTime.now();
     _to = event?.to ??
+        widget.initialTo ??
         (widget.initialDate != null
             ? widget.initialDate!.add(const Duration(hours: 1))
             : DateTime.now().add(const Duration(hours: 1)));
@@ -83,6 +95,11 @@ class _EventFormScreenState extends State<EventFormScreen> {
     _notificationOffsets = event?.notificationOffsets != null
         ? List<int>.from(event!.notificationOffsets)
         : [];
+    _parentEventId = event?.parentEventId ?? widget.initialParentEventId;
+    _followUpOffsetMinutes =
+        event?.followUpOffsetMinutes ?? widget.initialFollowUpOffsetMinutes ?? 0;
+    _followUpReference =
+        event?.followUpReference ?? widget.initialFollowUpReference ?? 'end';
   }
 
   @override
@@ -401,6 +418,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
         projectTag: _projectId != null ? _projectTag : null,
         notificationOffsets: _notificationOffsets,
         createdAt: widget.existingEvent?.createdAt,
+        parentEventId: _parentEventId,
+        followUpOffsetMinutes: _followUpOffsetMinutes,
+        followUpReference: _followUpReference,
       );
 
       if (widget.existingEvent == null || !appState.events.any((e) => e.id == event.id)) {

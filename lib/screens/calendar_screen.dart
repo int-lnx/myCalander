@@ -24,6 +24,7 @@ import 'recent_items_screen.dart';
 import 'daily_notes_screen.dart';
 import 'package:my_plan/screens/plan_screen.dart' show PlanScreen;
 import '../dialogs/project_evaluation_dialog.dart';
+import '../dialogs/follow_up_log_dialog.dart';
 
 String? _sanitizeRRule(String? rule, DateTime startDate) {
   if (rule == null || rule.isEmpty) return rule;
@@ -5049,21 +5050,50 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
         String dateInfo = '';
         if (item is Event) {
+          final effectiveFrom = (item.recurrenceRule != null &&
+                  item.recurrenceRule!.isNotEmpty &&
+                  tappedDate != null)
+              ? DateTime(
+                  tappedDate.year,
+                  tappedDate.month,
+                  tappedDate.day,
+                  item.from.hour,
+                  item.from.minute,
+                )
+              : item.from;
+          final duration = item.to.difference(item.from);
+          final effectiveTo = effectiveFrom.add(duration);
+
           final startStr =
-              "${item.from.day}/${item.from.month}/${item.from.year}${item.isAllDay ? '' : ' ${item.from.hour.toString().padLeft(2, '0')}:${item.from.minute.toString().padLeft(2, '0')}'}";
+              "${effectiveFrom.day}/${effectiveFrom.month}/${effectiveFrom.year}${item.isAllDay ? '' : ' ${effectiveFrom.hour.toString().padLeft(2, '0')}:${effectiveFrom.minute.toString().padLeft(2, '0')}'}";
           final endStr =
-              "${item.to.day}/${item.to.month}/${item.to.year}${item.isAllDay ? '' : ' ${item.to.hour.toString().padLeft(2, '0')}:${item.to.minute.toString().padLeft(2, '0')}'}";
+              "${effectiveTo.day}/${effectiveTo.month}/${effectiveTo.year}${item.isAllDay ? '' : ' ${effectiveTo.hour.toString().padLeft(2, '0')}:${effectiveTo.minute.toString().padLeft(2, '0')}'}";
           dateInfo = item.isAllDay
-              ? "Tüm Gün: ${item.from.day}/${item.from.month}/${item.from.year}"
+              ? "Tüm Gün: ${effectiveFrom.day}/${effectiveFrom.month}/${effectiveFrom.year}"
               : "$startStr - $endStr";
         } else if (item is TaskItem && item.from != null) {
-          final toDate = item.to ?? item.from!;
+          final origFrom = item.from!;
+          final effectiveFrom = (item.recurrenceRule != null &&
+                  item.recurrenceRule!.isNotEmpty &&
+                  tappedDate != null)
+              ? DateTime(
+                  tappedDate.year,
+                  tappedDate.month,
+                  tappedDate.day,
+                  origFrom.hour,
+                  origFrom.minute,
+                )
+              : origFrom;
+          final toDate = item.to ?? origFrom;
+          final duration = toDate.difference(origFrom);
+          final effectiveTo = effectiveFrom.add(duration);
+
           final startStr =
-              "${item.from!.day}/${item.from!.month}/${item.from!.year}${item.isAllDay ? '' : ' ${item.from!.hour.toString().padLeft(2, '0')}:${item.from!.minute.toString().padLeft(2, '0')}'}";
+              "${effectiveFrom.day}/${effectiveFrom.month}/${effectiveFrom.year}${item.isAllDay ? '' : ' ${effectiveFrom.hour.toString().padLeft(2, '0')}:${effectiveFrom.minute.toString().padLeft(2, '0')}'}";
           final endStr =
-              "${toDate.day}/${toDate.month}/${toDate.year}${item.isAllDay ? '' : ' ${toDate.hour.toString().padLeft(2, '0')}:${toDate.minute.toString().padLeft(2, '0')}'}";
+              "${effectiveTo.day}/${effectiveTo.month}/${effectiveTo.year}${item.isAllDay ? '' : ' ${effectiveTo.hour.toString().padLeft(2, '0')}:${effectiveTo.minute.toString().padLeft(2, '0')}'}";
           dateInfo = item.isAllDay
-              ? "Tüm Gün: ${item.from!.day}/${item.from!.month}/${item.from!.year}"
+              ? "Tüm Gün: ${effectiveFrom.day}/${effectiveFrom.month}/${effectiveFrom.year}"
               : "$startStr - $endStr";
         }
 
@@ -5228,6 +5258,76 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   ),
                 ),
               ],
+              if (item is Event && item.parentEventId != null) ...[
+                const SizedBox(height: 10),
+                Builder(
+                  builder: (ctx) {
+                    final parentEv = appState.getEventById(item.parentEventId!);
+                    final parentTitle = parentEv?.title ?? '(Silinmiş Etkinlik)';
+                    final refText =
+                        item.followUpReference == 'start' ? 'başlangıcına' : 'bitişine';
+                    final offsetText = item.followUpOffsetMinutes == 0
+                        ? 'hemen ardına'
+                        : '${item.followUpOffsetMinutes} dk sonra';
+                    return Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.link, size: 16, color: Colors.blue),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Bağlı: "$parentTitle" $refText göre $offsetText',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.link_off, size: 16),
+                            tooltip: 'Bağlantıyı Kopar',
+                            onPressed: () {
+                              appState.unlinkFollowUp(item.id);
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Bağlantı koparıldı (artık bağımsız).'),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+              if (item is Event) ...[
+                Builder(
+                  builder: (ctx) {
+                    final children = appState.getFollowUpsOf(item.id);
+                    if (children.isEmpty) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        '🔗 Bu etkinliğe bağlı ${children.length} takip eden kayıt var',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.blueGrey.shade600,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ],
           ),
           actions: [
@@ -5279,7 +5379,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
               runSpacing: 4,
               alignment: WrapAlignment.end,
               children: [
-                if (item is! ProjectEvaluation)
+                if (item is! ProjectEvaluation) ...[
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      FollowUpLogDialog.show(
+                        context,
+                        baseItem: item,
+                        tappedDate: tappedDate,
+                      );
+                    },
+                    icon: const Icon(Icons.playlist_add, size: 16),
+                    label: const Text('Takip Eden Kayıt'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.blue.shade700,
+                    ),
+                  ),
                   TextButton(
                     onPressed: () {
                       Navigator.pop(context);
@@ -5310,6 +5425,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       style: const TextStyle(color: Colors.orange),
                     ),
                   ),
+                ],
                 TextButton(
                   onPressed: () {
                     Navigator.pop(context);

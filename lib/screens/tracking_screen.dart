@@ -3,9 +3,20 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../models/project.dart';
 import '../models/project_evaluation.dart';
-import '../utils/id_generator.dart';
 import 'project_details_screen.dart';
 import '../dialogs/project_evaluation_dialog.dart';
+
+class _TrackingDisplayItem {
+  final Project project;
+  final bool isChild;
+  final Project? parent;
+
+  _TrackingDisplayItem({
+    required this.project,
+    required this.isChild,
+    this.parent,
+  });
+}
 
 class TrackingScreen extends StatefulWidget {
   const TrackingScreen({super.key});
@@ -110,7 +121,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
     final projects = appState.projects.where((p) => !p.isArchived).toList();
-    final evaluations = appState.evaluations;
     final isDark = appState.isDarkMode;
 
     // Get current month days (newest to oldest)
@@ -229,10 +239,45 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
                       final List<TableRow> rows = [];
                       grouped.forEach((category, projList) {
-                        for (int i = 0; i < projList.length; i++) {
-                          final p = projList[i];
+                        // Hiyerarşik ve tekrarlı sıralama:
+                        // Bir üst proje varsa, hemen altına childProjectIds'de yer alan projeler eklenir.
+                        // Bir alt proje 2 farklı üst projeye eklenmişse her iki üst projenin de altında listelenir.
+                        // Üst projelere bağlı olmayan bağımsız projeler de kendi başlarına listelenir.
+
+                        final List<_TrackingDisplayItem> orderedItems = [];
+                        final parentProjects = projList.where((p) => p.isParentProject).toList();
+                        final Set<String> childProjectIdsInThisCategory = {};
+
+                        for (var parentP in parentProjects) {
+                          orderedItems.add(_TrackingDisplayItem(project: parentP, isChild: false));
+
+                          // Bu üst projeye bağlı olan alt projeleri tüm projeler havuzundan bul (veya bu kategoriden)
+                          for (var childId in parentP.childProjectIds) {
+                            final childProj = projects.where((p) => p.id == childId).firstOrNull;
+                            if (childProj != null) {
+                              orderedItems.add(_TrackingDisplayItem(project: childProj, isChild: true, parent: parentP));
+                              childProjectIdsInThisCategory.add(childId);
+                            }
+                          }
+                        }
+
+                        // Üst proje olmayan normal projelerden, hiçbir üst projeye bağlı olmayanlar
+                        // VEYA bağımsız olarak kendi yerinde de görünsün istenenler:
+                        final nonParentProjects = projList.where((p) => !p.isParentProject).toList();
+                        for (var p in nonParentProjects) {
+                          // Eğer bir üst projede gösterilmediyse bağımsız olarak listele
+                          if (!childProjectIdsInThisCategory.contains(p.id)) {
+                            orderedItems.add(_TrackingDisplayItem(project: p, isChild: false));
+                          }
+                        }
+
+                        for (int i = 0; i < orderedItems.length; i++) {
+                          final item = orderedItems[i];
+                          final p = item.project;
                           final isFirst = i == 0;
                           final categoryColorVal = appState.getEventTagColor(p.tag) ?? appState.getTaskTagColor(p.tag) ?? 0xFF9E9E9E;
+                          final isChild = item.isChild;
+                          final isParent = p.isParentProject;
 
                           rows.add(
                             TableRow(
@@ -258,7 +303,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                         )
                                       : const SizedBox.shrink(),
                                 ),
-                                // Project Name
+                                // Project Name with Hierarchy Design
                                 InkWell(
                                   onTap: () {
                                     Navigator.push(
@@ -270,16 +315,48 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                   },
                                   child: Container(
                                     height: 40,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                                    padding: EdgeInsets.only(
+                                      left: isChild ? 16.0 : 8.0,
+                                      right: 8.0,
+                                      top: 4.0,
+                                      bottom: 4.0,
+                                    ),
                                     alignment: Alignment.centerLeft,
                                     child: Row(
                                       children: [
-                                        CircleAvatar(radius: 4, backgroundColor: Color(categoryColorVal)),
+                                        if (isChild) ...[
+                                          Icon(
+                                            Icons.subdirectory_arrow_right,
+                                            size: 13,
+                                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Container(
+                                            width: 6,
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Color(categoryColorVal), width: 1.5),
+                                            ),
+                                          ),
+                                        ] else if (isParent) ...[
+                                          Icon(
+                                            Icons.folder_open,
+                                            size: 15,
+                                            color: Color(categoryColorVal),
+                                          ),
+                                        ] else ...[
+                                          CircleAvatar(radius: 4, backgroundColor: Color(categoryColorVal)),
+                                        ],
                                         const SizedBox(width: 6),
                                         Expanded(
                                           child: Text(
                                             p.title,
-                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                            style: TextStyle(
+                                              fontSize: isChild ? 10.5 : 11,
+                                              fontWeight: isParent ? FontWeight.bold : (isChild ? FontWeight.normal : FontWeight.bold),
+                                              color: isChild ? (isDark ? Colors.grey.shade300 : Colors.grey.shade800) : null,
+                                            ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
@@ -358,8 +435,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
   }
 
   ProjectEvaluation? _getMergedEvalForDay(AppState appState, Project p, DateTime day) {
+    // 1. Bu projeye ait doğrudan değerlendirme
     final originalEval = _getEvalForDay(appState.evaluations, p.id, day);
 
+    // 2. Bu projeye ait görev/topic planları
     final dayKey = '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
     final projectPlans = appState.topicPlans.where((tp) => tp.projectId == p.id).toList();
     
@@ -381,28 +460,81 @@ class _TrackingScreenState extends State<TrackingScreen> {
       }
     }
 
-    if (originalEval == null && !hasAnyTaskLog) {
+    // 3. Alt projelerin kontrolü (Eğer bu bir Üst Proje ise)
+    final childProjects = p.isParentProject
+        ? appState.projects.where((child) => p.childProjectIds.contains(child.id) && !child.isArchived).toList()
+        : <Project>[];
+    final List<ProjectEvaluation> childEvals = [];
+
+    for (var child in childProjects) {
+      final childEval = _getMergedEvalForDay(appState, child, day);
+      if (childEval != null && !childEval.isSkipped) {
+        childEvals.add(childEval);
+      }
+    }
+
+    if (originalEval == null && !hasAnyTaskLog && childEvals.isEmpty) {
       return null;
     }
 
-    double mergedHours = (originalEval?.durationHours ?? 0.0) + totalTaskHours;
+    // Süre hesabı: Kendi saatleri + alt projelerin saatleri
+    double childHours = childEvals.fold(0.0, (sum, ev) => sum + ev.durationHours);
+    double mergedHours = (originalEval?.durationHours ?? 0.0) + totalTaskHours + childHours;
     
+    // Notlar
     final List<String> allNotes = [];
     if (originalEval?.note != null && originalEval!.note!.isNotEmpty) {
       allNotes.add(originalEval.note!);
     }
     allNotes.addAll(taskNotes);
+    for (var ce in childEvals) {
+      if (ce.note != null && ce.note!.isNotEmpty) {
+        allNotes.add(ce.note!);
+      }
+    }
     String mergedNote = allNotes.join(', ');
+
+    // Skor / Başarı / Yüzde hesabı:
+    // Eğer alt projeler varsa, üst projenin skoru kullanıcının seçtiği aggregation'a göre alt projelerden türetilir:
+    double finalScore = originalEval?.score ?? 0.0;
+    double? finalPerformancePercent = originalEval?.performancePercent;
+
+    if (childEvals.isNotEmpty) {
+      final scores = childEvals.map((e) => e.score).toList();
+      final pcts = childEvals.where((e) => e.performancePercent != null).map((e) => e.performancePercent!).toList();
+
+      switch (p.subProjectAggregation) {
+        case 'MIN':
+          finalScore = scores.reduce((a, b) => a < b ? a : b);
+          if (pcts.isNotEmpty) {
+            finalPerformancePercent = pcts.reduce((a, b) => a < b ? a : b);
+          }
+          break;
+        case 'AVG':
+          finalScore = scores.reduce((a, b) => a + b) / scores.length;
+          if (pcts.isNotEmpty) {
+            finalPerformancePercent = pcts.reduce((a, b) => a + b) / pcts.length;
+          }
+          break;
+        case 'MAX':
+        default:
+          finalScore = scores.reduce((a, b) => a > b ? a : b);
+          if (pcts.isNotEmpty) {
+            finalPerformancePercent = pcts.reduce((a, b) => a > b ? a : b);
+          }
+          break;
+      }
+    }
 
     return ProjectEvaluation(
       id: originalEval?.id ?? 'merged_${p.id}_${day.millisecondsSinceEpoch}',
       projectId: p.id,
       sessionDate: day,
-      score: originalEval?.score ?? 0,
+      score: finalScore,
       isSkipped: originalEval?.isSkipped ?? false,
       durationHours: mergedHours,
       note: mergedNote,
-      performancePercent: originalEval?.performancePercent,
+      performancePercent: finalPerformancePercent,
     );
   }
 

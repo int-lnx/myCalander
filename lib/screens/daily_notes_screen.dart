@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
-import '../models/day_note.dart';
 import 'day_note_dialog.dart';
 
 class DailyNotesScreen extends StatelessWidget {

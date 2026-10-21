@@ -1060,8 +1060,9 @@ class _PlanScreenState extends State<PlanScreen> {
       if (hasLogs) return true;
       if (_showPrediction &&
           predictionMap.containsKey(plan.id) &&
-          predictionMap[plan.id]!.isNotEmpty)
+          predictionMap[plan.id]!.isNotEmpty) {
         return true;
+      }
       return false;
     }).toList();
 
@@ -1441,14 +1442,16 @@ class _PlanScreenState extends State<PlanScreen> {
                                       parts.add('(${matchedExc.note})');
                                     }
                                   } else {
-                                    if (dayEval.score > 0)
+                                    if (dayEval.score > 0) {
                                       parts.add(
                                         '%${dayEval.score.toStringAsFixed(0)}',
                                       );
-                                    if (dayEval.durationHours > 0)
+                                    }
+                                    if (dayEval.durationHours > 0) {
                                       parts.add(
                                         '${dayEval.durationHours.toStringAsFixed(1)} sa',
                                       );
+                                    }
                                   }
                                   evalText = parts.join(' - ');
                                   if (dayEval.note != null &&

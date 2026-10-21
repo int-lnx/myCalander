@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../models/project.dart';
-import '../models/project_evaluation.dart';
 import '../models/topic.dart';
 import '../models/topic_plan.dart';
 import 'project_form_screen.dart';

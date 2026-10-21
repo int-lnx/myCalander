@@ -20,6 +20,15 @@ class Event {
   final String? seriesId;
   final DateTime createdAt;
 
+  /// Takip Eden Kayıt: bağlı olduğu ana etkinliğin ID'si.
+  final String? parentEventId;
+
+  /// Ana etkinliğin referans noktasına göre öteleme (dakika).
+  final int followUpOffsetMinutes;
+
+  /// Referans noktası: 'end' (ana etkinliğin bitişi) veya 'start' (başlangıcı).
+  final String followUpReference;
+
   Event({
     required this.id,
     required this.title,
@@ -41,6 +50,9 @@ class Event {
     this.reminderTime,
     String? seriesId,
     DateTime? createdAt,
+    this.parentEventId,
+    this.followUpOffsetMinutes = 0,
+    this.followUpReference = 'end',
   })  : seriesId = seriesId ?? id,
         createdAt = createdAt ?? DateTime.now();
 
@@ -66,6 +78,10 @@ class Event {
     DateTime? reminderTime,
     String? seriesId,
     DateTime? createdAt,
+    String? parentEventId,
+    int? followUpOffsetMinutes,
+    String? followUpReference,
+    bool clearParentEventId = false,
     bool clearRecurrenceRule = false,
     bool clearRecurrenceExceptionDates = false,
     bool clearProjectId = false,
@@ -95,6 +111,14 @@ class Event {
       reminderTime: clearReminderTime ? null : (reminderTime ?? this.reminderTime),
       seriesId: clearSeriesId ? null : (seriesId ?? this.seriesId),
       createdAt: createdAt ?? this.createdAt,
+      parentEventId:
+          clearParentEventId ? null : (parentEventId ?? this.parentEventId),
+      followUpOffsetMinutes: clearParentEventId
+          ? 0
+          : (followUpOffsetMinutes ?? this.followUpOffsetMinutes),
+      followUpReference: clearParentEventId
+          ? 'end'
+          : (followUpReference ?? this.followUpReference),
     );
   }
 
@@ -122,6 +146,9 @@ class Event {
       'reminderTime': reminderTime?.toIso8601String(),
       'seriesId': seriesId,
       'createdAt': createdAt.toIso8601String(),
+      'parentEventId': parentEventId,
+      'followUpOffsetMinutes': followUpOffsetMinutes,
+      'followUpReference': followUpReference,
     };
   }
 
@@ -175,6 +202,10 @@ class Event {
             : DateTime(2020, 1, 1);
         return parsed.isAfter(DateTime.now()) ? DateTime(2020, 1, 1) : parsed;
       })(),
+      parentEventId: json['parentEventId'] as String?,
+      followUpOffsetMinutes:
+          (json['followUpOffsetMinutes'] as num?)?.toInt() ?? 0,
+      followUpReference: json['followUpReference'] as String? ?? 'end',
     );
   }
 }

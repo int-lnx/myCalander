@@ -79,7 +79,7 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   String _selectedTab = 'Tüm Tarihliler';
-  String _sortMode = 'CUSTOM'; // 'CUSTOM' (Benim sıralamam), 'DATE', 'IMPORTANCE', 'CREATED_DATE'
+  String _sortMode = 'CREATED_DATE'; // 'CUSTOM' (Benim sıralamam), 'DATE', 'IMPORTANCE', 'CREATED_DATE'
   final Set<String> _animatingTaskIds = {};
 
   String _getRelativeDateString(DateTime? date) {

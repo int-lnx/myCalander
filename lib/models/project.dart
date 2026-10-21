@@ -40,6 +40,9 @@ class Project {
   final double? defaultDuration;
   final List<String> dataOrder; // e.g. ['BRUT', 'PERCENTAGE', 'NET', 'NUMERIC', 'NOTE']
   final List<ProjectStep> checkSteps;
+  final bool isParentProject; // Bu proje bir Üst Proje mi?
+  final List<String> childProjectIds; // Bu üst projeye bağlı alt projelerin id listesi
+  final String subProjectAggregation; // 'MAX', 'AVG', 'MIN' (Üst projenin alt projelerden değer alma kuralı)
 
   const Project({
     required this.id,
@@ -64,6 +67,9 @@ class Project {
     this.defaultDuration,
     this.dataOrder = const ['BRUT', 'PERCENTAGE', 'NET', 'NUMERIC', 'NOTE'],
     this.checkSteps = const [],
+    this.isParentProject = false,
+    this.childProjectIds = const [],
+    this.subProjectAggregation = 'MAX',
   });
 
   double calculateSingleSuccessPercentage(double score) {
@@ -113,6 +119,9 @@ class Project {
     double? defaultDuration,
     List<String>? dataOrder,
     List<ProjectStep>? checkSteps,
+    bool? isParentProject,
+    List<String>? childProjectIds,
+    String? subProjectAggregation,
     bool clearSubTag = false,
   }) {
     return Project(
@@ -138,6 +147,9 @@ class Project {
       defaultDuration: defaultDuration ?? this.defaultDuration,
       dataOrder: dataOrder ?? this.dataOrder,
       checkSteps: checkSteps ?? this.checkSteps,
+      isParentProject: isParentProject ?? this.isParentProject,
+      childProjectIds: childProjectIds ?? this.childProjectIds,
+      subProjectAggregation: subProjectAggregation ?? this.subProjectAggregation,
     );
   }
 
@@ -165,6 +177,9 @@ class Project {
       'defaultDuration': defaultDuration,
       'dataOrder': dataOrder,
       'checkSteps': checkSteps.map((s) => s.toJson()).toList(),
+      'isParentProject': isParentProject,
+      'childProjectIds': childProjectIds,
+      'subProjectAggregation': subProjectAggregation,
     };
   }
 
@@ -197,6 +212,11 @@ class Project {
           .toList();
     }
 
+    List<String> children = [];
+    if (json['childProjectIds'] is List) {
+      children = List<String>.from(json['childProjectIds']);
+    }
+
     return Project(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
@@ -220,6 +240,9 @@ class Project {
       defaultDuration: defaultDur,
       dataOrder: order,
       checkSteps: steps,
+      isParentProject: json['isParentProject'] as bool? ?? false,
+      childProjectIds: children,
+      subProjectAggregation: json['subProjectAggregation'] as String? ?? 'MAX',
     );
   }
 }

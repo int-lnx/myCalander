@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:reorderables/reorderables.dart';
 import '../providers/app_state.dart';
 import '../models/note.dart';
 import '../utils/id_generator.dart';
@@ -13,6 +14,9 @@ class NotesScreen extends StatefulWidget {
 
 class _NotesScreenState extends State<NotesScreen> {
   bool _isExpanded = false;
+  bool _isSearching = false;
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
   final _titleController = TextEditingController();
   final _contentController = FormattedTextEditingController();
   final _tagController = TextEditingController();
@@ -63,8 +67,8 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  static Widget buildFormattedText(String text, TextStyle baseStyle) {
-    final RegExp exp = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|~~.*?~~)');
+  static Widget buildFormattedText(String text, TextStyle baseStyle, {int? maxLines, TextOverflow? overflow}) {
+    final RegExp exp = RegExp(r'(%%%.*?%%%|%%.*?%%|__.*?__|~~.*?~~)');
     final List<TextSpan> spans = [];
     int start = 0;
 
@@ -73,19 +77,19 @@ class _NotesScreenState extends State<NotesScreen> {
         spans.add(TextSpan(text: text.substring(start, match.start), style: baseStyle));
       }
       final String matchText = match.group(0)!;
-      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
+      if (matchText.startsWith('%%%') && matchText.endsWith('%%%') && matchText.length >= 6) {
         spans.add(TextSpan(
           text: matchText.substring(3, matchText.length - 3),
           style: baseStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
         ));
-      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
+      } else if (matchText.startsWith('%%') && matchText.endsWith('%%') && matchText.length >= 4) {
         spans.add(TextSpan(
           text: matchText.substring(2, matchText.length - 2),
           style: baseStyle.copyWith(fontWeight: FontWeight.bold),
         ));
-      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
+      } else if (matchText.startsWith('__') && matchText.endsWith('__') && matchText.length >= 4) {
         spans.add(TextSpan(
-          text: matchText.substring(1, matchText.length - 1),
+          text: matchText.substring(2, matchText.length - 2),
           style: baseStyle.copyWith(fontStyle: FontStyle.italic),
         ));
       } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
@@ -101,11 +105,16 @@ class _NotesScreenState extends State<NotesScreen> {
       spans.add(TextSpan(text: text.substring(start), style: baseStyle));
     }
 
-    return RichText(text: TextSpan(children: spans));
+    return RichText(
+      maxLines: maxLines,
+      overflow: overflow ?? TextOverflow.clip,
+      text: TextSpan(children: spans),
+    );
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _titleController.dispose();
     _contentController.dispose();
     _tagController.dispose();
@@ -319,8 +328,16 @@ class _NotesScreenState extends State<NotesScreen> {
       });
     }
 
-    final pinnedNotes = allNotes.where((n) => n.isPinned).toList();
-    final otherNotes = allNotes.where((n) => !n.isPinned).toList();
+    final query = _searchQuery.trim().toLowerCase();
+    final filteredNotes = query.isEmpty
+        ? allNotes
+        : allNotes.where((n) =>
+            n.title.toLowerCase().contains(query) ||
+            n.content.toLowerCase().contains(query) ||
+            n.tags.any((t) => t.toLowerCase().contains(query))).toList();
+
+    final pinnedNotes = filteredNotes.where((n) => n.isPinned).toList();
+    final otherNotes = filteredNotes.where((n) => !n.isPinned).toList();
 
     return Scaffold(
       backgroundColor: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
@@ -386,7 +403,7 @@ class _NotesScreenState extends State<NotesScreen> {
                           ),
                         GestureDetector(
                           onTap: () {
-                            if (!_isExpanded) {
+                            if (!_isExpanded && !_isSearching) {
                               setState(() {
                                 _isExpanded = true;
                               });
@@ -411,15 +428,54 @@ class _NotesScreenState extends State<NotesScreen> {
                                       ),
                                     ),
                                   )
-                                : TextField(
-                                    controller: _contentController,
-                                    maxLines: 1,
-                                    enabled: false,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Not alın...',
-                                      border: InputBorder.none,
-                                    ),
-                                    style: const TextStyle(fontSize: 14),
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: _isSearching
+                                            ? TextField(
+                                                controller: _searchController,
+                                                autofocus: true,
+                                                onChanged: (val) {
+                                                  setState(() {
+                                                    _searchQuery = val;
+                                                  });
+                                                },
+                                                decoration: const InputDecoration(
+                                                  hintText: 'Notlarda ara (başlık, içerik, etiket)...',
+                                                  border: InputBorder.none,
+                                                  isDense: true,
+                                                ),
+                                                style: const TextStyle(fontSize: 14),
+                                              )
+                                            : const Padding(
+                                                padding: EdgeInsets.symmetric(vertical: 14.0),
+                                                child: Text(
+                                                  'Not alın...',
+                                                  style: TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ),
+                                      ),
+                                      IconButton(
+                                        tooltip: _isSearching ? 'Aramayı Kapat' : 'Notlarda Ara',
+                                        icon: Icon(
+                                          _isSearching ? Icons.close : Icons.search,
+                                          color: _isSearching ? Colors.red : Colors.grey.shade600,
+                                          size: 22,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _isSearching = !_isSearching;
+                                            if (!_isSearching) {
+                                              _searchController.clear();
+                                              _searchQuery = '';
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ],
                                   ),
                           ),
                         ),
@@ -453,11 +509,13 @@ class _NotesScreenState extends State<NotesScreen> {
                                   children: [
                                     IconButton(
                                       icon: const Icon(Icons.format_bold, size: 20),
-                                      onPressed: () => _applyFormatting(_contentController, '**', '**'),
+                                      tooltip: 'Kalın (%%yazı%%)',
+                                      onPressed: () => _applyFormatting(_contentController, '%%', '%%'),
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.format_italic, size: 20),
-                                      onPressed: () => _applyFormatting(_contentController, '*', '*'),
+                                      tooltip: 'İtalik (__yazı__)',
+                                      onPressed: () => _applyFormatting(_contentController, '__', '__'),
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.format_strikethrough, size: 20),
@@ -513,86 +571,128 @@ class _NotesScreenState extends State<NotesScreen> {
                           ],
                         ),
                       )
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Center(
-                          child: Container(
-                            constraints: const BoxConstraints(maxWidth: 1000),
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final double horizontalPadding = 16.0;
+                          final double availableWidth = constraints.maxWidth - (horizontalPadding * 2);
+                          
+                          // Sütun sayısı ve kart genişliği hesabı:
+                          // Mobilde (< 600px): 2 sütun
+                          // Tablette (600px - 950px): 3 sütun
+                          // Küçük masaüstünde (950px - 1250px): 4 sütun
+                          // Geniş masaüstünde (>= 1250px): 5 sütun
+                          final int crossAxisCount = availableWidth < 600
+                              ? 2
+                              : (availableWidth < 950
+                                  ? 3
+                                  : (availableWidth < 1250 ? 4 : 5));
+
+                          const double spacing = 12.0;
+                          final double totalSpacing = spacing * (crossAxisCount - 1);
+                          final double cardWidth = (availableWidth - totalSpacing) / crossAxisCount;
+                          final double cardHeight = (cardWidth * 1.15).clamp(210.0, 310.0);
+
+                          Widget buildNoteItem(Note note) {
+                            return SizedBox(
+                              key: ValueKey(note.id),
+                              width: cardWidth,
+                              height: cardHeight,
+                              child: NoteCard(
+                                appState: appState,
+                                note: note,
+                                isDarkTheme: isDark,
+                                onTap: () => _editNoteDialog(context, appState, note),
+                              ),
+                            );
+                          }
+
+                          return SingleChildScrollView(
+                            padding: EdgeInsets.all(horizontalPadding),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (pinnedNotes.isNotEmpty) ...[
-                                  const Padding(
-                                    padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
-                                    child: Text(
-                                      'SABİTLENDİ',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.grey,
-                                        letterSpacing: 1.2,
-                                      ),
-                                    ),
-                                  ),
-                                  GridView.builder(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                                      maxCrossAxisExtent: 220,
-                                      crossAxisSpacing: 12,
-                                      mainAxisSpacing: 12,
-                                      childAspectRatio: 0.85,
-                                    ),
-                                    itemCount: pinnedNotes.length,
-                                    itemBuilder: (context, index) {
-                                      return NoteCard(
-                                        appState: appState,
-                                        note: pinnedNotes[index],
-                                        isDarkTheme: isDark,
-                                        onTap: () => _editNoteDialog(context, appState, pinnedNotes[index]),
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(height: 24),
-                                ],
-                                if (otherNotes.isNotEmpty) ...[
-                                  if (pinnedNotes.isNotEmpty)
-                                    const Padding(
-                                      padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
-                                      child: Text(
-                                        'DİĞER',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey,
-                                          letterSpacing: 1.2,
+                                    if (pinnedNotes.isNotEmpty) ...[
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
+                                        child: Text(
+                                          'SABİTLENDİ',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey,
+                                            letterSpacing: 1.2,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  GridView.builder(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                                      maxCrossAxisExtent: 220,
-                                      crossAxisSpacing: 12,
-                                      mainAxisSpacing: 12,
-                                      childAspectRatio: 0.85,
-                                    ),
-                                    itemCount: otherNotes.length,
-                                    itemBuilder: (context, index) {
-                                      return NoteCard(
-                                        appState: appState,
-                                        note: otherNotes[index],
-                                        isDarkTheme: isDark,
-                                        onTap: () => _editNoteDialog(context, appState, otherNotes[index]),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
+                                      query.isNotEmpty
+                                          ? Wrap(
+                                              spacing: 12,
+                                              runSpacing: 12,
+                                              children: pinnedNotes.map(buildNoteItem).toList(),
+                                            )
+                                          : ReorderableWrap(
+                                              spacing: 12,
+                                              runSpacing: 12,
+                                              needsLongPressDraggable: true,
+                                              onReorder: (oldIndex, newIndex) {
+                                                final updatedPinned = List<Note>.from(pinnedNotes);
+                                                final movedItem = updatedPinned.removeAt(oldIndex);
+                                                updatedPinned.insert(newIndex, movedItem);
+
+                                                // Recombine with non-pinned notes and persist
+                                                final newAllNotes = <Note>[
+                                                  ...updatedPinned,
+                                                  ...allNotes.where((n) => !n.isPinned),
+                                                ];
+                                                appState.reorderNotes(newAllNotes);
+                                              },
+                                              children: pinnedNotes.map(buildNoteItem).toList(),
+                                            ),
+                                      const SizedBox(height: 24),
+                                    ],
+                                    if (otherNotes.isNotEmpty) ...[
+                                      if (pinnedNotes.isNotEmpty)
+                                        const Padding(
+                                          padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
+                                          child: Text(
+                                            'DİĞER',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.grey,
+                                              letterSpacing: 1.2,
+                                            ),
+                                          ),
+                                        ),
+                                      query.isNotEmpty
+                                          ? Wrap(
+                                              spacing: 12,
+                                              runSpacing: 12,
+                                              children: otherNotes.map(buildNoteItem).toList(),
+                                            )
+                                          : ReorderableWrap(
+                                              spacing: 12,
+                                              runSpacing: 12,
+                                              needsLongPressDraggable: true,
+                                              onReorder: (oldIndex, newIndex) {
+                                                final updatedOther = List<Note>.from(otherNotes);
+                                                final movedItem = updatedOther.removeAt(oldIndex);
+                                                updatedOther.insert(newIndex, movedItem);
+
+                                                // Recombine with pinned notes and persist
+                                                final newAllNotes = <Note>[
+                                                  ...allNotes.where((n) => n.isPinned),
+                                                  ...updatedOther,
+                                                ];
+                                                appState.reorderNotes(newAllNotes);
+                                              },
+                                              children: otherNotes.map(buildNoteItem).toList(),
+                                            ),
+                                    ],
+                                  ],
+                                ),
+                          );
+                        },
                       ),
               ),
             ],
@@ -686,24 +786,18 @@ class _NoteCardState extends State<NoteCard> {
                 const SizedBox(height: 8),
               if (note.content.isNotEmpty)
                 Expanded(
-                  child: Scrollbar(
-                    controller: _scrollController,
-                    thumbVisibility: true,
-                    trackVisibility: true,
-                    thickness: 4,
-                    radius: const Radius.circular(2),
-                    child: SingleChildScrollView(
-                      controller: _scrollController,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.only(right: 6.0),
-                        child: _NotesScreenState.buildFormattedText(
-                          note.content,
-                          TextStyle(
-                            fontSize: 12,
-                            color: isNoteDark ? Colors.white70 : Colors.black87,
-                          ),
+                  child: ClipRect(
+                    child: Container(
+                      width: double.infinity,
+                      alignment: Alignment.topLeft,
+                      child: _NotesScreenState.buildFormattedText(
+                        note.content,
+                        TextStyle(
+                          fontSize: 12,
+                          color: isNoteDark ? Colors.white70 : Colors.black87,
                         ),
+                        maxLines: 8,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -780,7 +874,7 @@ class _EditNoteDialogState extends State<EditNoteDialog> {
 
   @override
   void dispose() {
-    _titleController.dispose();
+        _titleController.dispose();
     _contentController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -1089,7 +1183,7 @@ class FormattedTextEditingController extends TextEditingController {
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
     final baseStyle = style ?? const TextStyle();
-    final RegExp exp = RegExp(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|~~.*?~~)');
+    final RegExp exp = RegExp(r'(%%%.*?%%%|%%.*?%%|__.*?__|~~.*?~~)');
     final List<TextSpan> spans = [];
     int start = 0;
 
@@ -1098,30 +1192,30 @@ class FormattedTextEditingController extends TextEditingController {
         spans.add(TextSpan(text: text.substring(start, match.start), style: baseStyle));
       }
       final String matchText = match.group(0)!;
-      if (matchText.startsWith('***') && matchText.endsWith('***') && matchText.length >= 6) {
+      if (matchText.startsWith('%%%') && matchText.endsWith('%%%') && matchText.length >= 6) {
         final innerText = matchText.substring(3, matchText.length - 3);
-        spans.add(TextSpan(text: '***', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+        spans.add(TextSpan(text: '%%%', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
         spans.add(TextSpan(
           text: innerText,
           style: baseStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
         ));
-        spans.add(TextSpan(text: '***', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
-      } else if (matchText.startsWith('**') && matchText.endsWith('**') && matchText.length >= 4) {
+        spans.add(TextSpan(text: '%%%', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+      } else if (matchText.startsWith('%%') && matchText.endsWith('%%') && matchText.length >= 4) {
         final innerText = matchText.substring(2, matchText.length - 2);
-        spans.add(TextSpan(text: '**', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+        spans.add(TextSpan(text: '%%', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
         spans.add(TextSpan(
           text: innerText,
           style: baseStyle.copyWith(fontWeight: FontWeight.bold),
         ));
-        spans.add(TextSpan(text: '**', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
-      } else if (matchText.startsWith('*') && matchText.endsWith('*') && matchText.length >= 2) {
-        final innerText = matchText.substring(1, matchText.length - 1);
-        spans.add(TextSpan(text: '*', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+        spans.add(TextSpan(text: '%%', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+      } else if (matchText.startsWith('__') && matchText.endsWith('__') && matchText.length >= 4) {
+        final innerText = matchText.substring(2, matchText.length - 2);
+        spans.add(TextSpan(text: '__', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
         spans.add(TextSpan(
           text: innerText,
           style: baseStyle.copyWith(fontStyle: FontStyle.italic),
         ));
-        spans.add(TextSpan(text: '*', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
+        spans.add(TextSpan(text: '__', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));
       } else if (matchText.startsWith('~~') && matchText.endsWith('~~') && matchText.length >= 4) {
         final innerText = matchText.substring(2, matchText.length - 2);
         spans.add(TextSpan(text: '~~', style: baseStyle.copyWith(color: Colors.transparent, fontSize: 0.1)));

@@ -464,6 +464,12 @@
       "languageVersion": "3.10"
     },
     {
+      "name": "reorderables",
+      "rootUri": "file:///C:/Users/deneme/AppData/Local/Pub/Cache/hosted/pub.dev/reorderables-0.6.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
       "name": "share_plus",
       "rootUri": "file:///C:/Users/deneme/AppData/Local/Pub/Cache/hosted/pub.dev/share_plus-10.1.4",
       "packageUri": "lib/",
