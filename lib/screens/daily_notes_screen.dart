@@ -41,6 +41,7 @@ class DailyNotesScreen extends StatelessWidget {
     // Filter to only get notes that have actual content (text, rating, or emoji)
     final dailyNotes = appState.dayNotes.where((note) {
       return note.note.trim().isNotEmpty ||
+          note.entries.any((e) => e.text.trim().isNotEmpty || e.tags.isNotEmpty) ||
           (note.rating != null && note.rating! > 0) ||
           (note.emoji != null && note.emoji!.trim().isNotEmpty);
     }).toList();
@@ -161,7 +162,74 @@ class DailyNotesScreen extends StatelessWidget {
                             ),
                           ],
                           // Note content
-                          if (note.note.trim().isNotEmpty) ...[
+                          if (note.entries.isNotEmpty) ...[
+                            const Divider(height: 16),
+                            ...note.entries.asMap().entries.map((mapEntry) {
+                              final idx = mapEntry.key;
+                              final entry = mapEntry.value;
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: idx < note.entries.length - 1 ? 10.0 : 0.0,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (note.entries.length > 1)
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 2),
+                                        child: Text(
+                                          'Not ${idx + 1}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.amber.shade300 : Colors.amber.shade800,
+                                          ),
+                                        ),
+                                      ),
+                                    if (entry.text.trim().isNotEmpty)
+                                      Text(
+                                        entry.text,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          height: 1.5,
+                                          color: isDark ? Colors.white70 : Colors.black87,
+                                        ),
+                                        maxLines: 4,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    if (entry.tags.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: entry.tags.map((tag) => Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: isDark
+                                                ? Colors.amber.shade900.withValues(alpha: 0.3)
+                                                : Colors.amber.shade100,
+                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(
+                                              color: isDark ? Colors.amber.shade700 : Colors.amber.shade300,
+                                              width: 0.5,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '#$tag',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? Colors.amber.shade200 : Colors.amber.shade900,
+                                            ),
+                                          ),
+                                        )).toList(),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              );
+                            }),
+                          ] else if (note.note.trim().isNotEmpty) ...[
                             const Divider(height: 16),
                             Text(
                               note.note,

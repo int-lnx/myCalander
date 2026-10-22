@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.83';
+  static const String appVersion = '2.84';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -2459,7 +2459,13 @@ class AppState extends ChangeNotifier {
     _firestoreSaveEvaluation(evaluation);
   }
 
-  void addOrUpdateDayNote(DateTime date, String noteText, {int? rating, String? emoji}) {
+  void addOrUpdateDayNote(
+    DateTime date,
+    String noteText, {
+    List<DayNoteEntry>? entries,
+    int? rating,
+    String? emoji,
+  }) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final idx = _dayNotes.indexWhere(
       (n) {
@@ -2470,7 +2476,17 @@ class AppState extends ChangeNotifier {
       },
     );
 
-    if (noteText.trim().isEmpty && rating == null && emoji == null) {
+    final List<DayNoteEntry> finalEntries = entries != null
+        ? entries.where((e) => e.text.trim().isNotEmpty || e.tags.isNotEmpty).toList()
+        : (noteText.trim().isNotEmpty
+            ? [DayNoteEntry(id: IdGenerator.generate('entry'), text: noteText)]
+            : <DayNoteEntry>[]);
+
+    final combinedText = noteText.trim().isNotEmpty
+        ? noteText
+        : finalEntries.map((e) => e.text).where((t) => t.trim().isNotEmpty).join('\n\n');
+
+    if (finalEntries.isEmpty && combinedText.trim().isEmpty && rating == null && emoji == null) {
       if (idx != -1) {
         final existingId = _dayNotes[idx].id;
         _dayNotes.removeAt(idx);
@@ -2492,7 +2508,8 @@ class AppState extends ChangeNotifier {
               'gunluknot_${normalizedDate.year}${normalizedDate.month.toString().padLeft(2, "0")}${normalizedDate.day.toString().padLeft(2, "0")}',
             ),
       date: normalizedDate,
-      note: noteText,
+      note: combinedText,
+      entries: finalEntries,
       rating: rating,
       emoji: emoji,
     );

@@ -3131,7 +3131,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 dayNote.rating != null &&
                                 dayNote.rating! > 0;
                             final hasNote = dayNote != null &&
-                                (dayNote.note.trim().isNotEmpty || hasEmoji || hasRating);
+                                (dayNote.note.trim().isNotEmpty ||
+                                    dayNote.entries.any((e) => e.text.trim().isNotEmpty || e.tags.isNotEmpty) ||
+                                    hasEmoji ||
+                                    hasRating);
 
                             Widget? noteInfoWidget;
                             if (hasNote) {
@@ -3601,7 +3604,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
         dayNote != null && dayNote.rating != null && dayNote.rating! > 0;
     final hasNote =
         dayNote != null &&
-        (dayNote.note.trim().isNotEmpty || hasEmoji || hasRating);
+        (dayNote.note.trim().isNotEmpty ||
+            dayNote.entries.any((e) => e.text.trim().isNotEmpty || e.tags.isNotEmpty) ||
+            hasEmoji ||
+            hasRating);
 
     final daysOfWeekTr = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     final String dayLetter = daysOfWeekTr[date.weekday - 1][0];

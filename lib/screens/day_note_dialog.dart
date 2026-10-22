@@ -3,6 +3,34 @@ import '../providers/app_state.dart';
 import '../models/day_note.dart';
 import '../models/project.dart';
 import '../utils/emoji_data.dart';
+import '../utils/id_generator.dart';
+
+class _NoteItemController {
+  final String id;
+  final TextEditingController textController;
+  final FocusNode focusNode;
+  final List<String> tags;
+  bool isAddingTag;
+  final TextEditingController tagController;
+  final FocusNode tagFocusNode;
+
+  _NoteItemController({
+    required this.id,
+    required this.textController,
+    required this.focusNode,
+    List<String>? tags,
+  })  : tags = tags ?? [],
+        isAddingTag = false,
+        tagController = TextEditingController(),
+        tagFocusNode = FocusNode();
+
+  void dispose() {
+    textController.dispose();
+    focusNode.dispose();
+    tagController.dispose();
+    tagFocusNode.dispose();
+  }
+}
 
 class DayNoteDialog extends StatefulWidget {
   final AppState appState;
@@ -29,6 +57,7 @@ class DayNoteDialog extends StatefulWidget {
     final hasNote =
         idx != -1 &&
         (notes[idx].note.trim().isNotEmpty ||
+            notes[idx].entries.any((e) => e.text.trim().isNotEmpty || e.tags.isNotEmpty) ||
             notes[idx].rating != null ||
             notes[idx].emoji != null);
 
@@ -56,7 +85,9 @@ class DayNoteDialog extends StatefulWidget {
 }
 
 class _DayNoteDialogState extends State<DayNoteDialog> {
-  late TextEditingController _controller;
+  final List<_NoteItemController> _noteItems = [];
+  late TextEditingController _newNoteInputController;
+  late FocusNode _newNoteInputFocusNode;
   late TextEditingController _emojiController;
   late DateTime _normalizedDate;
   DayNote? _existingNote;
@@ -73,6 +104,60 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
         _emoji = text.isNotEmpty ? text : null;
       });
     }
+  }
+
+  void _onNewNoteInputChanged(String text) {
+    if (text.isEmpty) return;
+    final newController = TextEditingController(text: text);
+    newController.selection = TextSelection.fromPosition(
+      TextPosition(offset: text.length),
+    );
+    final newFocusNode = FocusNode();
+    final newItem = _NoteItemController(
+      id: IdGenerator.generate('entry'),
+      textController: newController,
+      focusNode: newFocusNode,
+      tags: [],
+    );
+
+    setState(() {
+      _noteItems.add(newItem);
+      _newNoteInputController.text = '';
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      newFocusNode.requestFocus();
+    });
+  }
+
+  void _addNewEmptyNote() {
+    final newController = TextEditingController();
+    final newFocusNode = FocusNode();
+    final newItem = _NoteItemController(
+      id: IdGenerator.generate('entry'),
+      textController: newController,
+      focusNode: newFocusNode,
+      tags: [],
+    );
+
+    setState(() {
+      _noteItems.add(newItem);
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      newFocusNode.requestFocus();
+    });
+  }
+
+  void _commitTag(_NoteItemController item) {
+    final val = item.tagController.text.trim().replaceAll('#', '');
+    if (val.isNotEmpty && !item.tags.contains(val)) {
+      item.tags.add(val);
+    }
+    item.tagController.clear();
+    setState(() {
+      item.isAddingTag = false;
+    });
   }
 
   @override
@@ -94,7 +179,36 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
     );
 
     _existingNote = idx != -1 ? notes[idx] : null;
-    _controller = TextEditingController(text: _existingNote?.note ?? '');
+
+    _noteItems.clear();
+    if (_existingNote != null && _existingNote!.entries.isNotEmpty) {
+      for (final entry in _existingNote!.entries) {
+        _noteItems.add(_NoteItemController(
+          id: entry.id,
+          textController: TextEditingController(text: entry.text),
+          focusNode: FocusNode(),
+          tags: List<String>.from(entry.tags),
+        ));
+      }
+    } else if (_existingNote != null && _existingNote!.note.trim().isNotEmpty) {
+      _noteItems.add(_NoteItemController(
+        id: 'entry_0',
+        textController: TextEditingController(text: _existingNote!.note),
+        focusNode: FocusNode(),
+        tags: [],
+      ));
+    } else {
+      _noteItems.add(_NoteItemController(
+        id: 'entry_0',
+        textController: TextEditingController(),
+        focusNode: FocusNode(),
+        tags: [],
+      ));
+    }
+
+    _newNoteInputController = TextEditingController();
+    _newNoteInputFocusNode = FocusNode();
+
     _rating = _existingNote?.rating;
     _emoji = _existingNote?.emoji;
     _emojiController = TextEditingController(text: _emoji ?? '');
@@ -104,7 +218,11 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
   @override
   void dispose() {
     _emojiController.removeListener(_onEmojiChanged);
-    _controller.dispose();
+    for (final item in _noteItems) {
+      item.dispose();
+    }
+    _newNoteInputController.dispose();
+    _newNoteInputFocusNode.dispose();
     _emojiController.dispose();
     super.dispose();
   }
@@ -182,14 +300,120 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                 const SizedBox(height: 8),
               ],
 
-              // Daily Note Text
-              if (_existingNote?.note != null &&
-                  _existingNote!.note.trim().isNotEmpty) ...[
-                Text(
-                  _existingNote!.note,
-                  style: const TextStyle(fontSize: 15, height: 1.6),
-                ),
-                const SizedBox(height: 16),
+              // Daily Note Text / Entries
+              if (_existingNote != null &&
+                  (_existingNote!.entries.isNotEmpty ||
+                      _existingNote!.note.trim().isNotEmpty)) ...[
+                ...(_existingNote!.entries.isNotEmpty
+                        ? _existingNote!.entries
+                        : [DayNoteEntry(id: 'entry_0', text: _existingNote!.note)])
+                    .asMap()
+                    .entries
+                    .map((mapEntry) {
+                  final idx = mapEntry.key;
+                  final entry = mapEntry.value;
+                  final totalEntries = _existingNote!.entries.isNotEmpty
+                      ? _existingNote!.entries.length
+                      : 1;
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF222222)
+                          : Colors.amber.shade50.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isDark ? Colors.white12 : Colors.amber.shade200,
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (totalEntries > 1)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.notes,
+                                  size: 14,
+                                  color: Colors.amber.shade800,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Not ${idx + 1}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? Colors.amber.shade300
+                                        : Colors.amber.shade800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (entry.text.trim().isNotEmpty)
+                          SelectableText(
+                            entry.text,
+                            style: const TextStyle(fontSize: 14, height: 1.5),
+                          ),
+                        if (entry.tags.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: entry.tags.map((tag) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.amber.shade900.withValues(alpha: 0.3)
+                                    : Colors.amber.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.amber.shade700
+                                      : Colors.amber.shade300,
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.label_outline,
+                                    size: 11,
+                                    color: isDark
+                                        ? Colors.amber.shade200
+                                        : Colors.amber.shade900,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    tag,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? Colors.amber.shade200
+                                          : Colors.amber.shade900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )).toList(),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 12),
               ] else if (_emoji == null && _rating == null) ...[
                 const Text(
                   'Bugün için yazılmış bir not bulunmuyor.',
@@ -337,6 +561,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
             TextButton(
               onPressed: () {
                 final backupText = _existingNote?.note ?? '';
+                final backupEntries = _existingNote?.entries;
                 final backupRating = _existingNote?.rating;
                 final backupEmoji = _existingNote?.emoji;
                 widget.appState.addOrUpdateDayNote(_normalizedDate, '');
@@ -359,6 +584,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                       onPressed: () => widget.appState.addOrUpdateDayNote(
                         _normalizedDate,
                         backupText,
+                        entries: backupEntries,
                         rating: backupRating,
                         emoji: backupEmoji,
                       ),
@@ -411,6 +637,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
     final hasNote =
         _existingNote != null &&
         (_existingNote!.note.trim().isNotEmpty ||
+            _existingNote!.entries.any((e) => e.text.trim().isNotEmpty || e.tags.isNotEmpty) ||
             _existingNote!.rating != null ||
             _existingNote!.emoji != null);
 
@@ -664,28 +891,85 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               ],
               const SizedBox(height: 12),
 
-              // Note Text
-              const Text(
-                'Günlük Not:',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _controller,
-                autofocus: true,
-                enableInteractiveSelection: true,
-                minLines: 8,
-                maxLines: 15,
-                decoration: const InputDecoration(
-                  hintText: 'Bugün için notlarınızı buraya yazın...',
-                  border: OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.amber, width: 2.0),
+              // Daily Notes Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Günlük Notlar:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey,
+                    ),
                   ),
+                  Text(
+                    '${_noteItems.length} Not',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Note Items with Text and Tag Area
+              ..._noteItems.asMap().entries.map((mapEntry) {
+                final index = mapEntry.key;
+                final item = mapEntry.value;
+                return _buildNoteItemWidget(index, item, widget.appState.isDarkMode);
+              }),
+
+              // Ek Yazı Yazma Barı (Yeni Not Ekleme Barı)
+              Container(
+                margin: const EdgeInsets.only(top: 4, bottom: 8),
+                decoration: BoxDecoration(
+                  color: widget.appState.isDarkMode
+                      ? const Color(0xFF1E1E1E)
+                      : Colors.amber.shade50.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.amber.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
+                child: TextField(
+                  controller: _newNoteInputController,
+                  focusNode: _newNoteInputFocusNode,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.add_circle, color: Colors.amber, size: 20),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.arrow_forward_rounded, color: Colors.amber, size: 20),
+                      tooltip: 'Not Ekle',
+                      onPressed: () {
+                        if (_newNoteInputController.text.isNotEmpty) {
+                          _onNewNoteInputChanged(_newNoteInputController.text);
+                        } else {
+                          _addNewEmptyNote();
+                        }
+                      },
+                    ),
+                    hintText: 'Başka bir not eklemek için buraya yazın...',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: widget.appState.isDarkMode ? Colors.white38 : Colors.grey.shade500,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  onChanged: (val) {
+                    if (val.isNotEmpty) {
+                      _onNewNoteInputChanged(val);
+                    }
+                  },
+                  onSubmitted: (val) {
+                    if (val.isNotEmpty) {
+                      _onNewNoteInputChanged(val);
+                    } else {
+                      _addNewEmptyNote();
+                    }
+                  },
                 ),
               ),
             ],
@@ -700,6 +984,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               TextButton(
                 onPressed: () {
                   final backupText = _existingNote?.note ?? '';
+                  final backupEntries = _existingNote?.entries;
                   final backupRating = _existingNote?.rating;
                   final backupEmoji = _existingNote?.emoji;
                   widget.appState.addOrUpdateDayNote(_normalizedDate, '');
@@ -722,6 +1007,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                         onPressed: () => widget.appState.addOrUpdateDayNote(
                           _normalizedDate,
                           backupText,
+                          entries: backupEntries,
                           rating: backupRating,
                           emoji: backupEmoji,
                         ),
@@ -741,9 +1027,21 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
             ElevatedButton(
               onPressed: () {
                 final emojiText = _emojiController.text.trim();
+                final validEntries = _noteItems
+                    .where((item) =>
+                        item.textController.text.trim().isNotEmpty ||
+                        item.tags.isNotEmpty)
+                    .map((item) => DayNoteEntry(
+                          id: item.id,
+                          text: item.textController.text.trim(),
+                          tags: List<String>.from(item.tags),
+                        ))
+                    .toList();
+
                 widget.appState.addOrUpdateDayNote(
                   _normalizedDate,
-                  _controller.text,
+                  validEntries.map((e) => e.text).join('\n\n'),
+                  entries: validEntries,
                   rating: _rating,
                   emoji: emojiText.isNotEmpty ? emojiText : null,
                 );
@@ -770,6 +1068,258 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               ),
               child: const Text('Kaydet'),
             ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNoteItemWidget(int index, _NoteItemController item, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.grey.shade300,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.edit_note,
+                    size: 18,
+                    color: Colors.amber.shade700,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _noteItems.length > 1 ? 'Not ${index + 1}' : 'Not',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.amber.shade300 : Colors.amber.shade900,
+                    ),
+                  ),
+                ],
+              ),
+              if (_noteItems.length > 1)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  color: Colors.red.shade400,
+                  tooltip: 'Bu notu sil',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () {
+                    setState(() {
+                      item.dispose();
+                      _noteItems.removeAt(index);
+                    });
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: item.textController,
+            focusNode: item.focusNode,
+            minLines: 3,
+            maxLines: 10,
+            style: const TextStyle(fontSize: 14),
+            decoration: InputDecoration(
+              hintText: index == 0
+                  ? 'Bugün için notlarınızı buraya yazın...'
+                  : 'Ek notunuzu buraya yazın...',
+              hintStyle: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.white38 : Colors.grey.shade400,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.all(10),
+              filled: true,
+              fillColor: isDark ? const Color(0xFF282828) : Colors.grey.shade50,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: isDark ? Colors.white10 : Colors.grey.shade300,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Colors.amber, width: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildTagAreaForItem(item, isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTagAreaForItem(_NoteItemController item, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            ...item.tags.asMap().entries.map((mapEntry) {
+              final tagIdx = mapEntry.key;
+              final tag = mapEntry.value;
+              return Container(
+                padding: const EdgeInsets.only(left: 8, right: 4, top: 4, bottom: 4),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.amber.shade900.withValues(alpha: 0.3)
+                      : Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? Colors.amber.shade700 : Colors.amber.shade300,
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '#$tag',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.amber.shade200 : Colors.amber.shade900,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () {
+                        setState(() {
+                          item.tags.removeAt(tagIdx);
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(2.0),
+                        child: Icon(
+                          Icons.close,
+                          size: 13,
+                          color: isDark ? Colors.amber.shade300 : Colors.amber.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (item.isAddingTag) ...[
+              Container(
+                width: 140,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.amber, width: 1.2),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    Text(
+                      '#',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber.shade800,
+                      ),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: item.tagController,
+                        focusNode: item.tagFocusNode,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: const InputDecoration(
+                          hintText: 'Etiket...',
+                          hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (_) => _commitTag(item),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => _commitTag(item),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6),
+                        child: Icon(Icons.check, size: 16, color: Colors.green),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          item.tagController.clear();
+                          item.isAddingTag = false;
+                        });
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.only(right: 6),
+                        child: Icon(Icons.close, size: 15, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  setState(() {
+                    item.isAddingTag = true;
+                  });
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    item.tagFocusNode.requestFocus();
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white10 : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isDark ? Colors.white24 : Colors.grey.shade300,
+                      style: BorderStyle.solid,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.add,
+                        size: 13,
+                        color: isDark ? Colors.amber.shade300 : Colors.amber.shade800,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Etiket Ekle',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.amber.shade300 : Colors.amber.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ],
