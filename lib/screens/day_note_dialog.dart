@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../providers/app_state.dart';
 import '../models/day_note.dart';
 import '../models/project.dart';
+import '../models/project_evaluation.dart';
+import '../dialogs/project_evaluation_dialog.dart';
 import '../utils/emoji_data.dart';
 import '../utils/id_generator.dart';
 
@@ -233,6 +235,8 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
   // ─── Okuma görünümü ───────────────────────────────────────────────────────
   Widget _buildReadView() {
     final isDark = widget.appState.isDarkMode;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     // Filter project evaluations for this day
     final projectEvals = widget.appState.evaluations
@@ -245,6 +249,14 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
         .toList();
 
     return AlertDialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 6.0 : 24.0,
+        vertical: isMobile ? 12.0 : 24.0,
+      ),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 8.0 : 20.0,
+        vertical: 12.0,
+      ),
       title: Row(
         children: [
           const Icon(Icons.note_alt, color: Colors.amber),
@@ -252,14 +264,14 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
           Expanded(
             child: Text(
               '$_dateStr Günlük Notu',
-              style: const TextStyle(fontSize: 16),
+              style: TextStyle(fontSize: isMobile ? 15 : 16),
               overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
       content: SizedBox(
-        width: 450,
+        width: isMobile ? screenWidth : 520,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -634,6 +646,9 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
 
   // ─── Düzenleme görünümü ───────────────────────────────────────────────────
   Widget _buildEditView() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+
     final hasNote =
         _existingNote != null &&
         (_existingNote!.note.trim().isNotEmpty ||
@@ -642,6 +657,14 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
             _existingNote!.emoji != null);
 
     return AlertDialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 6.0 : 24.0,
+        vertical: isMobile ? 12.0 : 24.0,
+      ),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 8.0 : 20.0,
+        vertical: 12.0,
+      ),
       title: Row(
         children: [
           const Icon(Icons.edit_note, color: Colors.amber),
@@ -649,20 +672,20 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
           Expanded(
             child: Text(
               '$_dateStr Günlük Notu',
-              style: const TextStyle(fontSize: 16),
+              style: TextStyle(fontSize: isMobile ? 15 : 16),
               overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
       content: SizedBox(
-        width: 450,
+        width: isMobile ? screenWidth : 520,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Emoji Selector & Rating Selector Side-by-Side
+              // Emoji Selector & Rating Selector
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -680,17 +703,17 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                       ),
                       const SizedBox(height: 6),
                       SizedBox(
-                        width: 130,
+                        width: isMobile ? 95 : 120,
                         child: TextField(
                           controller: _emojiController,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 20),
+                          style: const TextStyle(fontSize: 18),
                           enableInteractiveSelection: true,
                           decoration: InputDecoration(
                             hintText: 'Seç',
-                            hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+                            hintStyle: const TextStyle(fontSize: 11, color: Colors.grey),
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -718,8 +741,8 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                       ),
                     ],
                   ),
-                  const SizedBox(width: 24),
-                  // Rating Selector (Right)
+                  SizedBox(width: isMobile ? 10 : 20),
+                  // Rating Selector (Right) - FittedBox ensures it NEVER overflows
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -733,43 +756,58 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            ...List.generate(5, (index) {
-                              final starVal = index + 1;
-                              final isSelected =
-                                  _rating != null && _rating! >= starVal;
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _rating = (_rating == starVal)
-                                        ? null
-                                        : starVal;
-                                  });
-                                },
-                                child: Icon(
-                                  isSelected ? Icons.star : Icons.star_border,
-                                  color: Colors.amber,
-                                  size: 28,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ...List.generate(5, (index) {
+                                final starVal = index + 1;
+                                final isSelected =
+                                    _rating != null && _rating! >= starVal;
+                                return GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _rating = (_rating == starVal)
+                                          ? null
+                                          : starVal;
+                                    });
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 1.0),
+                                    child: Icon(
+                                      isSelected ? Icons.star : Icons.star_border,
+                                      color: Colors.amber,
+                                      size: isMobile ? 25 : 28,
+                                    ),
+                                  ),
+                                );
+                              }),
+                              if (_rating != null) ...[
+                                const SizedBox(width: 4),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _rating = null;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.clear,
+                                      size: 14,
+                                      color: Colors.red,
+                                    ),
+                                  ),
                                 ),
-                              );
-                            }),
-                            if (_rating != null) ...[
-                              const SizedBox(width: 4),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _rating = null;
-                                  });
-                                },
-                                child: const Icon(
-                                  Icons.clear,
-                                  size: 18,
-                                  color: Colors.red,
-                                ),
-                              ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -918,7 +956,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               ..._noteItems.asMap().entries.map((mapEntry) {
                 final index = mapEntry.key;
                 final item = mapEntry.value;
-                return _buildNoteItemWidget(index, item, widget.appState.isDarkMode);
+                return _buildNoteItemWidget(index, item, widget.appState.isDarkMode, isMobile);
               }),
 
               // Ek Yazı Yazma Barı (Yeni Not Ekleme Barı)
@@ -956,7 +994,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                       color: widget.appState.isDarkMode ? Colors.white38 : Colors.grey.shade500,
                     ),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 12, vertical: isMobile ? 10 : 12),
                   ),
                   onChanged: (val) {
                     if (val.isNotEmpty) {
@@ -972,6 +1010,13 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                   },
                 ),
               ),
+
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+
+              // Proje Girdileri Bölümü
+              _buildProjectsSection(widget.appState.isDarkMode, isMobile),
             ],
           ),
         ),
@@ -1074,13 +1119,13 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
     );
   }
 
-  Widget _buildNoteItemWidget(int index, _NoteItemController item, bool isDark) {
+  Widget _buildNoteItemWidget(int index, _NoteItemController item, bool isDark, bool isMobile) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
+      padding: EdgeInsets.all(isMobile ? 8 : 12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isDark ? Colors.white12 : Colors.grey.shade300,
           width: 1,
@@ -1142,7 +1187,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                 color: isDark ? Colors.white38 : Colors.grey.shade400,
               ),
               isDense: true,
-              contentPadding: const EdgeInsets.all(10),
+              contentPadding: EdgeInsets.all(isMobile ? 8 : 10),
               filled: true,
               fillColor: isDark ? const Color(0xFF282828) : Colors.grey.shade50,
               border: OutlineInputBorder(
@@ -1160,6 +1205,279 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
           const SizedBox(height: 10),
           _buildTagAreaForItem(item, isDark),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProjectsSection(bool isDark, bool isMobile) {
+    final activeProjects = widget.appState.projects
+        .where((p) => !p.isArchived)
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.rocket_launch,
+              size: 18,
+              color: Colors.purple,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Günün Projeleri',
+              style: TextStyle(
+                fontSize: isMobile ? 13 : 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.purple.shade700,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${activeProjects.length} Proje',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Projelerinizi değerlendirmek veya saat/dk/not girmek için dokunun:',
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.white54 : Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        if (activeProjects.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white10 : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Text(
+                'Kayıtlı aktif proje bulunmuyor.',
+                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
+              ),
+            ),
+          )
+        else
+          ...activeProjects.map((project) {
+            ProjectEvaluation? eval;
+            try {
+              eval = widget.appState.evaluations.firstWhere(
+                (e) =>
+                    e.projectId == project.id &&
+                    e.sessionDate.year == _normalizedDate.year &&
+                    e.sessionDate.month == _normalizedDate.month &&
+                    e.sessionDate.day == _normalizedDate.day,
+              );
+            } catch (_) {
+              eval = null;
+            }
+
+            final hasEval = eval != null &&
+                (eval.isSkipped ||
+                    eval.score > 0 ||
+                    eval.durationHours > 0 ||
+                    (eval.note != null && eval.note!.trim().isNotEmpty) ||
+                    eval.checkedSteps.isNotEmpty);
+
+            String durationStr = '';
+            if (eval != null && eval.durationHours > 0) {
+              final h = eval.durationHours.toInt();
+              final m = ((eval.durationHours - h) * 60).round();
+              if (h > 0 && m > 0) {
+                durationStr = '$h sa $m dk';
+              } else if (h > 0) {
+                durationStr = '$h saat';
+              } else {
+                durationStr = '$m dakika';
+              }
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: hasEval
+                    ? (isDark
+                        ? Colors.purple.shade900.withValues(alpha: 0.2)
+                        : Colors.purple.shade50.withValues(alpha: 0.5))
+                    : (isDark
+                        ? const Color(0xFF222222)
+                        : Colors.grey.shade50),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: hasEval
+                      ? (isDark ? Colors.purple.shade700 : Colors.purple.shade200)
+                      : (isDark ? Colors.white12 : Colors.grey.shade300),
+                  width: hasEval ? 1.2 : 0.8,
+                ),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  showProjectEvaluationDialog(
+                    context: context,
+                    project: project,
+                    date: _normalizedDate,
+                    onSaved: () {
+                      setState(() {});
+                    },
+                  );
+                },
+                child: Padding(
+                  padding: EdgeInsets.all(isMobile ? 10.0 : 12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(project.colorValue),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              project.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: isMobile ? 13 : 14,
+                              ),
+                            ),
+                          ),
+                          if (hasEval && eval != null) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: eval.isSkipped
+                                    ? Colors.red.withValues(alpha: 0.15)
+                                    : Colors.green.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                eval.isSkipped
+                                    ? 'Pas'
+                                    : (project.evaluationType == 'PERCENTAGE'
+                                        ? '%${eval.score.toStringAsFixed(0)}'
+                                        : '${eval.score.toStringAsFixed(0)} Puan'),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: eval.isSkipped ? Colors.red : Colors.green.shade700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(Icons.edit, size: 14, color: Colors.purple),
+                          ] else ...[
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Doldur',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.purple.shade700,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(Icons.add_circle_outline, size: 15, color: Colors.purple.shade700),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Detaylar / Aktif Özellikler
+                      if (hasEval && eval != null && !eval.isSkipped) ...[
+                        Row(
+                          children: [
+                            if (eval.durationHours > 0) ...[
+                              Icon(Icons.schedule, size: 12, color: Colors.grey.shade600),
+                              const SizedBox(width: 4),
+                              Text(
+                                durationStr,
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                            if (eval.checkedSteps.isNotEmpty) ...[
+                              Icon(Icons.check_box_outlined, size: 12, color: Colors.grey.shade600),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${eval.checkedSteps.length}/${project.checkSteps.length} Adım',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                          ],
+                        ),
+                        if (eval.note != null && eval.note!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            eval.note!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ] else if (!hasEval) ...[
+                        // Henüz doldurulmamışsa projenin aktif özellik etiketlerini göster
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            if (project.trackDuration)
+                              _buildFeatureBadge('Saat / Dk', isDark),
+                            if (project.trackPercentage)
+                              _buildFeatureBadge('Yüzde', isDark),
+                            if (project.trackNumeric)
+                              _buildFeatureBadge('Sayısal Değer', isDark),
+                            if (project.checkSteps.isNotEmpty)
+                              _buildFeatureBadge('${project.checkSteps.length} Adım', isDark),
+                            if (project.trackNote)
+                              _buildFeatureBadge('Proje Notu', isDark),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildFeatureBadge(String label, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white10 : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: isDark ? Colors.white60 : Colors.grey.shade700,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
