@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.85';
+  static const String appVersion = '2.86';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -3474,11 +3474,15 @@ class AppState extends ChangeNotifier {
     required List<ProjectEvaluation> evaluations,
     required List<Event> events,
     required List<TaskItem> tasks,
+    List<DayNote>? dayNotes,
   }) async {
     _projects = projects;
     _evaluations = evaluations;
     _events = events;
     _tasks = tasks;
+    if (dayNotes != null) {
+      _dayNotes = dayNotes;
+    }
 
     // Reset selection to include all projects
     _selectedProjectIds = ['no_project', ..._projects.map((p) => p.id)];
@@ -3490,6 +3494,7 @@ class AppState extends ChangeNotifier {
     await _saveTasks();
     await _saveProjects();
     await _saveEvaluations();
+    await _saveDayNotes();
     await _saveSelectedProjectIds();
 
     // Sync to Firestore if logged in

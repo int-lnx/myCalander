@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import '../providers/app_state.dart';
 import '../models/day_note.dart';
 import '../models/project.dart';
@@ -98,6 +99,8 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
   String? _emoji;
   bool _showEmojiPicker = false;
   String _emojiSearchQuery = '';
+  String _selectedEmojiCategory = 'Tümü';
+  final ScrollController _emojiScrollController = ScrollController();
 
   void _onEmojiChanged() {
     final text = _emojiController.text.trim();
@@ -226,6 +229,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
     _newNoteInputController.dispose();
     _newNoteInputFocusNode.dispose();
     _emojiController.dispose();
+    _emojiScrollController.dispose();
     super.dispose();
   }
 
@@ -816,22 +820,25 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               ),
               const SizedBox(height: 12),
 
-              // Collapsible Emoji Selector List
+              // Collapsible Emoji Selector List (Horizontal & Rich)
               if (_showEmojiPicker) ...[
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade50.withValues(
                       alpha: widget.appState.isDarkMode ? 0.15 : 0.95,
                     ),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: widget.appState.isDarkMode ? Colors.white12 : Colors.grey.shade300,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Arama Çubuğu
                       Row(
                         children: [
                           const Icon(Icons.search, size: 16, color: Colors.grey),
@@ -841,7 +848,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                               height: 36,
                               child: TextField(
                                 decoration: InputDecoration(
-                                  hintText: 'Emoji veya anahtar kelime ara...',
+                                  hintText: 'Emoji veya anahtar kelime ara (örn: spor, kalp, ambulans)...',
                                   hintStyle: const TextStyle(fontSize: 12),
                                   isDense: true,
                                   counterText: '',
@@ -853,75 +860,215 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                                     borderRadius: BorderRadius.circular(6),
                                     borderSide: BorderSide(color: Colors.grey.shade300),
                                   ),
+                                  suffixIcon: _emojiSearchQuery.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.close, size: 14),
+                                          onPressed: () {
+                                            setState(() {
+                                              _emojiSearchQuery = '';
+                                            });
+                                            if (_emojiScrollController.hasClients) {
+                                              _emojiScrollController.jumpTo(0);
+                                            }
+                                          },
+                                        )
+                                      : null,
                                 ),
-                                style: const TextStyle(fontSize: 14),
+                                style: const TextStyle(fontSize: 13),
                                 onChanged: (val) {
                                   setState(() {
                                     _emojiSearchQuery = val;
                                   });
+                                  if (_emojiScrollController.hasClients) {
+                                    _emojiScrollController.jumpTo(0);
+                                  }
                                 },
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Seçmek için dokunun:',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey,
+                      const SizedBox(height: 8),
+
+                      // Kategori Butonları (Yatay Kaydırılabilir)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: emojiCategories.map((cat) {
+                            final isSel = _selectedEmojiCategory == cat;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6.0),
+                              child: ChoiceChip(
+                                label: Text(
+                                  cat,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                    color: isSel ? Colors.white : (widget.appState.isDarkMode ? Colors.white70 : Colors.black87),
+                                  ),
+                                ),
+                                selected: isSel,
+                                selectedColor: Colors.amber.shade700,
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                onSelected: (sel) {
+                                  if (sel) {
+                                    setState(() {
+                                      _selectedEmojiCategory = cat;
+                                    });
+                                    if (_emojiScrollController.hasClients) {
+                                      _emojiScrollController.jumpTo(0);
+                                    }
+                                  }
+                                },
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        constraints: const BoxConstraints(maxHeight: 180),
-                        child: Scrollbar(
-                          thumbVisibility: true,
-                          child: SingleChildScrollView(
-                            child: Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: searchEmojis(_emojiSearchQuery).map((emoItem) {
-                                final emo = emoItem.emoji;
-                                final isSelected = _emoji == emo;
-                                return Tooltip(
-                                  message: emoItem.name,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        _emoji = isSelected ? null : emo;
-                                        _emojiController.text = _emoji ?? '';
-                                        _showEmojiPicker = false;
-                                        _emojiSearchQuery = '';
-                                      });
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? Colors.amber.shade100
-                                            : Colors.transparent,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? Colors.amber
-                                              : Colors.transparent,
-                                          width: 1.5,
+                      const SizedBox(height: 6),
+
+                      // Emojiler (Soldan Sağa Yatay Kaydırma + Mouse Wheel ve Ok Tuşları)
+                      Builder(
+                        builder: (context) {
+                          final filteredEmojis = searchEmojis(
+                            _emojiSearchQuery,
+                            category: _selectedEmojiCategory,
+                          );
+
+                          if (filteredEmojis.isEmpty) {
+                            return Container(
+                              height: 100,
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'Eşleşen emoji bulunamadı.',
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            );
+                          }
+
+                          return Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.chevron_left, size: 22),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 26, minHeight: 40),
+                                tooltip: 'Sola Kaydır',
+                                onPressed: () {
+                                  if (_emojiScrollController.hasClients) {
+                                    final target = (_emojiScrollController.offset - 160)
+                                        .clamp(0.0, _emojiScrollController.position.maxScrollExtent);
+                                    _emojiScrollController.animateTo(
+                                      target,
+                                      duration: const Duration(milliseconds: 220),
+                                      curve: Curves.easeOut,
+                                    );
+                                  }
+                                },
+                              ),
+                              Expanded(
+                                child: SizedBox(
+                                  height: 155,
+                                  child: Scrollbar(
+                                    controller: _emojiScrollController,
+                                    thumbVisibility: true,
+                                    child: Listener(
+                                      onPointerSignal: (pointerSignal) {
+                                        if (pointerSignal is PointerScrollEvent && _emojiScrollController.hasClients) {
+                                          final double delta = pointerSignal.scrollDelta.dy != 0
+                                              ? pointerSignal.scrollDelta.dy
+                                              : pointerSignal.scrollDelta.dx;
+                                          final newOffset = (_emojiScrollController.offset + delta).clamp(
+                                            0.0,
+                                            _emojiScrollController.position.maxScrollExtent,
+                                          );
+                                          _emojiScrollController.jumpTo(newOffset);
+                                        }
+                                      },
+                                      child: ScrollConfiguration(
+                                        behavior: ScrollConfiguration.of(context).copyWith(
+                                          dragDevices: {
+                                            PointerDeviceKind.touch,
+                                            PointerDeviceKind.mouse,
+                                            PointerDeviceKind.trackpad,
+                                          },
                                         ),
-                                      ),
-                                      child: Text(
-                                        emo,
-                                        style: const TextStyle(fontSize: 20),
+                                        child: GridView.builder(
+                                          controller: _emojiScrollController,
+                                          scrollDirection: Axis.horizontal,
+                                          physics: const AlwaysScrollableScrollPhysics(),
+                                          padding: const EdgeInsets.only(bottom: 12),
+                                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 3,
+                                            mainAxisSpacing: 6,
+                                            crossAxisSpacing: 6,
+                                            childAspectRatio: 1.0,
+                                          ),
+                                          itemCount: filteredEmojis.length,
+                                          itemBuilder: (context, index) {
+                                            final emoItem = filteredEmojis[index];
+                                            final emo = emoItem.emoji;
+                                            final isSelected = _emoji == emo;
+                                            return Tooltip(
+                                              message: '${emoItem.name} • ${emoItem.category}',
+                                              child: InkWell(
+                                                borderRadius: BorderRadius.circular(20),
+                                                onTap: () {
+                                                  setState(() {
+                                                    _emoji = isSelected ? null : emo;
+                                                    _emojiController.text = _emoji ?? '';
+                                                    _showEmojiPicker = false;
+                                                    _emojiSearchQuery = '';
+                                                  });
+                                                },
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: isSelected
+                                                        ? Colors.amber.shade100
+                                                        : Colors.transparent,
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(
+                                                      color: isSelected
+                                                          ? Colors.amber.shade700
+                                                          : Colors.transparent,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  alignment: Alignment.center,
+                                                  child: Text(
+                                                    emo,
+                                                    style: const TextStyle(fontSize: 22),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       ),
                                     ),
                                   ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.chevron_right, size: 22),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 26, minHeight: 40),
+                                tooltip: 'Sağa Kaydır',
+                                onPressed: () {
+                                  if (_emojiScrollController.hasClients) {
+                                    final target = (_emojiScrollController.offset + 160)
+                                        .clamp(0.0, _emojiScrollController.position.maxScrollExtent);
+                                    _emojiScrollController.animateTo(
+                                      target,
+                                      duration: const Duration(milliseconds: 220),
+                                      curve: Curves.easeOut,
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),

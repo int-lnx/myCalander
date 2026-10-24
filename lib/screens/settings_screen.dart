@@ -8,6 +8,7 @@ import '../models/project.dart';
 import '../models/project_evaluation.dart';
 import '../models/event.dart';
 import '../models/task_item.dart';
+import '../models/day_note.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -618,6 +619,7 @@ class SettingsScreen extends StatelessWidget {
                                 evaluations: appState.evaluations,
                                 events: appState.events,
                                 tasks: appState.tasks,
+                                dayNotes: appState.dayNotes,
                               );
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -651,6 +653,7 @@ class SettingsScreen extends StatelessWidget {
                                 evaluations: List<ProjectEvaluation>.from(data['evaluations']!),
                                 events: List<Event>.from(data['events']!),
                                 tasks: List<TaskItem>.from(data['tasks']!),
+                                dayNotes: (data['day_notes'] as List<dynamic>?)?.cast<DayNote>() ?? [],
                               );
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
