@@ -1442,7 +1442,11 @@ class _PlanScreenState extends State<PlanScreen> {
                                       parts.add('(${matchedExc.note})');
                                     }
                                   } else {
-                                    if (dayEval.score > 0) {
+                                    if (dayEval.performancePercent != null) {
+                                      parts.add(
+                                        '%${dayEval.performancePercent!.toStringAsFixed(0)}',
+                                      );
+                                    } else if (dayEval.score > 0) {
                                       parts.add(
                                         '%${dayEval.score.toStringAsFixed(0)}',
                                       );

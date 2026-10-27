@@ -382,11 +382,14 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                     displayVal = _getDisplayValueForProject(p, ev, _matrixDisplayIndex);
                                   }
 
+                                  final bool hasZeroPerf = ev.performancePercent != null && ev.performancePercent == 0;
                                   final cellBgColor = ev.isSkipped
                                       ? (isDark ? Colors.red.shade900.withValues(alpha: 0.3) : Colors.red.shade50)
-                                      : (ev.score >= 90 
-                                          ? (isDark ? Colors.green.shade900.withValues(alpha: 0.3) : Colors.green.shade50) 
-                                          : (isDark ? Colors.orange.shade900.withValues(alpha: 0.3) : Colors.orange.shade50));
+                                      : (hasZeroPerf
+                                          ? (isDark ? Colors.red.shade900.withValues(alpha: 0.2) : Colors.red.shade50)
+                                          : ((ev.performancePercent != null ? ev.performancePercent! : ev.score) >= 90 
+                                              ? (isDark ? Colors.green.shade900.withValues(alpha: 0.3) : Colors.green.shade50) 
+                                              : (isDark ? Colors.orange.shade900.withValues(alpha: 0.3) : Colors.orange.shade50)));
 
                                   final cellWidget = Container(
                                     color: cellBgColor,
@@ -399,7 +402,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                         fontWeight: FontWeight.bold,
                                         color: ev.isSkipped
                                             ? Colors.red.shade700
-                                            : (ev.score >= 90 ? Colors.green.shade700 : Colors.orange.shade700),
+                                            : (hasZeroPerf
+                                                ? Colors.red.shade700
+                                                : ((ev.performancePercent != null ? ev.performancePercent! : ev.score) >= 90
+                                                    ? Colors.green.shade700
+                                                    : Colors.orange.shade700)),
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -575,13 +582,20 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   String _getDisplayValueForProject(Project p, ProjectEvaluation ev, int slotIndex) {
     if (slotIndex == 0) {
-      final isMergedDummy = ev.id.startsWith('merged_') && ev.score == 0;
+      final isMergedDummy = ev.id.startsWith('merged_') && ev.score == 0 && ev.performancePercent == null;
       if (isMergedDummy && ev.durationHours > 0) {
         return '${ev.durationHours.toStringAsFixed(ev.durationHours % 1 == 0 ? 0 : 1)} sa';
       }
-      if (p.trackPercentage || ev.performancePercent != null) {
-        final pct = ev.performancePercent ?? ev.score;
-        return '%${pct.toStringAsFixed(0)}';
+      if (ev.performancePercent != null) {
+        return '%${ev.performancePercent!.toStringAsFixed(0)}';
+      } else if (p.trackPercentage) {
+        if (ev.score > 0) {
+          return '%${ev.score.toStringAsFixed(0)}';
+        }
+        if (ev.durationHours > 0) {
+          return '${ev.durationHours.toStringAsFixed(ev.durationHours % 1 == 0 ? 0 : 1)} sa';
+        }
+        return '-';
       } else if (p.trackNumeric) {
         return ev.score.toStringAsFixed(ev.score % 1 == 0 ? 0 : 1);
       } else if (p.trackDuration) {

@@ -59,45 +59,70 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
     double totalHours = 0.0;
     double verimliHours = 0.0;
     double sumPerformances = 0.0;
-    int evalCount = evals.length;
 
     double thisWeekHours = 0.0;
     double thisWeekPerformance = 0.0;
-    int thisWeekCount = 0;
 
     double thisMonthHours = 0.0;
     double thisMonthPerformance = 0.0;
-    int thisMonthCount = 0;
 
     final now = DateTime.now();
     final oneWeekAgo = now.subtract(const Duration(days: 7));
     final oneMonthAgo = now.subtract(const Duration(days: 30));
 
+    int perfCount = 0;
+    int thisWeekPerfCount = 0;
+    int thisMonthPerfCount = 0;
+
     for (var ev in evals) {
       totalHours += ev.durationHours;
-      verimliHours += ev.durationHours * (ev.score / 100.0);
-      sumPerformances += ev.score;
+      double? perf;
+      if (widget.project.evaluationType == 'PERCENTAGE') {
+        if (ev.performancePercent != null) {
+          perf = ev.performancePercent;
+        } else if (ev.score > 0) {
+          perf = ev.score;
+        }
+      } else {
+        perf = ev.score;
+      }
+
+      if (perf != null) {
+        verimliHours += ev.durationHours * (perf / 100.0);
+        sumPerformances += perf;
+        perfCount++;
+      }
 
       if (ev.sessionDate.isAfter(oneWeekAgo)) {
         thisWeekHours += ev.durationHours;
-        thisWeekPerformance += ev.score;
-        thisWeekCount++;
+        if (perf != null) {
+          thisWeekPerformance += perf;
+          thisWeekPerfCount++;
+        }
       }
       if (ev.sessionDate.isAfter(oneMonthAgo)) {
         thisMonthHours += ev.durationHours;
-        thisMonthPerformance += ev.score;
-        thisMonthCount++;
+        if (perf != null) {
+          thisMonthPerformance += perf;
+          thisMonthPerfCount++;
+        }
       }
     }
 
-    final avgPerformance = evalCount > 0 ? sumPerformances / evalCount : 0.0;
-    final avgWeekPerf = thisWeekCount > 0 ? thisWeekPerformance / thisWeekCount : 0.0;
-    final avgMonthPerf = thisMonthCount > 0 ? thisMonthPerformance / thisMonthCount : 0.0;
+    final avgPerformance = perfCount > 0 ? sumPerformances / perfCount : 0.0;
+    final avgWeekPerf = thisWeekPerfCount > 0 ? thisWeekPerformance / thisWeekPerfCount : 0.0;
+    final avgMonthPerf = thisMonthPerfCount > 0 ? thisMonthPerformance / thisMonthPerfCount : 0.0;
 
     // Son 10 performans
-    final last10 = evals.take(10).toList();
+    final ratedEvals = evals.where((e) {
+      if (widget.project.evaluationType == 'PERCENTAGE') {
+        return e.performancePercent != null || e.score > 0;
+      }
+      return true;
+    }).toList();
+    final last10 = ratedEvals.take(10).toList();
     final avgLast10Perf = last10.isNotEmpty
-        ? last10.map((e) => e.score).reduce((a, b) => a + b) / last10.length
+        ? last10.map((e) => (widget.project.evaluationType == 'PERCENTAGE' ? (e.performancePercent ?? e.score) : e.score)).reduce((a, b) => a + b) / last10.length
         : 0.0;
 
     // Çalışma Sıklığı
@@ -234,7 +259,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> with Single
                 child: ListTile(
                   title: Text('${ev.sessionDate.day}/${ev.sessionDate.month}/${ev.sessionDate.year}'),
                   subtitle: Text(
-                    'Ort. Skor: %${ev.score.toStringAsFixed(1)} | Süre: ${ev.durationHours.toStringAsFixed(1)} sa | Not: ${ev.note ?? '-'}',
+                    '${widget.project.evaluationType == 'PERCENTAGE' ? (ev.performancePercent != null ? "Başarı: %${ev.performancePercent!.toStringAsFixed(0)}" : (ev.score > 0 ? "Başarı: %${ev.score.toStringAsFixed(0)}" : "Başarı: -")) : "Skor: ${ev.score.toStringAsFixed(1)}"} | Süre: ${ev.durationHours.toStringAsFixed(1)} sa | Not: ${ev.note ?? '-'}',
                     style: const TextStyle(fontSize: 12),
                   ),
                   trailing: IconButton(

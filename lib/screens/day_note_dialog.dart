@@ -524,14 +524,22 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                               eval.isSkipped
                                   ? 'Pas ${widget.appState.getPasCount(project.id, eval.sessionDate)}'
                                   : (project.evaluationType == 'PERCENTAGE'
-                                        ? '%${eval.score.toStringAsFixed(0)}'
+                                        ? (eval.performancePercent != null
+                                            ? '%${eval.performancePercent!.toStringAsFixed(0)}'
+                                            : (eval.score > 0
+                                                ? '%${eval.score.toStringAsFixed(0)}'
+                                                : (eval.durationHours > 0
+                                                    ? '${eval.durationHours.toStringAsFixed(1)} sa'
+                                                    : 'Kayıt Var')))
                                         : '${eval.score.toStringAsFixed(0)} Puan'),
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: eval.isSkipped
                                     ? Colors.red
-                                    : Colors.green.shade700,
+                                    : (eval.performancePercent != null && eval.performancePercent == 0
+                                        ? Colors.orange.shade800
+                                        : Colors.green.shade700),
                               ),
                             ),
                           ],
@@ -553,7 +561,11 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                               : (eval.isSkipped
                                   ? 'Herhangi bir not girilmedi (Pas).'
                                   : (project.evaluationType == 'PERCENTAGE'
-                                      ? 'Değer: %${eval.score.toStringAsFixed(0)} (Not girilmedi)'
+                                      ? (eval.performancePercent != null
+                                          ? 'Başarı: %${eval.performancePercent!.toStringAsFixed(0)} (Not girilmedi)'
+                                          : (eval.score > 0
+                                              ? 'Başarı: %${eval.score.toStringAsFixed(0)} (Not girilmedi)'
+                                              : 'Başarı: Oran girilmedi (Not girilmedi)'))
                                       : 'Değer: ${eval.score.toStringAsFixed(0)} Puan (Not girilmedi)')),
                           style: TextStyle(
                             fontSize: 13,
@@ -1428,7 +1440,9 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
 
             final hasEval = eval != null &&
                 (eval.isSkipped ||
-                    eval.score > 0 ||
+                    eval.performancePercent != null ||
+                    (project.trackNumeric && eval.score > 0) ||
+                    (!project.trackPercentage && !project.trackNumeric && eval.score > 0) ||
                     eval.durationHours > 0 ||
                     (eval.note != null && eval.note!.trim().isNotEmpty) ||
                     eval.checkedSteps.isNotEmpty);
@@ -1507,19 +1521,29 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                               decoration: BoxDecoration(
                                 color: eval.isSkipped
                                     ? Colors.red.withValues(alpha: 0.15)
-                                    : Colors.green.withValues(alpha: 0.15),
+                                    : (eval.performancePercent != null && eval.performancePercent == 0
+                                        ? Colors.orange.withValues(alpha: 0.15)
+                                        : Colors.green.withValues(alpha: 0.15)),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 eval.isSkipped
                                     ? 'Pas'
                                     : (project.evaluationType == 'PERCENTAGE'
-                                        ? '%${eval.score.toStringAsFixed(0)}'
+                                        ? (eval.performancePercent != null
+                                            ? '%${eval.performancePercent!.toStringAsFixed(0)}'
+                                            : (eval.durationHours > 0
+                                                ? '${eval.durationHours.toStringAsFixed(1)} sa'
+                                                : (eval.score > 0 ? '%${eval.score.toStringAsFixed(0)}' : 'Kayıt Var')))
                                         : '${eval.score.toStringAsFixed(0)} Puan'),
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: eval.isSkipped ? Colors.red : Colors.green.shade700,
+                                  color: eval.isSkipped
+                                      ? Colors.red
+                                      : (eval.performancePercent != null && eval.performancePercent == 0
+                                          ? Colors.orange.shade800
+                                          : Colors.green.shade700),
                                 ),
                               ),
                             ),

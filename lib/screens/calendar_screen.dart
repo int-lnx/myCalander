@@ -2189,7 +2189,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     : Color(proj.colorValue);
                                 title = appointment.isSkipped
                                     ? '📊 ${proj.title}: Pas ${appState.getPasCount(proj.id, appointment.sessionDate)}'
-                                    : '📊 ${proj.title}: %${appointment.score.toStringAsFixed(0)}';
+                                    : (proj.evaluationType == 'PERCENTAGE'
+                                        ? (appointment.performancePercent != null
+                                            ? '📊 ${proj.title}: %${appointment.performancePercent!.toStringAsFixed(0)}'
+                                            : (appointment.score > 0
+                                                ? '📊 ${proj.title}: %${appointment.score.toStringAsFixed(0)}'
+                                                : '📊 ${proj.title}'))
+                                        : '📊 ${proj.title}: ${appointment.score.toStringAsFixed(0)} Puan');
                               } catch (_) {
                                 bgColor = Colors.grey.shade400;
                                 title = '📊 Değerlendirme';
@@ -4694,7 +4700,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             );
                                       } catch (_) {}
                                       final titleText = linkedProject != null
-                                          ? '📊 ${linkedProject.title}: ${item.isSkipped ? "Pas ${appState.getPasCount(linkedProject.id, item.sessionDate)}" : "%${item.score.toStringAsFixed(0)}"}'
+                                          ? (item.isSkipped
+                                              ? '📊 ${linkedProject.title}: Pas ${appState.getPasCount(linkedProject.id, item.sessionDate)}'
+                                              : (linkedProject.evaluationType == 'PERCENTAGE'
+                                                  ? (item.performancePercent != null
+                                                      ? '📊 ${linkedProject.title}: %${item.performancePercent!.toStringAsFixed(0)}'
+                                                      : (item.score > 0
+                                                          ? '📊 ${linkedProject.title}: %${item.score.toStringAsFixed(0)}'
+                                                          : '📊 ${linkedProject.title}'))
+                                                  : '📊 ${linkedProject.title}: ${item.score.toStringAsFixed(0)} Puan'))
                                           : '📊 Değerlendirme';
                                       final color = linkedProject != null
                                           ? (item.isSkipped
@@ -5178,7 +5192,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 final netStr = formatDuration(netHours);
                                 final perfText =
                                     proj.evaluationType == 'PERCENTAGE'
-                                    ? '%${eval.score.toStringAsFixed(0)}'
+                                    ? (eval.performancePercent != null
+                                        ? '%${eval.performancePercent!.toStringAsFixed(0)}'
+                                        : (eval.score > 0 ? '%${eval.score.toStringAsFixed(0)}' : 'Oran Girilmedi'))
                                     : (proj.isNegativeGoal
                                           ? '${eval.score.toStringAsFixed(0)} (Hedef: ${proj.targetValue.toStringAsFixed(0)}), Başarı: %${successPercent.toStringAsFixed(0)}'
                                           : '${eval.score.toStringAsFixed(0)} (Hedef: ${proj.targetValue.toStringAsFixed(0)})');
@@ -6165,7 +6181,16 @@ class EventDataSource extends CalendarDataSource {
           (p) => p.id == item.projectId,
         );
         if (item.isSkipped) return '📊 ${project.title}: Pas ${appState!.getPasCount(project.id, item.sessionDate)}';
-        return '📊 ${project.title}: %${item.score.toStringAsFixed(0)}';
+        if (project.evaluationType == 'PERCENTAGE') {
+          if (item.performancePercent != null) {
+            return '📊 ${project.title}: %${item.performancePercent!.toStringAsFixed(0)}';
+          } else if (item.score > 0) {
+            return '📊 ${project.title}: %${item.score.toStringAsFixed(0)}';
+          } else {
+            return '📊 ${project.title}';
+          }
+        }
+        return '📊 ${project.title}: ${item.score.toStringAsFixed(0)} Puan';
       } catch (_) {
         return '📊 Değerlendirme';
       }

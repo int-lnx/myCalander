@@ -31,7 +31,9 @@ void showProjectEvaluationDialog({
 
   final percentCtrl = TextEditingController(
     text: existingEval.id.isNotEmpty && !existingEval.isSkipped
-        ? (existingEval.performancePercent ?? existingEval.score).toStringAsFixed(0)
+        ? (existingEval.performancePercent != null
+            ? existingEval.performancePercent!.toStringAsFixed(0)
+            : (existingEval.score > 0 ? existingEval.score.toStringAsFixed(0) : ''))
         : (project.defaultPercentage?.toStringAsFixed(0) ?? ''),
   );
   final numericCtrl = TextEditingController(
@@ -260,13 +262,23 @@ void showProjectEvaluationDialog({
 
                   if (!isSkipped) {
                     if (project.trackNumeric) {
-                      score = double.tryParse(numericCtrl.text) ?? 0.0;
+                      score = double.tryParse(numericCtrl.text.trim()) ?? 0.0;
                     }
                     if (project.trackPercentage) {
-                      final pVal = double.tryParse(percentCtrl.text) ?? 0.0;
-                      pctVal = pVal;
-                      if (!project.trackNumeric) {
-                        score = pVal;
+                      final rawPct = percentCtrl.text.trim();
+                      if (rawPct.isNotEmpty) {
+                        final parsed = double.tryParse(rawPct);
+                        if (parsed != null) {
+                          pctVal = parsed.clamp(0.0, 100.0);
+                          if (!project.trackNumeric) {
+                            score = pctVal;
+                          }
+                        }
+                      } else {
+                        pctVal = null;
+                        if (!project.trackNumeric) {
+                          score = 0.0;
+                        }
                       }
                     }
                   }

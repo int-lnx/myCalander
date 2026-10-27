@@ -88,8 +88,18 @@ class Project {
     int count = 0;
     for (var eval in evaluations) {
       if (eval.isSkipped) continue;
-      total += calculateSingleSuccessPercentage(eval.score);
-      count++;
+      if (evaluationType == 'PERCENTAGE') {
+        if (eval.performancePercent != null) {
+          total += calculateSingleSuccessPercentage(eval.performancePercent!);
+          count++;
+        } else if (eval.score > 0) {
+          total += calculateSingleSuccessPercentage(eval.score);
+          count++;
+        }
+      } else {
+        total += calculateSingleSuccessPercentage(eval.score);
+        count++;
+      }
     }
     
     if (count == 0) return 0.0;

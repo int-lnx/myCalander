@@ -567,12 +567,20 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
             appState.addEvent(newEvent);
             Navigator.pop(context);
 
-            ScaffoldMessenger.of(context).showSnackBar(
+            final messenger = ScaffoldMessenger.of(context);
+            messenger.hideCurrentSnackBar();
+            messenger.showSnackBar(
               SnackBar(
                 content: Text('Takip eden kayıt oluşturuldu: "$title"'),
+                duration: const Duration(seconds: 4),
                 behavior: SnackBarBehavior.floating,
+                showCloseIcon: true,
+                closeIconColor: Colors.white70,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 action: SnackBarAction(
                   label: 'Geri Al',
+                  textColor: Colors.amber,
                   onPressed: () {
                     appState.deleteEvent(newEvent.id);
                   },
