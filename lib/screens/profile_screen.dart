@@ -495,11 +495,11 @@ class ProfileScreen extends StatelessWidget {
 
       if (confirm == true) {
         await appState.restoreBackup(
-          projects: (data['projects'] as List<dynamic>?)?.cast<Project>() ?? [],
-          evaluations: (data['evaluations'] as List<dynamic>?)?.cast<ProjectEvaluation>() ?? [],
-          events: (data['events'] as List<dynamic>?)?.cast<Event>() ?? [],
-          tasks: (data['tasks'] as List<dynamic>?)?.cast<TaskItem>() ?? [],
-          dayNotes: (data['day_notes'] as List<dynamic>?)?.cast<DayNote>() ?? [],
+          projects: (data['projects'])?.cast<Project>() ?? [],
+          evaluations: (data['evaluations'])?.cast<ProjectEvaluation>() ?? [],
+          events: (data['events'])?.cast<Event>() ?? [],
+          tasks: (data['tasks'])?.cast<TaskItem>() ?? [],
+          dayNotes: (data['day_notes'])?.cast<DayNote>() ?? [],
         );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

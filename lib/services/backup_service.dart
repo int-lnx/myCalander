@@ -370,7 +370,7 @@ class BackupService {
           : 0.0;
 
       final typeStr = proj.evaluationType == 'PERCENTAGE' ? '% Yüzdelik' : 'Sayısal Puan';
-      final targetStr = proj.targetValue != null ? proj.targetValue!.toStringAsFixed(0) : '-';
+      final targetStr = proj.targetValue!.toStringAsFixed(0);
       final statusStr = proj.isArchived ? 'Arşivlenmiş' : 'Aktif';
       final stepsStr = proj.checkSteps.map((s) => s.title + (s.weight != null ? ' (%${s.weight!.toStringAsFixed(0)})' : '')).join(' | ');
 

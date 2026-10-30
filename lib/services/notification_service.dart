@@ -125,7 +125,7 @@ class NotificationService {
     }
 
     final start = DateTime.now().subtract(const Duration(days: 1));
-    final end = DateTime.now().add(const Duration(days: 30));
+    final end = DateTime.now().add(Duration(days: kIsWeb ? 14 : 30));
 
     try {
       final dates = RecurrenceHelper.getOccurrences(
@@ -324,7 +324,7 @@ class NotificationService {
     }
 
     final start = DateTime.now().subtract(const Duration(days: 1));
-    final end = DateTime.now().add(const Duration(days: 30));
+    final end = DateTime.now().add(Duration(days: kIsWeb ? 14 : 30));
 
     try {
       final dates = RecurrenceHelper.getOccurrences(

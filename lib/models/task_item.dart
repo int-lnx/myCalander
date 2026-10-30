@@ -26,6 +26,7 @@ class TaskItem {
   final bool isInProgress;
   final DateTime createdAt;
   final DateTime? completedDate;
+  final bool showInMonthView;
 
   TaskItem({
     required this.id,
@@ -36,7 +37,7 @@ class TaskItem {
     DateTime? to,
     this.isAllDay = false,
     this.colorValue = 0xFF4CAF50, // Default Colors.green
-    this.tag = 'Genel',
+    this.tag = 'Yapılacaklar',
     this.subTag,
     this.importance = 0,
     this.recurrenceRule,
@@ -54,6 +55,7 @@ class TaskItem {
     String? seriesId,
     DateTime? createdAt,
     this.completedDate,
+    this.showInMonthView = true,
   }) : seriesId = seriesId ?? id,
        createdAt = createdAt ?? DateTime.now(),
        from = (isAllDay && from != null) ? DateTime(from.year, from.month, from.day) : from,
@@ -89,6 +91,7 @@ class TaskItem {
     String? seriesId,
     DateTime? createdAt,
     DateTime? completedDate,
+    bool? showInMonthView,
     bool clearCompletedDate = false,
   }) {
     return TaskItem(
@@ -118,6 +121,7 @@ class TaskItem {
       seriesId: seriesId ?? this.seriesId,
       createdAt: createdAt ?? this.createdAt,
       completedDate: clearCompletedDate ? null : (completedDate ?? this.completedDate),
+      showInMonthView: showInMonthView ?? this.showInMonthView,
     );
   }
 
@@ -149,6 +153,7 @@ class TaskItem {
       'notificationOffsets': notificationOffsets,
       'createdAt': createdAt.toIso8601String(),
       'completedDate': completedDate?.toIso8601String(),
+      'showInMonthView': showInMonthView,
     };
   }
 
@@ -168,7 +173,7 @@ class TaskItem {
       to: json['to'] != null ? DateTime.parse(json['to']) : null,
       isAllDay: json['isAllDay'] ?? false,
       colorValue: json['colorValue'] ?? 0xFF4CAF50,
-      tag: (json['tag'] == null || json['tag'].toString().trim().isEmpty) ? 'Genel' : json['tag'],
+      tag: (json['tag'] == null || json['tag'].toString().trim().isEmpty) ? 'Yapılacaklar' : json['tag'],
       subTag: json['subTag'],
       importance: json['importance'] ?? 0,
       recurrenceRule: json['recurrenceRule'],
@@ -193,6 +198,7 @@ class TaskItem {
         return parsed.isAfter(DateTime.now()) ? DateTime(2020, 1, 1) : parsed;
       })(),
       completedDate: json['completedDate'] != null ? DateTime.parse(json['completedDate']) : null,
+      showInMonthView: json['showInMonthView'] as bool? ?? true,
     );
   }
 }

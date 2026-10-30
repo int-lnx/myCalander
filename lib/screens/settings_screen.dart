@@ -653,7 +653,7 @@ class SettingsScreen extends StatelessWidget {
                                 evaluations: List<ProjectEvaluation>.from(data['evaluations']!),
                                 events: List<Event>.from(data['events']!),
                                 tasks: List<TaskItem>.from(data['tasks']!),
-                                dayNotes: (data['day_notes'] as List<dynamic>?)?.cast<DayNote>() ?? [],
+                                dayNotes: (data['day_notes'])?.cast<DayNote>() ?? [],
                               );
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(

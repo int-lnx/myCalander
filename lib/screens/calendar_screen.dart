@@ -1697,10 +1697,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     _dataSource.appState = appState;
 
+    final List<dynamic> itemsToSet;
+    if (appState.calendarView == CalendarView.month) {
+      itemsToSet = finalItems.where((item) {
+        if (item is Event && !item.id.startsWith('dummy_')) {
+          return item.showInMonthView;
+        }
+        if (item is TaskItem && !item.id.startsWith('dummy_')) {
+          return item.showInMonthView;
+        }
+        return true;
+      }).toList();
+    } else {
+      itemsToSet = finalItems;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _dataSource.appointments = finalItems;
-        _dataSource.notifyListeners(CalendarDataSourceAction.reset, finalItems);
+        _dataSource.appointments = itemsToSet;
+        _dataSource.notifyListeners(CalendarDataSourceAction.reset, itemsToSet);
       }
     });
 
@@ -3079,9 +3094,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
                             final dayEvents = resolvedAppointments
                                 .whereType<Event>()
+                                .where((e) => e.showInMonthView)
                                 .toList();
                             final dayTasks = resolvedAppointments
                                 .whereType<TaskItem>()
+                                .where((t) => t.showInMonthView)
                                 .toList();
 
                             final allStrips = _getActiveStrips(appState);

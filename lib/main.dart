@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -689,40 +690,97 @@ class _MainScreenState extends State<MainScreen> {
           },
         ),
         body: currentScreen,
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today),
-              label: 'Takvim',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.task_alt),
-              label: 'Görevler',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.rocket_launch),
-              label: 'Projeler',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart),
-              label: 'Analiz',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.note_alt),
-              label: 'Notlar',
-            ),
-          ],
-        ),
+        bottomNavigationBar: _buildBottomNavigationBar(context, appState),
       );
     }
+  }
+
+  Widget _buildBottomNavigationBar(BuildContext context, AppState appState) {
+    final isDark = appState.isDarkMode;
+    final items = const [
+      {'icon': Icons.calendar_today, 'label': 'Takvim'},
+      {'icon': Icons.task_alt, 'label': 'Görevler'},
+      {'icon': Icons.rocket_launch, 'label': 'Projeler'},
+      {'icon': Icons.bar_chart, 'label': 'Analiz'},
+      {'icon': Icons.note_alt, 'label': 'Notlar'},
+    ];
+
+    void handleLongPress(int index) {
+      HapticFeedback.mediumImpact();
+      if (index == 0) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const EventFormScreen()),
+        );
+      } else if (index == 1) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const TaskFormScreen()),
+        );
+      } else if (index == 2) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProjectFormScreen()),
+        );
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final isSelected = _currentIndex == index;
+              final color = isSelected ? Colors.blue : (isDark ? Colors.white60 : Colors.grey.shade600);
+
+              return Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _currentIndex = index;
+                      });
+                    },
+                    onLongPress: () => handleLongPress(index),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          item['icon'] as IconData,
+                          color: color,
+                          size: 22,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item['label'] as String,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
   }
 }

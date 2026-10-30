@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.86';
+  static const String appVersion = '2.87';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -363,6 +363,40 @@ class AppState extends ChangeNotifier {
   List<String> get selectedTaskTags => _selectedTaskTags;
   Map<String, List<String>> get taskSubTags => _taskSubTags;
   List<String> get selectedTaskSubTags => _selectedTaskSubTags;
+
+  List<String> getSortedEventTagsByUsage() {
+    final counts = <String, int>{};
+    for (final e in _events) {
+      if (e.tag.isNotEmpty) {
+        counts[e.tag] = (counts[e.tag] ?? 0) + 1;
+      }
+    }
+    final list = List<String>.from(_eventTags);
+    list.sort((a, b) {
+      final countA = counts[a] ?? 0;
+      final countB = counts[b] ?? 0;
+      if (countB != countA) return countB.compareTo(countA);
+      return a.compareTo(b);
+    });
+    return list;
+  }
+
+  List<String> getSortedTaskTagsByUsage() {
+    final counts = <String, int>{};
+    for (final t in _tasks) {
+      if (t.tag.isNotEmpty) {
+        counts[t.tag] = (counts[t.tag] ?? 0) + 1;
+      }
+    }
+    final list = List<String>.from(_taskTags);
+    list.sort((a, b) {
+      final countA = counts[a] ?? 0;
+      final countB = counts[b] ?? 0;
+      if (countB != countA) return countB.compareTo(countA);
+      return a.compareTo(b);
+    });
+    return list;
+  }
 
   // ---- Kategori default renkleri ----
   final Map<String, int> _eventTagColors = {};

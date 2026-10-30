@@ -29,6 +29,9 @@ class Event {
   /// Referans noktası: 'end' (ana etkinliğin bitişi) veya 'start' (başlangıcı).
   final String followUpReference;
 
+  /// Aylık takvim görünümünde hücrede gösterilsin mi?
+  final bool showInMonthView;
+
   Event({
     required this.id,
     required this.title,
@@ -53,6 +56,7 @@ class Event {
     this.parentEventId,
     this.followUpOffsetMinutes = 0,
     this.followUpReference = 'end',
+    this.showInMonthView = true,
   })  : seriesId = seriesId ?? id,
         createdAt = createdAt ?? DateTime.now();
 
@@ -81,6 +85,7 @@ class Event {
     String? parentEventId,
     int? followUpOffsetMinutes,
     String? followUpReference,
+    bool? showInMonthView,
     bool clearParentEventId = false,
     bool clearRecurrenceRule = false,
     bool clearRecurrenceExceptionDates = false,
@@ -119,6 +124,7 @@ class Event {
       followUpReference: clearParentEventId
           ? 'end'
           : (followUpReference ?? this.followUpReference),
+      showInMonthView: showInMonthView ?? this.showInMonthView,
     );
   }
 
@@ -149,6 +155,7 @@ class Event {
       'parentEventId': parentEventId,
       'followUpOffsetMinutes': followUpOffsetMinutes,
       'followUpReference': followUpReference,
+      'showInMonthView': showInMonthView,
     };
   }
 
@@ -206,6 +213,7 @@ class Event {
       followUpOffsetMinutes:
           (json['followUpOffsetMinutes'] as num?)?.toInt() ?? 0,
       followUpReference: json['followUpReference'] as String? ?? 'end',
+      showInMonthView: json['showInMonthView'] as bool? ?? true,
     );
   }
 }
