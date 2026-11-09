@@ -22,10 +22,15 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
   // End options
   String _endType = 'NEVER'; // 'NEVER', 'DATE', 'COUNT'
   DateTime _untilDate = DateTime.now().add(const Duration(days: 90));
-  int _count = 10;
+  late int _count;
+  late TextEditingController _countController;
+  late FocusNode _countFocusNode;
+  bool _isCountManuallyEdited = false;
 
   final List<String> _weekdays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
   final List<String> _weekdayLabels = ['P', 'S', 'Ç', 'P', 'C', 'C', 'P'];
+
+  int get _minCount => (_freq == 'WEEKLY') ? _selectedDays.length : 1;
 
   @override
   void initState() {
@@ -35,6 +40,9 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
     _selectedDays = {_weekdays[widget.eventDate.weekday - 1]};
 
     final rule = widget.initialRRule;
+    bool hasCountInRule = false;
+    int parsedCount = 1;
+
     if (rule != null && rule.isNotEmpty) {
       final upper = rule.toUpperCase();
       if (upper.contains('FREQ=DAILY')) _freq = 'DAILY';
@@ -59,7 +67,9 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
         _endType = 'COUNT';
         final countMatch = RegExp(r'COUNT=(\d+)').firstMatch(upper);
         if (countMatch != null) {
-          _count = int.tryParse(countMatch.group(1) ?? '10') ?? 10;
+          parsedCount = int.tryParse(countMatch.group(1) ?? '') ?? 1;
+          hasCountInRule = true;
+          _isCountManuallyEdited = true;
         }
       } else if (upper.contains('UNTIL=')) {
         _endType = 'DATE';
@@ -75,6 +85,47 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
           } catch (_) {}
         }
       }
+    }
+
+    if (hasCountInRule) {
+      _count = parsedCount < _minCount ? _minCount : parsedCount;
+    } else {
+      _count = _minCount;
+    }
+
+    _countController = TextEditingController(text: _count.toString());
+    _countFocusNode = FocusNode();
+    _countFocusNode.addListener(() {
+      if (!_countFocusNode.hasFocus) {
+        _validateAndFixCount();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _countController.dispose();
+    _countFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _updateCountForSelectedDays({bool forceReset = false}) {
+    final min = _minCount;
+    if (forceReset || !_isCountManuallyEdited || _count < min) {
+      _count = min;
+      _countController.text = _count.toString();
+    }
+  }
+
+  void _validateAndFixCount() {
+    final min = _minCount;
+    final parsed = int.tryParse(_countController.text);
+    if (parsed == null || parsed < min) {
+      _count = min;
+      _countController.text = _count.toString();
+      if (mounted) setState(() {});
+    } else {
+      _count = parsed;
     }
   }
 
@@ -149,7 +200,10 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
                     ],
                     onChanged: (val) {
                       if (val != null) {
-                        setState(() => _freq = val);
+                        setState(() {
+                          _freq = val;
+                          _updateCountForSelectedDays();
+                        });
                       }
                     },
                   ),
@@ -185,6 +239,7 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
                           } else {
                             _selectedDays.add(day);
                           }
+                          _updateCountForSelectedDays();
                         });
                       },
                       child: Container(
@@ -294,7 +349,12 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
                     value: 'COUNT',
                     groupValue: _endType,
                     onChanged: (val) {
-                      if (val != null) setState(() => _endType = val);
+                      if (val != null) {
+                        setState(() {
+                          _endType = val;
+                          _updateCountForSelectedDays();
+                        });
+                      }
                     },
                   ),
                   const Text(
@@ -305,21 +365,32 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
                   SizedBox(
                     width: 50,
                     child: TextFormField(
-                      initialValue: _count.toString(),
+                      controller: _countController,
+                      focusNode: _countFocusNode,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
                       decoration: const InputDecoration(
                         isDense: true,
                         contentPadding: EdgeInsets.symmetric(vertical: 4),
                       ),
+                      onTap: () {
+                        if (_endType != 'COUNT') {
+                          setState(() => _endType = 'COUNT');
+                        }
+                      },
                       onChanged: (val) {
                         final parsed = int.tryParse(val);
                         if (parsed != null && parsed > 0) {
-                          setState(() {
-                            _endType = 'COUNT';
-                            _count = parsed;
-                          });
+                          _isCountManuallyEdited = true;
+                          _count = parsed;
+                          if (_endType != 'COUNT') {
+                            setState(() => _endType = 'COUNT');
+                          }
                         }
+                      },
+                      onEditingComplete: () {
+                        _validateAndFixCount();
+                        FocusScope.of(context).unfocus();
                       },
                     ),
                   ),
@@ -342,6 +413,7 @@ class _CustomRecurrenceDialogState extends State<CustomRecurrenceDialog> {
         ),
         ElevatedButton(
           onPressed: () {
+            _validateAndFixCount();
             String rule = 'FREQ=$_freq;INTERVAL=$_interval';
 
             if (_freq == 'WEEKLY') {

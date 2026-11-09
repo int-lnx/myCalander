@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../models/task_item.dart';
@@ -32,6 +33,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _detailsController;
+  bool _isDetailsExpanded = false;
   DateTime? _from;
   DateTime? _to;
   late int _colorValue;
@@ -71,6 +73,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     final task = widget.existingTask;
     _titleController = TextEditingController(text: task?.title ?? '');
     _detailsController = TextEditingController(text: task?.details ?? '');
+    _detailsController.addListener(_onDetailsChanged);
     _from = task?.from ?? widget.initialDate;
     _to = task?.to ?? (widget.initialDate?.add(const Duration(hours: 1)));
     _hasDate = _from != null;
@@ -126,8 +129,13 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     }
   }
 
+  void _onDetailsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _detailsController.removeListener(_onDetailsChanged);
     _titleController.dispose();
     _detailsController.dispose();
     _tagController.dispose();
@@ -954,14 +962,65 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _detailsController,
-                          decoration: const InputDecoration(
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
+                          minLines: _isDetailsExpanded ? 8 : 2,
+                          maxLines: _isDetailsExpanded ? 20 : 6,
+                          enableInteractiveSelection: true,
+                          selectionControls: materialTextSelectionControls,
+                          contextMenuBuilder: (BuildContext context, EditableTextState editableTextState) {
+                            return AdaptiveTextSelectionToolbar.editableText(
+                              editableTextState: editableTextState,
+                            );
+                          },
+                          decoration: InputDecoration(
                             labelText: 'Açıklama / Detaylar',
+                            alignLabelWithHint: true,
                             isDense: true,
-                            prefixIcon: Icon(Icons.notes, size: 20),
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            prefixIcon: Container(
+                              padding: const EdgeInsets.only(top: 10, left: 10, right: 8),
+                              alignment: Alignment.topCenter,
+                              width: 38,
+                              child: const Icon(Icons.notes, size: 20),
+                            ),
+                            prefixIconConstraints: const BoxConstraints(
+                              minWidth: 38,
+                              minHeight: 38,
+                            ),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_detailsController.text.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(Icons.copy_rounded, size: 18),
+                                    tooltip: 'Açıklamayı Kopyala',
+                                    onPressed: () {
+                                      Clipboard.setData(ClipboardData(text: _detailsController.text));
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Açıklama panoya kopyalandı'),
+                                          duration: Duration(seconds: 1),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                IconButton(
+                                  icon: Icon(
+                                    _isDetailsExpanded ? Icons.unfold_less : Icons.unfold_more,
+                                    size: 20,
+                                  ),
+                                  tooltip: _isDetailsExpanded ? 'Alanı Daralt' : 'Alanı Genişlet',
+                                  onPressed: () {
+                                    setState(() {
+                                      _isDetailsExpanded = !_isDetailsExpanded;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            border: const OutlineInputBorder(),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           ),
-                          maxLines: 2,
                         ),
                       ],
                     ),

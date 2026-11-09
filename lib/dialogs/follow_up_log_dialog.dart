@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/event.dart';
 import '../models/task_item.dart';
-import '../models/project.dart';
 import '../providers/app_state.dart';
 import '../utils/id_generator.dart';
 import '../screens/event_form_screen.dart';

@@ -274,6 +274,27 @@ class _TasksScreenState extends State<TasksScreen> {
                     spacing: 8,
                     runSpacing: 4,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.blue.shade900.withValues(alpha: 0.4) : Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: isDark ? Colors.blue.shade700 : Colors.blue.shade200,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          (task.subTag != null && task.subTag!.isNotEmpty)
+                              ? '${task.tag} • ${task.subTag}'
+                              : task.tag,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.blue.shade200 : Colors.blue.shade800,
+                          ),
+                        ),
+                      ),
                       Text(
                         dateLabel,
                         style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
@@ -646,14 +667,28 @@ class _TasksScreenState extends State<TasksScreen> {
     final appState = Provider.of<AppState>(context);
     final tasks = appState.filteredTasks;
     final isDark = appState.isDarkMode;
+    final isSearching = appState.searchQuery.trim().isNotEmpty;
+    final searchQuery = appState.searchQuery.trim().toLowerCase();
 
-    // Filter tasks based on selected horizontal tab
-    final displayedTasks = tasks.where((t) {
-      if (_selectedTab == 'Tüm Tarihliler') return t.from != null;
-      if (_selectedTab == 'Tüm Tarihsizler') return t.from == null;
-      if (_selectedTab == 'Yapılanlar') return t.isInProgress == true;
-      return t.tag == _selectedTab;
-    }).toList();
+    // Filter tasks: Eğer arama yapılıyorsa tüm kategorilerdeki bütün görevleri dahil et, aksi halde seçili sekmeyi filtrele
+    final List displayedTasks;
+    if (isSearching) {
+      displayedTasks = appState.tasks.where((t) {
+        if (t.isHidden && !appState.showHiddenEvents) return false;
+        final matchTitle = t.title.toLowerCase().contains(searchQuery);
+        final matchDetails = t.details.toLowerCase().contains(searchQuery);
+        final matchTag = t.tag.toLowerCase().contains(searchQuery);
+        final matchSubTag = (t.subTag ?? '').toLowerCase().contains(searchQuery);
+        return matchTitle || matchDetails || matchTag || matchSubTag;
+      }).toList();
+    } else {
+      displayedTasks = tasks.where((t) {
+        if (_selectedTab == 'Tüm Tarihliler') return t.from != null;
+        if (_selectedTab == 'Tüm Tarihsizler') return t.from == null;
+        if (_selectedTab == 'Yapılanlar') return t.isInProgress == true;
+        return t.tag == _selectedTab;
+      }).toList();
+    }
 
     // Remove recurring tasks that have NO remaining active occurrences
     // (i.e. all COUNT occurrences are exhausted / UNTIL date passed).
@@ -865,96 +900,170 @@ class _TasksScreenState extends State<TasksScreen> {
               ],
             ),
           ),
-          // Horizontal scrolling tab bar
-          Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(vertical: 6.0),
-            color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: tabs.length,
-              padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              itemBuilder: (context, index) {
-                final tab = tabs[index];
-                final isSelected = tab == _selectedTab;
-                final count = tasks.where((t) {
-                  if (t.isCompleted) return false;
-                  if (tab == 'Tüm Tarihliler') return t.from != null;
-                  if (tab == 'Tüm Tarihsizler') return t.from == null;
-                  if (tab == 'Yapılanlar') return t.isInProgress == true;
-                  return t.tag == tab;
-                }).length;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedTab = tab;
-                    });
-                  },
-                  onLongPress: (tab == 'Tüm Tarihliler' || tab == 'Tüm Tarihsizler' || tab == 'Yapılanlar')
-                      ? null
-                      : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => TaskFormScreen(
-                                initialTag: tab,
-                              ),
-                            ),
-                          );
-                        },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 6.0),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? Colors.blue
-                          : (isDark
-                              ? Colors.grey.shade800
-                              : Colors.white),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color:
-                            isSelected ? Colors.blue : Colors.grey.shade300,
+          // Arama modu çubuğu VEYA Yatay sekme çubuğu
+          if (isSearching)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              color: isDark ? Colors.grey.shade900 : Colors.blue.shade50.withValues(alpha: 0.7),
+              child: Row(
+                children: [
+                  Icon(Icons.search, size: 18, color: Colors.blue.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tüm kategorilerde "${appState.searchQuery}" için ${displayedTasks.length} sonuç',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.blue.shade200 : Colors.blue.shade900,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: Center(
-                      child: Text(
-                        '$tab ($count)',
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : (isDark ? Colors.white70 : Colors.black87),
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          fontSize: 12,
+                  ),
+                  InkWell(
+                    onTap: () => appState.setSearchQuery(''),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey.shade800 : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark ? Colors.grey.shade700 : Colors.blue.shade200,
                         ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.close, size: 14, color: Colors.grey.shade700),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Temizle',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                );
-              },
+                ],
+              ),
+            )
+          else
+            Container(
+              height: 48,
+              padding: const EdgeInsets.symmetric(vertical: 6.0),
+              color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: tabs.length,
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                itemBuilder: (context, index) {
+                  final tab = tabs[index];
+                  final isSelected = tab == _selectedTab;
+                  final count = tasks.where((t) {
+                    if (t.isCompleted) return false;
+                    if (tab == 'Tüm Tarihliler') return t.from != null;
+                    if (tab == 'Tüm Tarihsizler') return t.from == null;
+                    if (tab == 'Yapılanlar') return t.isInProgress == true;
+                    return t.tag == tab;
+                  }).length;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedTab = tab;
+                      });
+                    },
+                    onLongPress: (tab == 'Tüm Tarihliler' || tab == 'Tüm Tarihsizler' || tab == 'Yapılanlar')
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TaskFormScreen(
+                                  initialTag: tab,
+                                ),
+                              ),
+                            );
+                          },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0, vertical: 6.0),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Colors.blue
+                            : (isDark
+                                ? Colors.grey.shade800
+                                : Colors.white),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color:
+                              isSelected ? Colors.blue : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$tab ($count)',
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : (isDark ? Colors.white70 : Colors.black87),
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
 
-          // Grouped task list
+          // Grouped task list or search result list
           Expanded(
             child: displayedTasks.isEmpty
                 ? Center(
-                    child: Text(
-                      'Seçili kategoride görev bulunmamaktadır.',
-                      style: TextStyle(color: Colors.grey.shade600),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isSearching ? Icons.search_off : Icons.task_outlined,
+                            size: 48,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            isSearching
+                                ? '"${appState.searchQuery}" ile eşleşen hiçbir görev bulunamadı.'
+                                : 'Seçili kategoride görev bulunmamaktadır.',
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : SelectionArea(
-                    child: _buildGroupedTaskList(
-                      context,
-                      displayedTasks,
-                      isDark,
-                      appState,
-                      _selectedTab,
-                    ),
+                    child: isSearching
+                        ? ListView.builder(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemCount: displayedTasks.length,
+                            itemBuilder: (ctx, i) =>
+                                _buildTaskCard(ctx, displayedTasks[i], isDark, appState),
+                          )
+                        : _buildGroupedTaskList(
+                            context,
+                            displayedTasks,
+                            isDark,
+                            appState,
+                            _selectedTab,
+                          ),
                   ),
           ),
         ],

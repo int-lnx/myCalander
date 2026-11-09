@@ -162,7 +162,8 @@ class NotificationService {
           if (triggerTime.isBefore(now)) {
             continue;
           }
-          final String uniqueId = 'event_${event.id}_${occ.millisecondsSinceEpoch}_$offset';
+          final String uniqueId =
+              'event_${event.id}_${occ.millisecondsSinceEpoch}_$offset';
           final String body = offset == 0
               ? 'Etkinlik şimdi başlıyor!'
               : (offset >= 1440
@@ -267,7 +268,8 @@ class NotificationService {
       ];
       for (var occ in occurrences) {
         for (var offset in offsetsToCancel) {
-          final String uniqueId = 'event_${event.id}_${occ.millisecondsSinceEpoch}_$offset';
+          final String uniqueId =
+              'event_${event.id}_${occ.millisecondsSinceEpoch}_$offset';
           WebNotificationHelper.cancelNotification(uniqueId);
         }
       }
@@ -309,8 +311,9 @@ class NotificationService {
         for (var offset in offsetsToCancel) {
           final int id =
               (event.id.hashCode ^
-               (occ.millisecondsSinceEpoch ~/ 60000) ^
-               offset).toSigned(32);
+                      (occ.millisecondsSinceEpoch ~/ 60000) ^
+                      offset)
+                  .toSigned(32);
           await _notificationsPlugin.cancel(id: id);
         }
       }
@@ -362,7 +365,8 @@ class NotificationService {
           if (triggerTime.isBefore(now)) {
             continue;
           }
-          final String uniqueId = 'task_${task.id}_${occ.millisecondsSinceEpoch}_$offset';
+          final String uniqueId =
+              'task_${task.id}_${occ.millisecondsSinceEpoch}_$offset';
           final String body = offset == 0
               ? 'Görev şimdi başlıyor!'
               : (offset >= 1440
@@ -468,7 +472,8 @@ class NotificationService {
       ];
       for (var occ in occurrences) {
         for (var offset in offsetsToCancel) {
-          final String uniqueId = 'task_${task.id}_${occ.millisecondsSinceEpoch}_$offset';
+          final String uniqueId =
+              'task_${task.id}_${occ.millisecondsSinceEpoch}_$offset';
           WebNotificationHelper.cancelNotification(uniqueId);
         }
       }
@@ -509,7 +514,9 @@ class NotificationService {
       for (var occ in occurrences) {
         for (var offset in offsetsToCancel) {
           final int id =
-              (task.id.hashCode ^ (occ.millisecondsSinceEpoch ~/ 60000) ^ offset)
+              (task.id.hashCode ^
+                      (occ.millisecondsSinceEpoch ~/ 60000) ^
+                      offset)
                   .toSigned(32);
           await _notificationsPlugin.cancel(id: id);
         }

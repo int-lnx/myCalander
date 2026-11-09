@@ -1515,7 +1515,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                               ),
                             ),
                           ),
-                          if (hasEval && eval != null) ...[
+                          if (hasEval) ...[
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
@@ -1571,7 +1571,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                       const SizedBox(height: 6),
 
                       // Detaylar / Aktif Özellikler
-                      if (hasEval && eval != null && !eval.isSkipped) ...[
+                      if (hasEval && !eval.isSkipped) ...[
                         Row(
                           children: [
                             if (eval.durationHours > 0) ...[
