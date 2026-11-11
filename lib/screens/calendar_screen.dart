@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -73,18 +77,53 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class _CalendarScreenState extends State<CalendarScreen>
+    with SingleTickerProviderStateMixin {
   late EventDataSource _dataSource;
   List<DateTime> _visibleDates = [];
   bool _showWeekStrips = false;
 
   final Map<int, Offset> _activePointers = {};
+  Offset? _lastPointerLocalPos;
+  Offset? _lastPointerGlobalPos;
   double _baseTimeIntervalHeight = 60.0;
   double _timeIntervalHeight = 60.0;
   double _initialDistance = 0.0;
   DateTime? _lastSwipeTime;
 
+  // Drag & Drop, Edge Resize & Copy-Paste State
+  RenderBox? _timeGridRenderBox;
+  final GlobalKey _calendarStackKey = GlobalKey();
+  double _lastCalendarWidth = 400.0;
+  double _lastActiveIntervalHeight = 60.0;
+  double _lastStartHour = 0.0;
+  double _lastEndHour = 24.0;
+  SystemMouseCursor _calendarMouseCursor = SystemMouseCursors.basic;
+
+  _InteractionMode _interactionMode = _InteractionMode.none;
+  _CardHitResult? _activeHit;
+  DateTime? _previewFrom;
+  DateTime? _previewTo;
+  int _previewDayIndex = 0;
+  String? _manipulatedCardId;
+  DateTime? _manipulatedCardFrom;
+  late final AnimationController _marchingAntsController;
+
+  dynamic _lastFocusedItem;
+  DateTime? _lastFocusedOccurrenceFrom;
+  dynamic _copiedItem;
+  DateTime? _copiedOccurrenceFrom;
+  bool _pasteUseOriginalTime = false;
+  DateTime? _lastHoveredDateTime;
+  final List<_CalendarUndoEntry> _undoStack = [];
+  final List<_CalendarUndoEntry> _redoStack = [];
+  List<ScrollPosition> _timeGridScrollPositions = [];
+  final Map<ScrollPosition, double> _lockedScrollOffsets = {};
+  bool _isScrollLocked = false;
+
   void _handlePointerDown(PointerDownEvent event) {
+    _lastPointerLocalPos = event.localPosition;
+    _lastPointerGlobalPos = event.position;
     _activePointers[event.pointer] = event.position;
     if (_activePointers.length == 2) {
       final pointers = _activePointers.values.toList();
@@ -98,7 +137,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       _activePointers[event.pointer] = event.position;
     }
 
-    if (_activePointers.length == 2 && _initialDistance > 0) {
+    if (_activePointers.length == 2 && _initialDistance > 0 && _interactionMode == _InteractionMode.none) {
       final pointers = _activePointers.values.toList();
       final currentDistance = (pointers[0] - pointers[1]).distance;
       final scale = currentDistance / _initialDistance;
@@ -124,15 +163,1145 @@ class _CalendarScreenState extends State<CalendarScreen> {
     super.initState();
     WakelockPlus.enable();
     _dataSource = EventDataSource([]);
+    _marchingAntsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
   }
 
   @override
   void dispose() {
+    _unlockCalendarScroll();
+    _marchingAntsController.dispose();
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     WakelockPlus.disable();
     super.dispose();
   }
 
+  bool _isCardManipulated(String itemId, DateTime occFrom) {
+    if (_manipulatedCardId == null || _manipulatedCardId != itemId) {
+      return false;
+    }
+    if (_manipulatedCardFrom == null) return true;
+    return _manipulatedCardFrom!.difference(occFrom).inMinutes.abs() <= 1;
+  }
+
+  void _activateCardManipulation(_CardHitResult hit) {
+    if (!mounted) return;
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _manipulatedCardId = hit.occurrence.id;
+      _manipulatedCardFrom = hit.occurrence.fullFrom;
+    });
+  }
+
+  void _clearCardManipulation() {
+    if (!mounted || _manipulatedCardId == null) return;
+    setState(() {
+      _manipulatedCardId = null;
+      _manipulatedCardFrom = null;
+    });
+  }
+
+  void _lockCalendarScroll() {
+    _isScrollLocked = true;
+    for (final pos in _lockedScrollOffsets.keys) {
+      pos.removeListener(_enforceLockedScroll);
+    }
+    _lockedScrollOffsets.clear();
+    for (final pos in _timeGridScrollPositions) {
+      if (pos.hasPixels) {
+        _lockedScrollOffsets[pos] = pos.pixels;
+        pos.isScrollingNotifier.value = false;
+        pos.addListener(_enforceLockedScroll);
+      }
+    }
+  }
+
+  void _enforceLockedScroll() {
+    if (!_isScrollLocked) return;
+    for (final entry in _lockedScrollOffsets.entries) {
+      final pos = entry.key;
+      final target = entry.value;
+      if (pos.hasPixels && (pos.pixels - target).abs() > 0.05) {
+        pos.correctPixels(target);
+      }
+    }
+  }
+
+  void _unlockCalendarScroll() {
+    _isScrollLocked = false;
+    for (final pos in _lockedScrollOffsets.keys) {
+      pos.removeListener(_enforceLockedScroll);
+    }
+    _lockedScrollOffsets.clear();
+  }
+
+  void _handleCardTap(_CardHitResult hit) {
+    if (!mounted) return;
+    final appState = Provider.of<AppState>(context, listen: false);
+    if (appState.isBulkMode) {
+      if (hit.occurrence.originalItem is Event) {
+        final Event e = hit.occurrence.originalItem as Event;
+        if (e.id != 'dummy_t' && e.id != 'dummy_e' && e.id != 'dummy_eval') {
+          final String selectionId = e.recurrenceRule != null
+              ? "${e.id}_${hit.occurrence.fullFrom.millisecondsSinceEpoch}"
+              : e.id;
+          appState.toggleEventSelection(selectionId);
+        }
+      }
+      return;
+    }
+    _lastFocusedItem = hit.occurrence.originalItem;
+    _lastFocusedOccurrenceFrom = hit.occurrence.fullFrom;
+    _showItemDetailsDialog(
+      context,
+      hit.occurrence.originalItem,
+      tappedDate: hit.occurrence.fullFrom,
+    );
+  }
+
+  DateTime _getDayForColumnIndex(int dayIndex, AppState appState) {
+    final int numDays = appState.calendarView == CalendarView.week ? 7 : 1;
+    if (numDays == 1) {
+      final d = appState.calendarController.displayDate ?? DateTime.now();
+      return DateTime(d.year, d.month, d.day);
+    }
+    if (_visibleDates.length > dayIndex) {
+      final d = _visibleDates[dayIndex].toLocal();
+      return DateTime(d.year, d.month, d.day);
+    }
+    final d = appState.calendarController.displayDate ?? DateTime.now();
+    return DateTime(d.year, d.month, d.day);
+  }
+
+  void _captureTimeGridFromCard(BuildContext cardContext) {
+    void tryResolve() {
+      if (!mounted || !cardContext.mounted) return;
+      final List<ScrollPosition> positions = [];
+      cardContext.visitAncestorElements((element) {
+        if (element is StatefulElement && element.state is ScrollableState) {
+          final ScrollableState s = element.state as ScrollableState;
+          positions.add(s.position);
+        }
+        return true;
+      });
+      if (positions.isNotEmpty) {
+        _timeGridScrollPositions = positions;
+      }
+      final double expectedHeight =
+          (_lastEndHour - _lastStartHour) * _lastActiveIntervalHeight;
+      RenderObject? node = cardContext.findRenderObject()?.parent;
+      while (node != null) {
+        if (node is RenderBox &&
+            node.hasSize &&
+            node.size.width >= _lastCalendarWidth - 60.0 &&
+            (node.size.height - expectedHeight).abs() < 40.0) {
+          _timeGridRenderBox = node;
+          return;
+        }
+        node = node.parent;
+      }
+    }
+
+    tryResolve();
+    if (_timeGridRenderBox == null || !_timeGridRenderBox!.attached) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => tryResolve());
+    }
+  }
+
+  _CardHitResult? _hitTestDayWeekCard(Offset globalPos, {Offset? listenerLocalPos}) {
+    if (!mounted) return null;
+    final appState = Provider.of<AppState>(context, listen: false);
+    if (appState.isBulkMode) return null;
+    if (appState.calendarView != CalendarView.day &&
+        appState.calendarView != CalendarView.week) {
+      return null;
+    }
+    if (_timeGridRenderBox == null || !_timeGridRenderBox!.attached) {
+      return null;
+    }
+
+    final Offset? localInListener = listenerLocalPos ?? _lastPointerLocalPos;
+    if (localInListener != null) {
+      if (localInListener.dy < 0) return null;
+      final calDetails = appState.calendarController.getCalendarDetailsAtOffset
+          ?.call(localInListener);
+      if (calDetails != null &&
+          (calDetails.targetElement == CalendarElement.allDayPanel ||
+              calDetails.targetElement == CalendarElement.viewHeader)) {
+        return null;
+      }
+    }
+
+    final Offset gridPos = _timeGridRenderBox!.globalToLocal(globalPos);
+    const double timeRulerWidth = 40.0;
+    final double totalGridHeight =
+        (_lastEndHour - _lastStartHour) * _lastActiveIntervalHeight;
+    if (gridPos.dx < timeRulerWidth ||
+        gridPos.dx > _lastCalendarWidth ||
+        gridPos.dy < 0 ||
+        gridPos.dy > totalGridHeight) {
+      return null;
+    }
+
+    final int numDays = appState.calendarView == CalendarView.week ? 7 : 1;
+    final double columnWidth = (_lastCalendarWidth - timeRulerWidth) / numDays;
+    if (columnWidth <= 0) return null;
+
+    final int dayIndex = numDays == 1
+        ? 0
+        : (((gridPos.dx - timeRulerWidth) / columnWidth).floor()).clamp(
+            0,
+            numDays - 1,
+          );
+    final DateTime targetDay = _getDayForColumnIndex(dayIndex, appState);
+    final DateTime dayStart = DateTime(
+      targetDay.year,
+      targetDay.month,
+      targetDay.day,
+    );
+    final DateTime dayEnd = dayStart.add(const Duration(days: 1));
+
+    final occurrences = _collectDayOccurrences(targetDay, appState);
+    if (occurrences.isEmpty) return null;
+
+    final layouts = _computeDayOverlapLayouts(
+      occurrences: occurrences,
+      activeIntervalHeight: _lastActiveIntervalHeight,
+      fontSizeMultiplier: appState.fontSizeMultiplier,
+    );
+
+    final double colStart = timeRulerWidth + dayIndex * columnWidth;
+
+    for (int i = occurrences.length - 1; i >= 0; i--) {
+      final occ = occurrences[i];
+      final layout = layouts[i];
+      final double cardLeft = colStart + layout['leftRatio']! * columnWidth;
+      double cardWidth = columnWidth * layout['widthRatio']!;
+      if (cardWidth > 4.0) cardWidth -= 2.0;
+      if (cardWidth < 10.0) cardWidth = 10.0;
+
+      final double startHoursFromTop =
+          (occ.from.difference(dayStart).inMinutes / 60.0) - _lastStartHour;
+      final double endHoursFromTop =
+          (occ.to.difference(dayStart).inMinutes / 60.0) - _lastStartHour;
+      final double cardTop = startHoursFromTop * _lastActiveIntervalHeight;
+      final double rawHeight =
+          (endHoursFromTop - startHoursFromTop) * _lastActiveIntervalHeight;
+      final bool isShortDuration =
+          appState.expandShortDuration && rawHeight < 22.0;
+      final double visualHeight = isShortDuration
+          ? 18.0
+          : math.max(14.0, rawHeight);
+      final double cardBottom = cardTop + visualHeight;
+
+      if (gridPos.dx >= cardLeft - 1.0 &&
+          gridPos.dx <= cardLeft + cardWidth + 1.0 &&
+          gridPos.dy >= cardTop &&
+          gridPos.dy <= cardBottom) {
+        final bool isCardManip = _isCardManipulated(occ.id, occ.fullFrom);
+        final double edgeMargin = isCardManip
+            ? (visualHeight * 0.28).clamp(5.0, 10.0)
+            : (visualHeight * 0.25).clamp(3.0, 7.0);
+        _CardHitZone zone = _CardHitZone.body;
+        if (gridPos.dy <= cardTop + edgeMargin &&
+            !occ.fullFrom.isBefore(dayStart)) {
+          zone = _CardHitZone.topResize;
+        } else if (gridPos.dy >= cardBottom - edgeMargin &&
+            !occ.fullTo.isAfter(dayEnd)) {
+          zone = _CardHitZone.bottomResize;
+        }
+
+        return _CardHitResult(
+          occurrence: occ,
+          zone: zone,
+          dayIndex: dayIndex,
+          cardRectInGrid: Rect.fromLTWH(
+            cardLeft,
+            cardTop,
+            cardWidth,
+            visualHeight,
+          ),
+          startGridPos: gridPos,
+        );
+      }
+    }
+    return null;
+  }
+
+  void _handleCalendarHover(PointerHoverEvent event) {
+    if (!mounted) return;
+    final appState = Provider.of<AppState>(context, listen: false);
+    if (_interactionMode != _InteractionMode.none) return;
+
+    if ((appState.calendarView == CalendarView.day ||
+            appState.calendarView == CalendarView.week) &&
+        _timeGridRenderBox != null &&
+        _timeGridRenderBox!.attached) {
+      final Offset gridPos = _timeGridRenderBox!.globalToLocal(event.position);
+      const double timeRulerWidth = 40.0;
+      final int numDays = appState.calendarView == CalendarView.week ? 7 : 1;
+      final double columnWidth =
+          (_lastCalendarWidth - timeRulerWidth) / numDays;
+      if (gridPos.dx >= timeRulerWidth &&
+          gridPos.dx <= _lastCalendarWidth &&
+          gridPos.dy >= 0 &&
+          columnWidth > 0) {
+        final int dayIndex = numDays == 1
+            ? 0
+            : (((gridPos.dx - timeRulerWidth) / columnWidth).floor()).clamp(
+                0,
+                numDays - 1,
+              );
+        final DateTime day = _getDayForColumnIndex(dayIndex, appState);
+        final int rawMinutes =
+            ((_lastStartHour * 60.0) +
+                    (gridPos.dy / _lastActiveIntervalHeight) * 60.0)
+                .round();
+        final int snappedMinutes = ((rawMinutes / 15.0).round() * 15).clamp(
+          0,
+          23 * 60 + 45,
+        );
+        _lastHoveredDateTime = DateTime(
+          day.year,
+          day.month,
+          day.day,
+          snappedMinutes ~/ 60,
+          snappedMinutes % 60,
+        );
+      }
+    } else if (appState.calendarView == CalendarView.month) {
+      final calDetails = appState.calendarController.getCalendarDetailsAtOffset
+          ?.call(event.localPosition);
+      if (calDetails?.date != null) {
+        _lastHoveredDateTime = calDetails!.date;
+      }
+    }
+
+    final hit = _hitTestDayWeekCard(
+      event.position,
+      listenerLocalPos: event.localPosition,
+    );
+    SystemMouseCursor desiredCursor = SystemMouseCursors.basic;
+    if (hit != null) {
+      _lastFocusedItem = hit.occurrence.originalItem;
+      _lastFocusedOccurrenceFrom = hit.occurrence.fullFrom;
+      if (_isCardManipulated(hit.occurrence.id, hit.occurrence.fullFrom)) {
+        if (hit.zone == _CardHitZone.topResize ||
+            hit.zone == _CardHitZone.bottomResize) {
+          desiredCursor = SystemMouseCursors.resizeUpDown;
+        } else {
+          desiredCursor = SystemMouseCursors.grab;
+        }
+      } else {
+        desiredCursor = SystemMouseCursors.click;
+      }
+    } else if (_copiedItem != null) {
+      desiredCursor = SystemMouseCursors.click;
+    }
+
+    if (_calendarMouseCursor != desiredCursor) {
+      setState(() {
+        _calendarMouseCursor = desiredCursor;
+      });
+    }
+  }
+
+  void _startCardInteraction(_CardHitResult hit, Offset downGlobalPos) {
+    if (!mounted) return;
+    _lockCalendarScroll();
+    setState(() {
+      _activeHit = hit;
+      _previewFrom = hit.occurrence.fullFrom;
+      _previewTo = hit.occurrence.fullTo;
+      _previewDayIndex = hit.dayIndex;
+      if (hit.zone == _CardHitZone.topResize) {
+        _interactionMode = _InteractionMode.resizeTop;
+        _calendarMouseCursor = SystemMouseCursors.resizeUpDown;
+      } else if (hit.zone == _CardHitZone.bottomResize) {
+        _interactionMode = _InteractionMode.resizeBottom;
+        _calendarMouseCursor = SystemMouseCursors.resizeUpDown;
+      } else {
+        _interactionMode = _InteractionMode.move;
+        _calendarMouseCursor = SystemMouseCursors.grabbing;
+      }
+    });
+  }
+
+  void _updateCardInteraction(Offset currentGlobalPos) {
+    if (!mounted ||
+        _interactionMode == _InteractionMode.none ||
+        _activeHit == null ||
+        _timeGridRenderBox == null ||
+        !_timeGridRenderBox!.attached) {
+      return;
+    }
+    final appState = Provider.of<AppState>(context, listen: false);
+    final Offset gridPos = _timeGridRenderBox!.globalToLocal(currentGlobalPos);
+    const double timeRulerWidth = 40.0;
+    final int numDays = appState.calendarView == CalendarView.week ? 7 : 1;
+    final double columnWidth = (_lastCalendarWidth - timeRulerWidth) / numDays;
+    if (columnWidth <= 0) return;
+
+    final double deltaY = gridPos.dy - _activeHit!.startGridPos.dy;
+    final double rawDeltaMinutes =
+        (deltaY / _lastActiveIntervalHeight) * 60.0;
+    final int snappedDeltaMinutes = (rawDeltaMinutes / 15.0).round() * 15;
+
+    final DateTime initialFrom = _activeHit!.occurrence.fullFrom;
+    final DateTime initialTo = _activeHit!.occurrence.fullTo;
+    final Duration duration = initialTo.difference(initialFrom);
+
+    DateTime nextFrom = initialFrom;
+    DateTime nextTo = initialTo;
+    int nextDayIndex = _activeHit!.dayIndex;
+
+    if (_interactionMode == _InteractionMode.move) {
+      nextDayIndex = numDays == 1
+          ? 0
+          : (((gridPos.dx - timeRulerWidth) / columnWidth).floor()).clamp(
+              0,
+              numDays - 1,
+            );
+      final int dayDelta = nextDayIndex - _activeHit!.dayIndex;
+      final DateTime dayShiftedFrom = DateTime(
+        initialFrom.year,
+        initialFrom.month,
+        initialFrom.day + dayDelta,
+        initialFrom.hour,
+        initialFrom.minute,
+      );
+      if (deltaY.abs() < 6.0) {
+        nextFrom = dayShiftedFrom;
+      } else {
+        final int origMinOfDay = initialFrom.hour * 60 + initialFrom.minute;
+        final int newMinOfDay = (((origMinOfDay + rawDeltaMinutes) / 15.0)
+                    .round() *
+                15)
+            .clamp(0, 23 * 60 + 45);
+        nextFrom = DateTime(
+          dayShiftedFrom.year,
+          dayShiftedFrom.month,
+          dayShiftedFrom.day,
+          newMinOfDay ~/ 60,
+          newMinOfDay % 60,
+        );
+      }
+      nextTo = nextFrom.add(duration);
+    } else if (_interactionMode == _InteractionMode.resizeTop) {
+      nextFrom = initialFrom.add(Duration(minutes: snappedDeltaMinutes));
+      final DateTime maxFrom = initialTo.subtract(const Duration(minutes: 15));
+      if (nextFrom.isAfter(maxFrom)) {
+        nextFrom = maxFrom;
+      }
+      nextTo = initialTo;
+    } else if (_interactionMode == _InteractionMode.resizeBottom) {
+      nextFrom = initialFrom;
+      nextTo = initialTo.add(Duration(minutes: snappedDeltaMinutes));
+      final DateTime minTo = initialFrom.add(const Duration(minutes: 15));
+      if (nextTo.isBefore(minTo)) {
+        nextTo = minTo;
+      }
+    }
+
+    if (_previewFrom != nextFrom ||
+        _previewTo != nextTo ||
+        _previewDayIndex != nextDayIndex) {
+      setState(() {
+        _previewFrom = nextFrom;
+        _previewTo = nextTo;
+        _previewDayIndex = nextDayIndex;
+      });
+    }
+  }
+
+  void _endCardInteraction(Offset upGlobalPos) {
+    _unlockCalendarScroll();
+    if (!mounted ||
+        _interactionMode == _InteractionMode.none ||
+        _activeHit == null) {
+      _cancelCardInteraction();
+      return;
+    }
+    final appState = Provider.of<AppState>(context, listen: false);
+    final hit = _activeHit!;
+    final DateTime newFrom = _previewFrom ?? hit.occurrence.fullFrom;
+    final DateTime newTo = _previewTo ?? hit.occurrence.fullTo;
+    final bool isResize =
+        _interactionMode == _InteractionMode.resizeTop ||
+        _interactionMode == _InteractionMode.resizeBottom;
+
+    setState(() {
+      _interactionMode = _InteractionMode.none;
+      _activeHit = null;
+      _previewFrom = null;
+      _previewTo = null;
+      _manipulatedCardId = null;
+      _manipulatedCardFrom = null;
+      _calendarMouseCursor = SystemMouseCursors.basic;
+    });
+
+    if (newFrom != hit.occurrence.fullFrom || newTo != hit.occurrence.fullTo) {
+      _commitMoveOrResize(
+        appState: appState,
+        item: hit.occurrence.originalItem,
+        occurrenceStart: hit.occurrence.fullFrom,
+        newFrom: newFrom,
+        newTo: newTo,
+        isResize: isResize,
+      );
+    }
+  }
+
+  void _cancelCardInteraction() {
+    _unlockCalendarScroll();
+    if (!mounted) return;
+    if (_interactionMode != _InteractionMode.none ||
+        _activeHit != null ||
+        _manipulatedCardId != null) {
+      setState(() {
+        _interactionMode = _InteractionMode.none;
+        _activeHit = null;
+        _previewFrom = null;
+        _previewTo = null;
+        _manipulatedCardId = null;
+        _manipulatedCardFrom = null;
+        _calendarMouseCursor = SystemMouseCursors.basic;
+      });
+    }
+  }
+
+  void _commitMoveOrResize({
+    required AppState appState,
+    required dynamic item,
+    required DateTime occurrenceStart,
+    required DateTime newFrom,
+    required DateTime newTo,
+    required bool isResize,
+  }) {
+    if (item is Event) {
+      final bool isRecurring =
+          item.recurrenceRule != null && item.recurrenceRule!.isNotEmpty;
+      if (isRecurring) {
+        final Event previousParent = item;
+        final DateTime baseStart = item.from.toLocal();
+        final DateTime occLocal = occurrenceStart.toLocal();
+        final DateTime exceptionDate = DateTime(
+          occLocal.year,
+          occLocal.month,
+          occLocal.day,
+          baseStart.hour,
+          baseStart.minute,
+        );
+        final List<DateTime> updatedExceptions = List<DateTime>.from(
+          item.recurrenceExceptionDates ?? [],
+        )..add(exceptionDate);
+
+        final Event updatedParent = item.copyWith(
+          recurrenceExceptionDates: updatedExceptions,
+        );
+        appState.updateEvent(updatedParent);
+
+        final Event detachedClone = item.copyWith(
+          id: IdGenerator.generate('${item.title}_bireysel', date: newFrom),
+          from: newFrom,
+          to: newTo,
+          clearRecurrenceRule: true,
+          clearRecurrenceExceptionDates: true,
+          createdAt: DateTime.now(),
+        );
+        appState.addEvent(detachedClone);
+
+        _showUndoSnackBar(
+          '"${item.title}" tekrardan çıkarılıp bireysel olarak ${isResize ? "güncellendi" : "taşındı"}',
+          () {
+            appState.deleteEvent(detachedClone.id);
+            appState.updateEvent(previousParent);
+          },
+        );
+      } else {
+        final Event previousEvent = item;
+        final Event updated = item.copyWith(from: newFrom, to: newTo);
+        appState.updateEvent(updated);
+        _showUndoSnackBar(
+          '"${item.title}" ${isResize ? "süresi güncellendi" : "taşındı"}',
+          () {
+            appState.updateEvent(previousEvent);
+          },
+        );
+      }
+    } else if (item is TaskItem) {
+      final bool isRecurring =
+          item.recurrenceRule != null && item.recurrenceRule!.isNotEmpty;
+      if (isRecurring) {
+        final TaskItem previousParent = item;
+        final DateTime baseStart = (item.from ?? occurrenceStart).toLocal();
+        final DateTime occLocal = occurrenceStart.toLocal();
+        final DateTime exceptionDate = DateTime(
+          occLocal.year,
+          occLocal.month,
+          occLocal.day,
+          baseStart.hour,
+          baseStart.minute,
+        );
+        final List<DateTime> updatedExceptions = List<DateTime>.from(
+          item.recurrenceExceptionDates ?? [],
+        )..add(exceptionDate);
+
+        final TaskItem updatedParent = item.copyWith(
+          recurrenceExceptionDates: updatedExceptions,
+        );
+        appState.updateTask(updatedParent);
+
+        final TaskItem detachedClone = item.copyWith(
+          id: IdGenerator.generate('${item.title}_bireysel', date: newFrom),
+          from: newFrom,
+          to: newTo,
+          clearRecurrenceRule: true,
+          clearRecurrenceExceptionDates: true,
+          createdAt: DateTime.now(),
+        );
+        appState.addTask(detachedClone);
+
+        _showUndoSnackBar(
+          '"${item.title}" tekrardan çıkarılıp bireysel olarak ${isResize ? "güncellendi" : "taşındı"}',
+          () {
+            appState.deleteTask(detachedClone.id);
+            appState.updateTask(previousParent);
+          },
+        );
+      } else {
+        final TaskItem previousTask = item;
+        final TaskItem updated = item.copyWith(from: newFrom, to: newTo);
+        appState.updateTask(updated);
+        _showUndoSnackBar(
+          '"${item.title}" ${isResize ? "süresi güncellendi" : "taşındı"}',
+          () {
+            appState.updateTask(previousTask);
+          },
+        );
+      }
+    }
+  }
+
+  void _copyItemToClipboard(dynamic item, DateTime? occurrenceFrom) {
+    if (item is! Event && item is! TaskItem) return;
+    setState(() {
+      _copiedItem = item;
+      _copiedOccurrenceFrom = occurrenceFrom;
+    });
+    final String title = item is Event
+        ? item.title
+        : (item as TaskItem).title;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '📋 "$title" kopyalandı. Yapıştırmak istediğiniz güne/saate tıklayın veya Ctrl+V basın.',
+        ),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _pasteCopiedItemAt(
+    DateTime targetDateTime,
+    AppState appState, {
+    required bool isMonthOrDateOnly,
+  }) {
+    final dynamic item = _copiedItem;
+    if (item == null) return;
+
+    if (item is Event) {
+      final DateTime baseFrom = (_copiedOccurrenceFrom ?? item.from).toLocal();
+      final Duration duration = item.to.difference(item.from);
+      final DateTime newFrom = (item.isAllDay || isMonthOrDateOnly)
+          ? DateTime(
+              targetDateTime.year,
+              targetDateTime.month,
+              targetDateTime.day,
+              baseFrom.hour,
+              baseFrom.minute,
+            )
+          : DateTime(
+              targetDateTime.year,
+              targetDateTime.month,
+              targetDateTime.day,
+              targetDateTime.hour,
+              targetDateTime.minute,
+            );
+      final DateTime newTo = newFrom.add(duration);
+      final Event pasted = item.copyWith(
+        id: IdGenerator.generate('${item.title}_kopya', date: newFrom),
+        from: newFrom,
+        to: newTo,
+        clearRecurrenceRule: true,
+        clearRecurrenceExceptionDates: true,
+        createdAt: DateTime.now(),
+      );
+      appState.addEvent(pasted);
+      final String timeStr =
+          '${newFrom.day}.${newFrom.month}.${newFrom.year} ${newFrom.hour.toString().padLeft(2, '0')}:${newFrom.minute.toString().padLeft(2, '0')}';
+      _showUndoSnackBar('"${item.title}" ($timeStr) yapıştırıldı', () {
+        appState.deleteEvent(pasted.id);
+      });
+    } else if (item is TaskItem) {
+      final DateTime baseFrom =
+          (_copiedOccurrenceFrom ?? item.from ?? DateTime.now()).toLocal();
+      final Duration duration = (item.from != null && item.to != null)
+          ? item.to!.difference(item.from!)
+          : const Duration(hours: 1);
+      final DateTime newFrom = (item.isAllDay || isMonthOrDateOnly)
+          ? DateTime(
+              targetDateTime.year,
+              targetDateTime.month,
+              targetDateTime.day,
+              baseFrom.hour,
+              baseFrom.minute,
+            )
+          : DateTime(
+              targetDateTime.year,
+              targetDateTime.month,
+              targetDateTime.day,
+              targetDateTime.hour,
+              targetDateTime.minute,
+            );
+      final DateTime newTo = newFrom.add(duration);
+      final TaskItem pasted = item.copyWith(
+        id: IdGenerator.generate('${item.title}_kopya', date: newFrom),
+        from: newFrom,
+        to: newTo,
+        isCompleted: false,
+        clearCompletedDate: true,
+        clearRecurrenceRule: true,
+        clearRecurrenceExceptionDates: true,
+        createdAt: DateTime.now(),
+      );
+      appState.addTask(pasted);
+      final String timeStr =
+          '${newFrom.day}.${newFrom.month}.${newFrom.year} ${newFrom.hour.toString().padLeft(2, '0')}:${newFrom.minute.toString().padLeft(2, '0')}';
+      _showUndoSnackBar('"${item.title}" ($timeStr) yapıştırıldı', () {
+        appState.deleteTask(pasted.id);
+      });
+    }
+  }
+
+  Future<void> _showCopyToDateDialog(
+    BuildContext context,
+    dynamic item,
+    DateTime? occurrenceFrom,
+    AppState appState,
+  ) async {
+    final DateTime initialDate =
+        (occurrenceFrom ??
+                (item is Event
+                    ? item.from
+                    : (item is TaskItem ? item.from : null)) ??
+                DateTime.now())
+            .toLocal();
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Kopyalanacak Günü Seçin',
+      confirmText: 'Devam',
+      cancelText: 'İptal',
+    );
+    if (pickedDate == null || !mounted) return;
+
+    final bool isAllDay = item is Event
+        ? item.isAllDay
+        : (item is TaskItem ? item.isAllDay : false);
+    TimeOfDay pickedTime = TimeOfDay(
+      hour: initialDate.hour,
+      minute: initialDate.minute,
+    );
+
+    if (!isAllDay) {
+      final TimeOfDay? selectedTime = await showTimePicker(
+        context: context,
+        initialTime: pickedTime,
+        helpText: 'Başlangıç Saatini Seçin (Aynı kalması için Tamam\'a basın)',
+        confirmText: 'Kopyala',
+        cancelText: 'İptal',
+      );
+      if (selectedTime == null || !mounted) return;
+      pickedTime = selectedTime;
+    }
+
+    final DateTime targetDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    if (item is Event) {
+      final Duration duration = item.to.difference(item.from);
+      final DateTime newTo = targetDateTime.add(duration);
+      final Event copy = item.copyWith(
+        id: IdGenerator.generate('${item.title}_kopya', date: targetDateTime),
+        from: targetDateTime,
+        to: newTo,
+        clearRecurrenceRule: true,
+        clearRecurrenceExceptionDates: true,
+        createdAt: DateTime.now(),
+      );
+      appState.addEvent(copy);
+      _showUndoSnackBar(
+        '"${item.title}" ${pickedDate.day}.${pickedDate.month}.${pickedDate.year} gününe kopyalandı',
+        () {
+          appState.deleteEvent(copy.id);
+        },
+      );
+    } else if (item is TaskItem) {
+      final Duration duration = (item.from != null && item.to != null)
+          ? item.to!.difference(item.from!)
+          : const Duration(hours: 1);
+      final DateTime newTo = targetDateTime.add(duration);
+      final TaskItem copy = item.copyWith(
+        id: IdGenerator.generate('${item.title}_kopya', date: targetDateTime),
+        from: targetDateTime,
+        to: newTo,
+        isCompleted: false,
+        clearCompletedDate: true,
+        clearRecurrenceRule: true,
+        clearRecurrenceExceptionDates: true,
+        createdAt: DateTime.now(),
+      );
+      appState.addTask(copy);
+      _showUndoSnackBar(
+        '"${item.title}" ${pickedDate.day}.${pickedDate.month}.${pickedDate.year} gününe kopyalandı',
+        () {
+          appState.deleteTask(copy.id);
+        },
+      );
+    }
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (!mounted || event is! KeyDownEvent) return false;
+    final focusWidget = FocusManager.instance.primaryFocus?.context?.widget;
+    if (focusWidget is EditableText) return false;
+
+    final bool isCtrlOrMeta =
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (_manipulatedCardId != null) {
+        _clearCardManipulation();
+        return true;
+      }
+      if (_copiedItem != null) {
+        setState(() {
+          _copiedItem = null;
+          _copiedOccurrenceFrom = null;
+        });
+        return true;
+      }
+      return false;
+    }
+
+    if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyZ) {
+      if (ModalRoute.of(context)?.isCurrent == false) return false;
+      final bool isShift = HardwareKeyboard.instance.isShiftPressed;
+      if (isShift) {
+        if (_redoStack.isNotEmpty) {
+          _performLastRedo();
+          return true;
+        }
+        return false;
+      }
+      if (_undoStack.isNotEmpty) {
+        _performLastUndo();
+        return true;
+      }
+      return false;
+    }
+
+    if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyY) {
+      if (ModalRoute.of(context)?.isCurrent == false) return false;
+      if (_redoStack.isNotEmpty) {
+        _performLastRedo();
+        return true;
+      }
+      return false;
+    }
+
+    if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyC) {
+      if (_lastFocusedItem != null) {
+        _copyItemToClipboard(_lastFocusedItem, _lastFocusedOccurrenceFrom);
+        return true;
+      }
+    } else if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyV) {
+      if (_copiedItem != null) {
+        final appState = Provider.of<AppState>(context, listen: false);
+        final DateTime target =
+            _lastHoveredDateTime ??
+            appState.calendarController.selectedDate ??
+            appState.calendarController.displayDate ??
+            DateTime.now();
+        final bool dateOnly =
+            appState.calendarView == CalendarView.month ||
+            _pasteUseOriginalTime ||
+            _lastHoveredDateTime == null;
+        _pasteCopiedItemAt(target, appState, isMonthOrDateOnly: dateOnly);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _applyHistorySnapshot(
+    AppState appState,
+    _CalendarHistorySnapshot target,
+  ) {
+    final nowEventIds = appState.events.map((e) => e.id).toSet();
+    final targetEventIds = target.events.map((e) => e.id).toSet();
+    for (final id in nowEventIds.difference(targetEventIds)) {
+      appState.deleteEvent(id);
+    }
+    for (final e in target.events) {
+      if (!nowEventIds.contains(e.id)) {
+        appState.addEvent(e);
+      } else {
+        final current = appState.getEventById(e.id);
+        if (current == null ||
+            jsonEncode(current.toJson()) != target.eventJsonById[e.id]) {
+          appState.updateEvent(e);
+        }
+      }
+    }
+
+    final nowTaskIds = appState.tasks.map((t) => t.id).toSet();
+    final targetTaskIds = target.tasks.map((t) => t.id).toSet();
+    for (final id in nowTaskIds.difference(targetTaskIds)) {
+      appState.deleteTask(id, forceDeleteParent: true);
+    }
+    for (final t in target.tasks) {
+      if (!nowTaskIds.contains(t.id)) {
+        appState.addTask(t);
+      } else {
+        final idx = appState.tasks.indexWhere((x) => x.id == t.id);
+        if (idx == -1 ||
+            jsonEncode(appState.tasks[idx].toJson()) !=
+                target.taskJsonById[t.id]) {
+          appState.updateTask(t);
+        }
+      }
+    }
+  }
+
+  void _pushUndoEntry(
+    String message,
+    VoidCallback onUndo, {
+    VoidCallback? onRedo,
+    bool clearRedo = true,
+  }) {
+    if (clearRedo) {
+      _redoStack.clear();
+    }
+    _undoStack.add(
+      _CalendarUndoEntry(message: message, onUndo: onUndo, onRedo: onRedo),
+    );
+    if (_undoStack.length > 30) {
+      _undoStack.removeAt(0);
+    }
+  }
+
+  void _executeUndoEntry(_CalendarUndoEntry entry, {bool showSnack = true}) {
+    if (!mounted) return;
+    final appState = Provider.of<AppState>(context, listen: false);
+    final afterSnapshot = _CalendarHistorySnapshot.capture(appState);
+    entry.onUndo();
+    final beforeSnapshot = _CalendarHistorySnapshot.capture(appState);
+
+    final redoEntry = _CalendarUndoEntry(
+      message: entry.message,
+      onUndo: () => _applyHistorySnapshot(appState, beforeSnapshot),
+      onRedo: entry.onRedo ?? () => _applyHistorySnapshot(appState, afterSnapshot),
+    );
+    _redoStack.add(redoEntry);
+    if (_redoStack.length > 30) {
+      _redoStack.removeAt(0);
+    }
+
+    if (showSnack) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Geri alındı: ${entry.message}'),
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          showCloseIcon: true,
+          closeIconColor: Colors.white70,
+          action: SnackBarAction(
+            label: 'İleri Al (Ctrl+Y)',
+            textColor: Colors.amber,
+            onPressed: () {
+              if (_redoStack.isNotEmpty) {
+                _performLastRedo();
+              }
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  void _performLastUndo() {
+    if (_undoStack.isEmpty || !mounted) return;
+    final entry = _undoStack.removeLast();
+    _executeUndoEntry(entry, showSnack: true);
+  }
+
+  void _performLastRedo() {
+    if (_redoStack.isEmpty || !mounted) return;
+    final entry = _redoStack.removeLast();
+    if (entry.onRedo != null) {
+      entry.onRedo!();
+    }
+    _pushUndoEntry(
+      entry.message,
+      entry.onUndo,
+      onRedo: entry.onRedo,
+      clearRedo: false,
+    );
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('İleri alındı: ${entry.message}'),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        showCloseIcon: true,
+        closeIconColor: Colors.white70,
+        action: SnackBarAction(
+          label: 'Geri Al (Ctrl+Z)',
+          textColor: Colors.amber,
+          onPressed: () {
+            if (_undoStack.isNotEmpty) {
+              _performLastUndo();
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pushRouteWithSnapshotUndo({
+    required AppState appState,
+    required String actionLabel,
+    required Widget Function(BuildContext) builder,
+    List<Event>? preCapturedEvents,
+    List<TaskItem>? preCapturedTasks,
+  }) async {
+    final List<Event> prevEvents =
+        preCapturedEvents ?? List<Event>.from(appState.events);
+    final List<TaskItem> prevTasks =
+        preCapturedTasks ?? List<TaskItem>.from(appState.tasks);
+    final Map<String, String> prevEventMap = {
+      for (final e in prevEvents) e.id: jsonEncode(e.toJson()),
+    };
+    final Map<String, String> prevTaskMap = {
+      for (final t in prevTasks) t.id: jsonEncode(t.toJson()),
+    };
+
+    if (!mounted) return;
+    await Navigator.push(context, MaterialPageRoute(builder: builder));
+    if (!mounted) return;
+
+    final List<Event> curEvents = List<Event>.from(appState.events);
+    final List<TaskItem> curTasks = List<TaskItem>.from(appState.tasks);
+    final Map<String, String> curEventMap = {
+      for (final e in curEvents) e.id: jsonEncode(e.toJson()),
+    };
+    final Map<String, String> curTaskMap = {
+      for (final t in curTasks) t.id: jsonEncode(t.toJson()),
+    };
+
+    bool hasDiff =
+        prevEventMap.length != curEventMap.length ||
+        prevTaskMap.length != curTaskMap.length;
+    if (!hasDiff) {
+      for (final entry in curEventMap.entries) {
+        if (prevEventMap[entry.key] != entry.value) {
+          hasDiff = true;
+          break;
+        }
+      }
+    }
+    if (!hasDiff) {
+      for (final entry in curTaskMap.entries) {
+        if (prevTaskMap[entry.key] != entry.value) {
+          hasDiff = true;
+          break;
+        }
+      }
+    }
+
+    if (hasDiff) {
+      _pushUndoEntry(actionLabel, () {
+        final nowEventIds = appState.events.map((e) => e.id).toSet();
+        final oldEventIds = prevEvents.map((e) => e.id).toSet();
+        for (final id in nowEventIds.difference(oldEventIds)) {
+          appState.deleteEvent(id);
+        }
+        for (final e in prevEvents) {
+          if (!nowEventIds.contains(e.id)) {
+            appState.addEvent(e);
+          } else {
+            final current = appState.getEventById(e.id);
+            if (current == null ||
+                jsonEncode(current.toJson()) != prevEventMap[e.id]) {
+              appState.updateEvent(e);
+            }
+          }
+        }
+
+        final nowTaskIds = appState.tasks.map((t) => t.id).toSet();
+        final oldTaskIds = prevTasks.map((t) => t.id).toSet();
+        for (final id in nowTaskIds.difference(oldTaskIds)) {
+          appState.deleteTask(id, forceDeleteParent: true);
+        }
+        for (final t in prevTasks) {
+          if (!nowTaskIds.contains(t.id)) {
+            appState.addTask(t);
+          } else {
+            final idx = appState.tasks.indexWhere((x) => x.id == t.id);
+            if (idx == -1 ||
+                jsonEncode(appState.tasks[idx].toJson()) != prevTaskMap[t.id]) {
+              appState.updateTask(t);
+            }
+          }
+        }
+      });
+    }
+  }
+
   void _showUndoSnackBar(String message, VoidCallback? onUndo) {
+    _CalendarUndoEntry? entry;
+    if (onUndo != null) {
+      _redoStack.clear();
+      entry = _CalendarUndoEntry(message: message, onUndo: onUndo);
+      _undoStack.add(entry);
+      if (_undoStack.length > 30) {
+        _undoStack.removeAt(0);
+      }
+    }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -146,9 +1315,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
         action: onUndo == null
             ? null
             : SnackBarAction(
-                label: 'Geri Al',
+                label: 'Geri Al (Ctrl+Z)',
                 textColor: Colors.amber,
-                onPressed: onUndo,
+                onPressed: () {
+                  if (entry != null && _undoStack.contains(entry)) {
+                    _undoStack.remove(entry);
+                    _executeUndoEntry(entry, showSnack: false);
+                  } else if (entry != null) {
+                    _executeUndoEntry(entry, showSnack: false);
+                  } else {
+                    onUndo();
+                  }
+                },
               ),
       ),
     );
@@ -756,210 +1934,43 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return result;
   }
 
-  int _getSortedSlotIndex({
-    required dynamic appointment,
-    required DateTime actualFrom,
-    required DateTime actualTo,
-    required AppState appState,
-  }) {
-    final actualFromLocal = actualFrom.toLocal();
-    final actualToLocal = actualTo.toLocal();
-
-    final dayStart = DateTime(
-      actualFromLocal.year,
-      actualFromLocal.month,
-      actualFromLocal.day,
+  int _compareOccurrences(OccurrenceInfo a, OccurrenceInfo b) {
+    final aStartMin = DateTime(
+      a.from.year,
+      a.from.month,
+      a.from.day,
+      a.from.hour,
+      a.from.minute,
     );
-    final dayEnd = dayStart.add(const Duration(days: 1));
-
-    final List<OccurrenceInfo> occurrences = [];
-
-    // Filter and expand events
-    for (var e in appState.filteredEvents) {
-      if (e.isAllDay) continue;
-      if (e.from.isAtSameMomentAs(e.to)) continue; // Reminder
-
-      if (e.recurrenceRule == null) {
-        final eFromLocal = e.from.toLocal();
-        final eToLocal = e.to.toLocal();
-        if (eFromLocal.isBefore(dayEnd) && eToLocal.isAfter(dayStart)) {
-          occurrences.add(
-            OccurrenceInfo(
-              originalItem: e,
-              id: e.id,
-              from: eFromLocal,
-              to: eToLocal,
-            ),
-          );
-        }
-      } else {
-        try {
-          final dates = SfCalendar.getRecurrenceDateTimeCollection(
-            _sanitizeRRule(e.recurrenceRule, e.from)!,
-            e.from,
-            specificStartDate: e.from,
-            specificEndDate: e.from.isUtc ? dayEnd.toUtc() : dayEnd.toLocal(),
-          );
-          final duration = e.to.difference(e.from);
-          for (var date in dates) {
-            final dateLocal = date.toLocal();
-            if (e.recurrenceExceptionDates != null &&
-                e.recurrenceExceptionDates!.any(
-                  (d) =>
-                      d.toLocal().year == dateLocal.year &&
-                      d.toLocal().month == dateLocal.month &&
-                      d.toLocal().day == dateLocal.day,
-                )) {
-              continue;
-            }
-            final occStart = dateLocal;
-            final occEnd = date.add(duration).toLocal();
-            // Filter strictly for target day
-            if (occStart.isBefore(dayEnd) && occEnd.isAfter(dayStart)) {
-              occurrences.add(
-                OccurrenceInfo(
-                  originalItem: e,
-                  id: e.id,
-                  from: occStart,
-                  to: occEnd,
-                ),
-              );
-            }
-          }
-        } catch (_) {}
-      }
-    }
-
-    // Filter and expand tasks
-    for (var t in appState.filteredTasks) {
-      if (t.isAllDay || t.from == null) continue;
-      final tTo = t.to ?? t.from!;
-      if (t.from!.isAtSameMomentAs(tTo)) continue; // Reminder
-
-      if (t.recurrenceRule == null) {
-        final tFromLocal = t.from!.toLocal();
-        final tToLocal = tTo.toLocal();
-        if (tFromLocal.isBefore(dayEnd) && tToLocal.isAfter(dayStart)) {
-          occurrences.add(
-            OccurrenceInfo(
-              originalItem: t,
-              id: t.id,
-              from: tFromLocal,
-              to: tToLocal,
-            ),
-          );
-        }
-      } else {
-        try {
-          final dates = SfCalendar.getRecurrenceDateTimeCollection(
-            _sanitizeRRule(t.recurrenceRule, t.from!)!,
-            t.from!,
-            specificStartDate: t.from!,
-            specificEndDate: t.from!.isUtc ? dayEnd.toUtc() : dayEnd.toLocal(),
-          );
-          final duration = tTo.difference(t.from!);
-          for (var date in dates) {
-            final dateLocal = date.toLocal();
-            if (t.recurrenceExceptionDates != null &&
-                t.recurrenceExceptionDates!.any(
-                  (d) =>
-                      d.toLocal().year == dateLocal.year &&
-                      d.toLocal().month == dateLocal.month &&
-                      d.toLocal().day == dateLocal.day,
-                )) {
-              continue;
-            }
-            final occStart = dateLocal;
-            final occEnd = date.add(duration).toLocal();
-            // Filter strictly for target day
-            if (occStart.isBefore(dayEnd) && occEnd.isAfter(dayStart)) {
-              occurrences.add(
-                OccurrenceInfo(
-                  originalItem: t,
-                  id: t.id,
-                  from: occStart,
-                  to: occEnd,
-                ),
-              );
-            }
-          }
-        } catch (_) {}
-      }
-    }
-
-    final String currentId;
-    if (appointment is Event) {
-      currentId = appointment.id;
-    } else if (appointment is TaskItem) {
-      currentId = appointment.id;
-    } else if (appointment is Appointment) {
-      currentId = appointment.id?.toString() ?? '';
-    } else {
-      currentId = '';
-    }
-
-    OccurrenceInfo? currentOcc;
-    int minDiffMs = 999999999;
-    for (var occ in occurrences) {
-      final bool isMatch =
-          occ.id == currentId ||
-          (currentId.isNotEmpty && currentId.startsWith(occ.id)) ||
-          (occ.id.isNotEmpty && occ.id.startsWith(currentId));
-      if (isMatch) {
-        final diff = (occ.from.difference(
-          actualFromLocal,
-        )).inMilliseconds.abs();
-        if (diff < minDiffMs) {
-          minDiffMs = diff;
-          currentOcc = occ;
-        }
-      }
-    }
-
-    currentOcc ??= OccurrenceInfo(
-      originalItem: appointment,
-      id: currentId,
-      from: actualFromLocal,
-      to: actualToLocal,
+    final bStartMin = DateTime(
+      b.from.year,
+      b.from.month,
+      b.from.day,
+      b.from.hour,
+      b.from.minute,
     );
+    int comp = aStartMin.compareTo(bStartMin);
+    if (comp != 0) return comp;
 
-    final overlapping = occurrences.where((occ) {
-      return occ.from.isBefore(currentOcc!.to) &&
-          occ.to.isAfter(currentOcc.from);
-    }).toList();
+    // Rule 1: Earlier created event is always placed underneath (first)
+    comp = a.createdAt.compareTo(b.createdAt);
+    if (comp != 0) return comp;
 
-    overlapping.sort((a, b) {
-      int comp = a.from.compareTo(b.from);
-      if (comp != 0) return comp;
+    final durA = a.to.difference(a.from);
+    final durB = b.to.difference(b.from);
+    comp = durB.compareTo(durA);
+    if (comp != 0) return comp;
 
-      final durA = a.to.difference(a.from);
-      final durB = b.to.difference(b.from);
-      comp = durB.compareTo(durA);
-      if (comp != 0) return comp;
-
-      return a.id.compareTo(b.id);
-    });
-
-    int index = overlapping.indexOf(currentOcc);
-    return index >= 0 ? index : 0;
+    return a.id.compareTo(b.id);
   }
 
-  Map<String, int> _getOverlapLayoutInfo({
-    required dynamic appointment,
-    required DateTime actualFrom,
-    required DateTime actualTo,
-    required AppState appState,
-  }) {
-    final actualFromLocal = actualFrom.toLocal();
-    final actualToLocal = actualTo.toLocal();
-
-    final dayStart = DateTime(
-      actualFromLocal.year,
-      actualFromLocal.month,
-      actualFromLocal.day,
-    );
+  List<OccurrenceInfo> _collectDayOccurrences(
+    DateTime targetDay,
+    AppState appState,
+  ) {
+    final dayStart = DateTime(targetDay.year, targetDay.month, targetDay.day);
     final dayEnd = dayStart.add(const Duration(days: 1));
-
+    final searchStart = dayStart.subtract(const Duration(days: 1));
     final List<OccurrenceInfo> occurrences = [];
 
     // Filter and expand events
@@ -967,27 +1978,49 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (e.isAllDay) continue;
       if (e.from.isAtSameMomentAs(e.to)) continue; // Reminder
 
-      if (e.recurrenceRule == null) {
+      if (e.recurrenceRule == null || e.recurrenceRule!.isEmpty) {
         final eFromLocal = e.from.toLocal();
         final eToLocal = e.to.toLocal();
         if (eFromLocal.isBefore(dayEnd) && eToLocal.isAfter(dayStart)) {
-          occurrences.add(
-            OccurrenceInfo(
-              originalItem: e,
-              id: e.id,
-              from: eFromLocal,
-              to: eToLocal,
-            ),
+          final rawFrom = DateTime(
+            eFromLocal.year,
+            eFromLocal.month,
+            eFromLocal.day,
+            eFromLocal.hour,
+            eFromLocal.minute,
           );
+          final rawTo = DateTime(
+            eToLocal.year,
+            eToLocal.month,
+            eToLocal.day,
+            eToLocal.hour,
+            eToLocal.minute,
+          );
+          final clampedFrom = rawFrom.isBefore(dayStart) ? dayStart : rawFrom;
+          final clampedTo = rawTo.isAfter(dayEnd) ? dayEnd : rawTo;
+          if (clampedFrom.isBefore(clampedTo)) {
+            occurrences.add(
+              OccurrenceInfo(
+                originalItem: e,
+                id: e.id,
+                from: clampedFrom,
+                to: clampedTo,
+                fullFrom: rawFrom,
+                fullTo: rawTo,
+                createdAt: e.createdAt,
+              ),
+            );
+          }
         }
       } else {
         try {
+          final sanitizedRule = _sanitizeRRule(e.recurrenceRule, e.from)!;
           final instances = RecurrenceHelper.getOccurrences(
-            rrule: e.recurrenceRule!,
+            rrule: sanitizedRule,
             startDate: e.from,
             specificStartDate: e.from.isUtc
-                ? dayStart.toUtc()
-                : dayStart.toLocal(),
+                ? searchStart.toUtc()
+                : searchStart.toLocal(),
             specificEndDate: e.from.isUtc
                 ? dayEnd.subtract(const Duration(milliseconds: 1)).toUtc()
                 : dayEnd.subtract(const Duration(milliseconds: 1)).toLocal(),
@@ -1004,17 +2037,38 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 )) {
               continue;
             }
-            final occStart = dateLocal;
-            final occEnd = dateLocal.add(duration);
+            final occStart = DateTime(
+              dateLocal.year,
+              dateLocal.month,
+              dateLocal.day,
+              dateLocal.hour,
+              dateLocal.minute,
+            );
+            final occEndRaw = dateLocal.add(duration);
+            final occEnd = DateTime(
+              occEndRaw.year,
+              occEndRaw.month,
+              occEndRaw.day,
+              occEndRaw.hour,
+              occEndRaw.minute,
+            );
             if (occStart.isBefore(dayEnd) && occEnd.isAfter(dayStart)) {
-              occurrences.add(
-                OccurrenceInfo(
-                  originalItem: e,
-                  id: e.id,
-                  from: occStart,
-                  to: occEnd,
-                ),
-              );
+              final clampedFrom =
+                  occStart.isBefore(dayStart) ? dayStart : occStart;
+              final clampedTo = occEnd.isAfter(dayEnd) ? dayEnd : occEnd;
+              if (clampedFrom.isBefore(clampedTo)) {
+                occurrences.add(
+                  OccurrenceInfo(
+                    originalItem: e,
+                    id: e.id,
+                    from: clampedFrom,
+                    to: clampedTo,
+                    fullFrom: occStart,
+                    fullTo: occEnd,
+                    createdAt: e.createdAt,
+                  ),
+                );
+              }
             }
           }
         } catch (_) {}
@@ -1023,37 +2077,58 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     // Filter and expand tasks
     for (var t in appState.filteredTasks) {
-      if (t.from == null) continue;
-      if (t.isAllDay) continue;
+      if (t.from == null || t.isAllDay) continue;
+      final rawTTo = t.to ?? t.from!.add(const Duration(hours: 1));
+      if (t.from!.isAtSameMomentAs(rawTTo)) continue; // Reminder
 
-      if (t.recurrenceRule == null) {
+      if (t.recurrenceRule == null || t.recurrenceRule!.isEmpty) {
         final tFromLocal = t.from!.toLocal();
-        final tToLocal = (t.to ?? t.from!.add(const Duration(hours: 1)))
-            .toLocal();
+        final tToLocal = rawTTo.toLocal();
         if (tFromLocal.isBefore(dayEnd) && tToLocal.isAfter(dayStart)) {
-          occurrences.add(
-            OccurrenceInfo(
-              originalItem: t,
-              id: t.id,
-              from: tFromLocal,
-              to: tToLocal,
-            ),
+          final rawFrom = DateTime(
+            tFromLocal.year,
+            tFromLocal.month,
+            tFromLocal.day,
+            tFromLocal.hour,
+            tFromLocal.minute,
           );
+          final rawTo = DateTime(
+            tToLocal.year,
+            tToLocal.month,
+            tToLocal.day,
+            tToLocal.hour,
+            tToLocal.minute,
+          );
+          final clampedFrom = rawFrom.isBefore(dayStart) ? dayStart : rawFrom;
+          final clampedTo = rawTo.isAfter(dayEnd) ? dayEnd : rawTo;
+          if (clampedFrom.isBefore(clampedTo)) {
+            occurrences.add(
+              OccurrenceInfo(
+                originalItem: t,
+                id: t.id,
+                from: clampedFrom,
+                to: clampedTo,
+                fullFrom: rawFrom,
+                fullTo: rawTo,
+                createdAt: t.createdAt,
+              ),
+            );
+          }
         }
       } else {
         try {
+          final sanitizedRule = _sanitizeRRule(t.recurrenceRule, t.from!)!;
           final instances = RecurrenceHelper.getOccurrences(
-            rrule: t.recurrenceRule!,
+            rrule: sanitizedRule,
             startDate: t.from!,
             specificStartDate: t.from!.isUtc
-                ? dayStart.toUtc()
-                : dayStart.toLocal(),
+                ? searchStart.toUtc()
+                : searchStart.toLocal(),
             specificEndDate: t.from!.isUtc
                 ? dayEnd.subtract(const Duration(milliseconds: 1)).toUtc()
                 : dayEnd.subtract(const Duration(milliseconds: 1)).toLocal(),
           );
-          final duration = (t.to ?? t.from!.add(const Duration(hours: 1)))
-              .difference(t.from!);
+          final duration = rawTTo.difference(t.from!);
           for (var date in instances) {
             final dateLocal = date.toLocal();
             if (t.recurrenceExceptionDates != null &&
@@ -1065,22 +2140,192 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 )) {
               continue;
             }
-            final occStart = dateLocal;
-            final occEnd = date.add(duration).toLocal();
+            final occStart = DateTime(
+              dateLocal.year,
+              dateLocal.month,
+              dateLocal.day,
+              dateLocal.hour,
+              dateLocal.minute,
+            );
+            final occEndRaw = dateLocal.add(duration);
+            final occEnd = DateTime(
+              occEndRaw.year,
+              occEndRaw.month,
+              occEndRaw.day,
+              occEndRaw.hour,
+              occEndRaw.minute,
+            );
             if (occStart.isBefore(dayEnd) && occEnd.isAfter(dayStart)) {
-              occurrences.add(
-                OccurrenceInfo(
-                  originalItem: t,
-                  id: t.id,
-                  from: occStart,
-                  to: occEnd,
-                ),
-              );
+              final clampedFrom =
+                  occStart.isBefore(dayStart) ? dayStart : occStart;
+              final clampedTo = occEnd.isAfter(dayEnd) ? dayEnd : occEnd;
+              if (clampedFrom.isBefore(clampedTo)) {
+                occurrences.add(
+                  OccurrenceInfo(
+                    originalItem: t,
+                    id: t.id,
+                    from: clampedFrom,
+                    to: clampedTo,
+                    fullFrom: occStart,
+                    fullTo: occEnd,
+                    createdAt: t.createdAt,
+                  ),
+                );
+              }
             }
           }
         } catch (_) {}
       }
     }
+
+    occurrences.sort(_compareOccurrences);
+    return occurrences;
+  }
+
+  List<Map<String, double>> _computeDayOverlapLayouts({
+    required List<OccurrenceInfo> occurrences,
+    required double activeIntervalHeight,
+    required double fontSizeMultiplier,
+  }) {
+    final int n = occurrences.length;
+    if (n == 0) return const [];
+
+    // Estimate vertical height of the title area in minutes:
+    // If two overlapping events start within this window, their titles collide (Rule 2.1).
+    // Otherwise, the earlier event's title is unobstructed above the later event (Rule 2.2).
+    final double titleHeightPx = (20.0 * fontSizeMultiplier).clamp(16.0, 32.0);
+    final int titleCollisionMinutes =
+        ((titleHeightPx / activeIntervalHeight) * 60.0).ceil().clamp(14, 40);
+
+    const double indentStep = 0.12;
+    const double maxBaseLeft = 0.56;
+
+    final List<double> leftRatios = List.filled(n, 0.0);
+    final List<double> widthRatios = List.filled(n, 1.0);
+    final List<double> textWidthRatios = List.filled(n, 1.0);
+    final List<double> groupBaseLefts = List.filled(n, 0.0);
+
+    int i = 0;
+    while (i < n) {
+      final anchor = occurrences[i];
+      final List<int> group = [i];
+      DateTime groupMinEnd = anchor.to;
+      DateTime lastStart = anchor.from;
+
+      int j = i + 1;
+      while (j < n) {
+        final cand = occurrences[j];
+        final int diffFromLastMin = cand.from.difference(lastStart).inMinutes;
+        if (cand.from.isBefore(groupMinEnd) &&
+            diffFromLastMin < titleCollisionMinutes) {
+          group.add(j);
+          if (cand.to.isBefore(groupMinEnd)) {
+            groupMinEnd = cand.to;
+          }
+          lastStart = cand.from;
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      // Check active underlying occurrences that started before this group
+      double baseLeft = 0.0;
+      for (int u = 0; u < i; u++) {
+        final under = occurrences[u];
+        if (under.to.isAfter(anchor.from)) {
+          final int diffMin = anchor.from.difference(under.from).inMinutes;
+          if (diffMin < titleCollisionMinutes) {
+            // Underlying event's title still collides vertically with anchor
+            final double rightOfUnderTitle =
+                leftRatios[u] + textWidthRatios[u];
+            if (rightOfUnderTitle > baseLeft) {
+              baseLeft = rightOfUnderTitle;
+            }
+          } else {
+            // Rule 2.2: No title collision -> shift slightly to the right
+            final double shifted = groupBaseLefts[u] + indentStep;
+            if (shifted > baseLeft) {
+              baseLeft = shifted;
+            }
+          }
+        }
+      }
+      if (baseLeft > maxBaseLeft) {
+        baseLeft = maxBaseLeft;
+      }
+
+      final int k = group.length;
+      final double availWidth = (1.0 - baseLeft).clamp(0.15, 1.0);
+
+      if (k == 1) {
+        final int idx = group[0];
+        groupBaseLefts[idx] = baseLeft;
+        leftRatios[idx] = baseLeft;
+        widthRatios[idx] = availWidth;
+        textWidthRatios[idx] = availWidth;
+      } else {
+        // Rule 2.1: Title collision among k events -> split available width into k equal parts
+        final double partWidth = availWidth / k;
+        for (int m = 0; m < k; m++) {
+          final int idx = group[m];
+          groupBaseLefts[idx] = baseLeft;
+          leftRatios[idx] = baseLeft + m * partWidth;
+          textWidthRatios[idx] = partWidth;
+
+          if (m == k - 1) {
+            widthRatios[idx] = partWidth;
+          } else {
+            final int nextIdx = group[m + 1];
+            if (occurrences[idx].to.isAfter(occurrences[nextIdx].to)) {
+              widthRatios[idx] = math.max(
+                partWidth,
+                (availWidth - m * partWidth) * 0.85,
+              );
+            } else {
+              widthRatios[idx] = partWidth;
+            }
+          }
+        }
+      }
+
+      i += k;
+    }
+
+    final List<Map<String, double>> results = [];
+    for (int idx = 0; idx < n; idx++) {
+      final occ = occurrences[idx];
+      int overlapCount = 0;
+      int lowerOverlapCount = 0;
+      for (int other = 0; other < n; other++) {
+        final o = occurrences[other];
+        if (o.from.isBefore(occ.to) && o.to.isAfter(occ.from)) {
+          overlapCount++;
+          if (other < idx) {
+            lowerOverlapCount++;
+          }
+        }
+      }
+      results.add({
+        'leftRatio': leftRatios[idx],
+        'widthRatio': widthRatios[idx],
+        'textWidthRatio': textWidthRatios[idx],
+        'zIndex': lowerOverlapCount.toDouble(),
+        'totalOverlaps': math.max(1, overlapCount).toDouble(),
+      });
+    }
+    return results;
+  }
+
+  int _getSortedSlotIndex({
+    required dynamic appointment,
+    required DateTime actualFrom,
+    required DateTime actualTo,
+    required AppState appState,
+  }) {
+    final actualFromLocal = actualFrom.toLocal();
+    final occurrences = _collectDayOccurrences(actualFromLocal, appState);
+    if (occurrences.isEmpty) return 0;
 
     final String currentId;
     if (appointment is Event) {
@@ -1101,9 +2346,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           (currentId.isNotEmpty && currentId.startsWith(occ.id)) ||
           (occ.id.isNotEmpty && occ.id.startsWith(currentId));
       if (isMatch) {
-        final diff = (occ.from.difference(
-          actualFromLocal,
-        )).inMilliseconds.abs();
+        final diff = (occ.from.difference(actualFromLocal)).inMilliseconds.abs();
         if (diff < minDiffMs) {
           minDiffMs = diff;
           currentOcc = occ;
@@ -1111,35 +2354,125 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
     }
 
-    currentOcc ??= OccurrenceInfo(
-      originalItem: appointment,
-      id: currentId,
-      from: actualFromLocal,
-      to: actualToLocal,
-    );
+    if (currentOcc == null) return 0;
 
     final overlapping = occurrences.where((occ) {
       return occ.from.isBefore(currentOcc!.to) &&
           occ.to.isAfter(currentOcc.from);
     }).toList();
 
-    overlapping.sort((a, b) {
-      int comp = a.from.compareTo(b.from);
-      if (comp != 0) return comp;
+    final int index = overlapping.indexOf(currentOcc);
+    return index >= 0 ? index : 0;
+  }
 
-      final durA = a.to.difference(a.from);
-      final durB = b.to.difference(b.from);
-      comp = durB.compareTo(durA);
-      if (comp != 0) return comp;
+  Map<String, double> _getOverlapLayoutInfo({
+    required dynamic appointment,
+    required DateTime actualFrom,
+    required DateTime actualTo,
+    required AppState appState,
+    required double activeIntervalHeight,
+  }) {
+    final actualFromLocal = actualFrom.toLocal();
+    final actualToLocal = actualTo.toLocal();
+    final occurrences = _collectDayOccurrences(actualFromLocal, appState);
+    if (occurrences.isEmpty) {
+      return const {
+        'leftRatio': 0.0,
+        'widthRatio': 1.0,
+        'textWidthRatio': 1.0,
+        'zIndex': 0.0,
+        'totalOverlaps': 1.0,
+      };
+    }
 
-      return a.id.compareTo(b.id);
-    });
+    final layouts = _computeDayOverlapLayouts(
+      occurrences: occurrences,
+      activeIntervalHeight: activeIntervalHeight,
+      fontSizeMultiplier: appState.fontSizeMultiplier,
+    );
 
-    int index = overlapping.indexOf(currentOcc);
-    return {
-      'index': index >= 0 ? index : 0,
-      'total': overlapping.isNotEmpty ? overlapping.length : 1,
+    final String currentId;
+    if (appointment is Event) {
+      currentId = appointment.id;
+    } else if (appointment is TaskItem) {
+      currentId = appointment.id;
+    } else if (appointment is Appointment) {
+      currentId = appointment.id?.toString() ?? '';
+    } else {
+      currentId = '';
+    }
+
+    int matchedIndex = -1;
+    int minDiffMs = 999999999;
+    for (int i = 0; i < occurrences.length; i++) {
+      final occ = occurrences[i];
+      final bool isMatch =
+          occ.id == currentId ||
+          (currentId.isNotEmpty && currentId.startsWith(occ.id)) ||
+          (occ.id.isNotEmpty && occ.id.startsWith(currentId));
+      if (isMatch) {
+        final diff =
+            (occ.from.difference(actualFromLocal)).inMilliseconds.abs() +
+            (occ.to.difference(actualToLocal)).inMilliseconds.abs();
+        if (diff < minDiffMs) {
+          minDiffMs = diff;
+          matchedIndex = i;
+        }
+      }
+    }
+
+    if (matchedIndex >= 0 && matchedIndex < layouts.length) {
+      return layouts[matchedIndex];
+    }
+
+    return const {
+      'leftRatio': 0.0,
+      'widthRatio': 1.0,
+      'textWidthRatio': 1.0,
+      'zIndex': 0.0,
+      'totalOverlaps': 1.0,
     };
+  }
+
+  OccurrenceInfo? _resolveVisualTappedOccurrence({
+    required DateTime targetDay,
+    required DateTime? tappedTime,
+    required double xRatio,
+    required AppState appState,
+    required double activeIntervalHeight,
+    OccurrenceInfo? fallbackOcc,
+  }) {
+    final occurrences = _collectDayOccurrences(targetDay, appState);
+    if (occurrences.isEmpty) return fallbackOcc;
+
+    final layouts = _computeDayOverlapLayouts(
+      occurrences: occurrences,
+      activeIntervalHeight: activeIntervalHeight,
+      fontSizeMultiplier: appState.fontSizeMultiplier,
+    );
+
+    // Search from top of Z-order (last) to bottom of Z-order (0)
+    for (int i = occurrences.length - 1; i >= 0; i--) {
+      final occ = occurrences[i];
+      final layout = layouts[i];
+      final double left = layout['leftRatio']!;
+      final double right = left + layout['widthRatio']!;
+
+      final bool xMatches = xRatio >= (left - 0.02) && xRatio <= (right + 0.02);
+      if (!xMatches) continue;
+
+      if (tappedTime != null) {
+        if (!tappedTime.isBefore(occ.from) && tappedTime.isBefore(occ.to)) {
+          return occ;
+        }
+      } else if (fallbackOcc != null) {
+        if (occ.from.isBefore(fallbackOcc.to) &&
+            occ.to.isAfter(fallbackOcc.from)) {
+          return occ;
+        }
+      }
+    }
+    return fallbackOcc;
   }
 
   List<StripItem> _getActiveStrips(AppState appState) {
@@ -1653,19 +2986,49 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
 
     finalItems.sort((a, b) {
-      final startA = a is Event
-          ? a.from
+      final rawStartA = a is Event
+          ? a.from.toLocal()
           : (a is TaskItem
-                ? (a.from ?? DateTime(1970))
-                : (a is ProjectEvaluation ? a.sessionDate : DateTime(1970)));
-      final startB = b is Event
-          ? b.from
+                ? (a.from?.toLocal() ?? DateTime(1970))
+                : (a is ProjectEvaluation
+                      ? a.sessionDate.toLocal()
+                      : DateTime(1970)));
+      final rawStartB = b is Event
+          ? b.from.toLocal()
           : (b is TaskItem
-                ? (b.from ?? DateTime(1970))
-                : (b is ProjectEvaluation ? b.sessionDate : DateTime(1970)));
+                ? (b.from?.toLocal() ?? DateTime(1970))
+                : (b is ProjectEvaluation
+                      ? b.sessionDate.toLocal()
+                      : DateTime(1970)));
+
+      final startA = DateTime(
+        rawStartA.year,
+        rawStartA.month,
+        rawStartA.day,
+        rawStartA.hour,
+        rawStartA.minute,
+      );
+      final startB = DateTime(
+        rawStartB.year,
+        rawStartB.month,
+        rawStartB.day,
+        rawStartB.hour,
+        rawStartB.minute,
+      );
 
       final startCompare = startA.compareTo(startB);
       if (startCompare != 0) return startCompare;
+
+      // Rule 1: Earlier created event is always placed underneath (first)
+      final createdA = a is Event
+          ? a.createdAt
+          : (a is TaskItem ? a.createdAt : DateTime(1970));
+      final createdB = b is Event
+          ? b.createdAt
+          : (b is TaskItem ? b.createdAt : DateTime(1970));
+
+      final createdCompare = createdA.compareTo(createdB);
+      if (createdCompare != 0) return createdCompare;
 
       final durA = a is Event
           ? a.to.difference(a.from)
@@ -1678,21 +3041,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ? b.to!.difference(b.from!)
                 : const Duration(hours: 1));
 
-      final durCompare = durB.compareTo(
-        durA,
-      ); // Longer duration first (placed under/left)
+      final durCompare = durB.compareTo(durA);
       if (durCompare != 0) return durCompare;
 
-      final createdA = a is Event
-          ? a.createdAt
-          : (a is TaskItem ? a.createdAt : DateTime(1970));
-      final createdB = b is Event
-          ? b.createdAt
-          : (b is TaskItem ? b.createdAt : DateTime(1970));
-
-      return createdA.compareTo(
-        createdB,
-      ); // Earlier created first (placed under/left)
+      final idA = a is Event ? a.id : (a is TaskItem ? a.id : '');
+      final idB = b is Event ? b.id : (b is TaskItem ? b.id : '');
+      return idA.compareTo(idB);
     });
 
     _dataSource.appState = appState;
@@ -1744,10 +3098,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
             }
           }
 
+          _lastCalendarWidth = constraints.maxWidth;
+          _lastActiveIntervalHeight = activeIntervalHeight;
+          _lastStartHour = startHour;
+          _lastEndHour = endHour;
+
           return Column(
             children: [
               Expanded(
                 child: Stack(
+                  key: _calendarStackKey,
                   children: [
                     Padding(
                       padding: EdgeInsets.only(
@@ -1757,267 +3117,443 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             ? 55.0
                             : 0.0,
                       ),
-                      child: Listener(
-                        onPointerDown: _handlePointerDown,
-                        onPointerMove: _handlePointerMove,
-                        onPointerUp: _handlePointerUp,
-                        onPointerCancel: _handlePointerUp,
-                        onPointerSignal: (pointerSignal) {
-                          if (pointerSignal is PointerScrollEvent) {
-                            final dx = pointerSignal.scrollDelta.dx;
-                            final dy = pointerSignal.scrollDelta.dy;
-                            if (dx.abs() > dy.abs() && dx.abs() > 15) {
-                              final now = DateTime.now();
-                              if (_lastSwipeTime == null ||
-                                  now.difference(_lastSwipeTime!).inMilliseconds > 600) {
-                                _lastSwipeTime = now;
-                                if (dx > 0) {
-                                  calendarController.forward?.call();
-                                } else {
-                                  calendarController.backward?.call();
-                                }
-                              }
-                            }
-                          }
-                        },
-                        child: SfCalendar(
-                          controller: calendarController,
-                          view: appState.calendarView,
-                          firstDayOfWeek: appState.firstDayOfWeek,
-                          headerHeight: 0,
-                          viewHeaderHeight:
-                              (appState.calendarView == CalendarView.day ||
-                                  appState.calendarView == CalendarView.week)
-                              ? 0.0
-                              : 55.0,
-                          showWeekNumber:
-                              appState.calendarView == CalendarView.week,
-
-                          weekNumberStyle: const WeekNumberStyle(
-                            textStyle: TextStyle(
-                              color: Colors.blue,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            backgroundColor: Color(0xFFE3F2FD),
-                          ),
-                          viewHeaderStyle: const ViewHeaderStyle(
-                            dayTextStyle: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            dateTextStyle: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          onViewChanged: (ViewChangedDetails details) {
-                            _visibleDates = details.visibleDates;
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) {
-                                final state = Provider.of<AppState>(
-                                  context,
-                                  listen: false,
-                                );
-                                if (details.visibleDates.isNotEmpty) {
-                                  final midDate =
-                                      details.visibleDates[details
-                                              .visibleDates
-                                              .length ~/
-                                          2];
-                                  state.setDisplayDate(midDate);
-                                }
-                              }
-                            });
-                          },
-                          timeSlotViewSettings: TimeSlotViewSettings(
-                            startHour: startHour,
-                            endHour: endHour,
-                            timeIntervalHeight: activeIntervalHeight,
-                            timeRulerSize: 40.0,
-                            timeFormat: 'HH:mm',
-                          ),
-
-                          onTap: (CalendarTapDetails details) {
-                            final appState = Provider.of<AppState>(
-                              context,
-                              listen: false,
-                            );
-                            if (appState.isBulkMode) {
-                              if (details.targetElement ==
-                                      CalendarElement.appointment &&
-                                  details.appointments!.isNotEmpty) {
-                                final rawAppointment =
-                                    details.appointments!.last;
-                                final appointment = _getOriginalItem(
-                                  rawAppointment,
-                                  appState,
-                                );
-                                if (appointment is Event) {
-                                  if (appointment.id != 'dummy_t' &&
-                                      appointment.id != 'dummy_e' &&
-                                      appointment.id != 'dummy_eval') {
-                                    DateTime? occurrenceFrom;
-                                    if (rawAppointment is Appointment) {
-                                      occurrenceFrom = rawAppointment.startTime;
-                                    } else {
-                                      occurrenceFrom = appointment.from;
-                                    }
-                                    final String selectionId =
-                                        appointment.recurrenceRule != null
-                                        ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
-                                        : appointment.id;
-                                    appState.toggleEventSelection(selectionId);
-                                  }
-                                }
-                              }
-                              return;
-                            }
-                            if (details.targetElement ==
-                                CalendarElement.appointment) {
-                              if (details.appointments == null ||
-                                  details.appointments!.isEmpty) {
-                                return;
-                              }
-                              final rawAppointment = details.appointments!.last;
-                              final appointment = _getOriginalItem(
-                                rawAppointment,
-                                appState,
-                              );
-                              if (appointment is DayNote) {
-                                DayNoteDialog.show(
-                                  context,
-                                  appState,
-                                  DateTime(
-                                    appointment.date.year,
-                                    appointment.date.month,
-                                    appointment.date.day,
+                      child: MouseRegion(
+                        cursor: _calendarMouseCursor,
+                        onHover: _handleCalendarHover,
+                        child: RawGestureDetector(
+                          gestures: <Type, GestureRecognizerFactory>{
+                            _CalendarInteractionGestureRecognizer:
+                                GestureRecognizerFactoryWithHandlers<
+                                  _CalendarInteractionGestureRecognizer
+                                >(
+                                  () => _CalendarInteractionGestureRecognizer(
+                                    onHitTest: (globalPos) =>
+                                        _hitTestDayWeekCard(globalPos),
+                                    isCardManipulated: (hit) =>
+                                        _isCardManipulated(
+                                          hit.occurrence.id,
+                                          hit.occurrence.fullFrom,
+                                        ),
+                                    onActivateManipulation:
+                                        _activateCardManipulation,
+                                    onClearManipulation: _clearCardManipulation,
+                                    onInteractionStart: _startCardInteraction,
+                                    onInteractionUpdate: _updateCardInteraction,
+                                    onInteractionEnd: _endCardInteraction,
+                                    onInteractionCancel: _cancelCardInteraction,
+                                    onCardTap: _handleCardTap,
+                                    onLockScroll: _lockCalendarScroll,
+                                    onUnlockScroll: _unlockCalendarScroll,
+                                    onFocusItem: (occ) {
+                                      _lastFocusedItem = occ.originalItem;
+                                      _lastFocusedOccurrenceFrom = occ.fullFrom;
+                                    },
                                   ),
-                                );
+                                  (_CalendarInteractionGestureRecognizer
+                                      instance) {
+                                    instance.onHitTest = (globalPos) =>
+                                        _hitTestDayWeekCard(globalPos);
+                                    instance.isCardManipulated = (hit) =>
+                                        _isCardManipulated(
+                                          hit.occurrence.id,
+                                          hit.occurrence.fullFrom,
+                                        );
+                                    instance.onActivateManipulation =
+                                        _activateCardManipulation;
+                                    instance.onClearManipulation =
+                                        _clearCardManipulation;
+                                    instance.onInteractionStart =
+                                        _startCardInteraction;
+                                    instance.onInteractionUpdate =
+                                        _updateCardInteraction;
+                                    instance.onInteractionEnd =
+                                        _endCardInteraction;
+                                    instance.onInteractionCancel =
+                                        _cancelCardInteraction;
+                                    instance.onCardTap = _handleCardTap;
+                                    instance.onLockScroll = _lockCalendarScroll;
+                                    instance.onUnlockScroll =
+                                        _unlockCalendarScroll;
+                                    instance.onFocusItem = (occ) {
+                                      _lastFocusedItem = occ.originalItem;
+                                      _lastFocusedOccurrenceFrom = occ.fullFrom;
+                                    };
+                                  },
+                                ),
+                          },
+                          child: Listener(
+                            onPointerDown: _handlePointerDown,
+                            onPointerMove: _handlePointerMove,
+                            onPointerUp: _handlePointerUp,
+                            onPointerCancel: _handlePointerUp,
+                            onPointerSignal: (pointerSignal) {
+                              if (_isScrollLocked ||
+                                  _interactionMode != _InteractionMode.none) {
                                 return;
                               }
-                              bool isAllDay = false;
-                              DateTime? date;
-
-                              if (rawAppointment is Appointment) {
-                                date = rawAppointment.startTime;
-                              } else if (rawAppointment is Event) {
-                                date = rawAppointment.from;
-                              } else if (rawAppointment is TaskItem) {
-                                date = rawAppointment.from;
-                              } else if (rawAppointment is ProjectEvaluation) {
-                                date = rawAppointment.sessionDate;
-                              }
-
-                              if (appointment is Event) {
-                                isAllDay = appointment.isAllDay;
-                                if (appointment.id == 'dummy_t' ||
-                                    appointment.id == 'dummy_e' ||
-                                    appointment.id == 'dummy_eval') {
-                                  final normalizedDate = DateTime(
-                                    date!.year,
-                                    date.month,
-                                    date.day,
-                                  );
-                                  _showAllDayItemsSheet(
-                                    context,
-                                    normalizedDate,
-                                  );
-                                  return;
-                                }
-                              } else if (appointment is TaskItem) {
-                                isAllDay = appointment.isAllDay;
-                              } else if (appointment is ProjectEvaluation) {
-                                isAllDay = true;
-                              }
-
-                              if (isAllDay && date != null) {
-                                final normalizedDate = DateTime(
-                                  date.year,
-                                  date.month,
-                                  date.day,
-                                );
-                                _showAllDayItemsSheet(context, normalizedDate);
-                              } else {
-                                DateTime? occurrenceTime;
-                                if (rawAppointment is Appointment) {
-                                  occurrenceTime = rawAppointment.startTime;
-                                }
-                                _showItemDetailsDialog(
-                                  context,
-                                  appointment,
-                                  tappedDate: occurrenceTime ?? details.date,
-                                );
-                              }
-                            } else if (appState.calendarView ==
-                                    CalendarView.month &&
-                                details.targetElement ==
-                                    CalendarElement.calendarCell &&
-                                details.date != null) {
-                              calendarController.displayDate = details.date;
-                              appState.setCalendarView(CalendarView.day);
-                            } else if ((appState.calendarView ==
-                                        CalendarView.day ||
-                                    appState.calendarView ==
-                                        CalendarView.week) &&
-                                details.targetElement ==
-                                    CalendarElement.calendarCell &&
-                                details.date != null) {
-                              final tappedTime = details.date!;
-                              final double toleranceMinutes = 15.0;
-                              dynamic clickedReminder;
-
-                              for (var e in appState.filteredEvents) {
-                                if (!e.isAllDay &&
-                                    e.from.isAtSameMomentAs(e.to)) {
-                                  final diff = e.from
-                                      .difference(tappedTime)
-                                      .inMinutes
-                                      .abs();
-                                  if (diff <= toleranceMinutes &&
-                                      e.from.day == tappedTime.day) {
-                                    clickedReminder = e;
-                                    break;
-                                  }
-                                }
-                              }
-
-                              if (clickedReminder == null) {
-                                for (var t in appState.filteredTasks) {
-                                  if (t.from != null &&
-                                      t.to != null &&
-                                      !t.isAllDay &&
-                                      t.from!.isAtSameMomentAs(t.to!)) {
-                                    final diff = t.from!
-                                        .difference(tappedTime)
-                                        .inMinutes
-                                        .abs();
-                                    if (diff <= toleranceMinutes &&
-                                        t.from!.day == tappedTime.day) {
-                                      clickedReminder = t;
-                                      break;
+                              if (pointerSignal is PointerScrollEvent) {
+                                final dx = pointerSignal.scrollDelta.dx;
+                                final dy = pointerSignal.scrollDelta.dy;
+                                if (dx.abs() > dy.abs() && dx.abs() > 15) {
+                                  final now = DateTime.now();
+                                  if (_lastSwipeTime == null ||
+                                      now.difference(_lastSwipeTime!).inMilliseconds > 600) {
+                                    _lastSwipeTime = now;
+                                    if (dx > 0) {
+                                      calendarController.forward?.call();
+                                    } else {
+                                      calendarController.backward?.call();
                                     }
                                   }
                                 }
                               }
+                            },
+                            child: SfCalendar(
+                              controller: calendarController,
+                              view: appState.calendarView,
+                              firstDayOfWeek: appState.firstDayOfWeek,
+                              headerHeight: 0,
+                              viewHeaderHeight:
+                                  (appState.calendarView == CalendarView.day ||
+                                      appState.calendarView == CalendarView.week)
+                                  ? 0.0
+                                  : 55.0,
+                              showWeekNumber:
+                                  appState.calendarView == CalendarView.week,
 
-                              if (clickedReminder != null) {
-                                _showItemDetailsDialog(
-                                  context,
-                                  clickedReminder,
-                                  tappedDate: clickedReminder is Event
-                                      ? clickedReminder.from
-                                      : clickedReminder.from,
-                                );
-                                return;
-                              }
+                              weekNumberStyle: const WeekNumberStyle(
+                                textStyle: TextStyle(
+                                  color: Colors.blue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                backgroundColor: Color(0xFFE3F2FD),
+                              ),
+                              viewHeaderStyle: const ViewHeaderStyle(
+                                dayTextStyle: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                dateTextStyle: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              onViewChanged: (ViewChangedDetails details) {
+                                _visibleDates = details.visibleDates;
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (mounted) {
+                                    final state = Provider.of<AppState>(
+                                      context,
+                                      listen: false,
+                                    );
+                                    if (details.visibleDates.isNotEmpty) {
+                                      final midDate =
+                                          details.visibleDates[details
+                                                  .visibleDates
+                                                  .length ~/
+                                              2];
+                                      state.setDisplayDate(midDate);
+                                    }
+                                  }
+                                });
+                              },
+                              timeSlotViewSettings: TimeSlotViewSettings(
+                                startHour: startHour,
+                                endHour: endHour,
+                                timeIntervalHeight: activeIntervalHeight,
+                                timeRulerSize: 40.0,
+                                timeFormat: 'HH:mm',
+                              ),
 
-                              _showAddSelection(
-                                context,
-                                initialDate: details.date,
-                              );
-                            } else if (details.targetElement ==
-                                CalendarElement.allDayPanel) {
+                                onTap: (CalendarTapDetails details) {
+                                  final appState = Provider.of<AppState>(
+                                    context,
+                                    listen: false,
+                                  );
+                                  final bool isDayOrWeek =
+                                      appState.calendarView ==
+                                          CalendarView.day ||
+                                      appState.calendarView ==
+                                          CalendarView.week;
+
+                                  if (appState.isBulkMode) {
+                                    if (isDayOrWeek &&
+                                        details.targetElement !=
+                                            CalendarElement.allDayPanel &&
+                                        details.targetElement !=
+                                            CalendarElement.viewHeader &&
+                                        _lastPointerGlobalPos != null) {
+                                      final hit = _hitTestDayWeekCard(
+                                        _lastPointerGlobalPos!,
+                                        listenerLocalPos: _lastPointerLocalPos,
+                                      );
+                                      if (hit != null &&
+                                          hit.occurrence.originalItem
+                                              is Event) {
+                                        final Event e =
+                                            hit.occurrence.originalItem
+                                                as Event;
+                                        if (e.id != 'dummy_t' &&
+                                            e.id != 'dummy_e' &&
+                                            e.id != 'dummy_eval') {
+                                          final String selectionId =
+                                              e.recurrenceRule != null
+                                              ? "${e.id}_${hit.occurrence.fullFrom.millisecondsSinceEpoch}"
+                                              : e.id;
+                                          appState.toggleEventSelection(
+                                            selectionId,
+                                          );
+                                        }
+                                        return;
+                                      }
+                                    }
+                                    if (details.targetElement ==
+                                            CalendarElement.appointment &&
+                                        details.appointments!.isNotEmpty) {
+                                      final rawAppointment =
+                                          details.appointments!.last;
+                                      final appointment = _getOriginalItem(
+                                        rawAppointment,
+                                        appState,
+                                      );
+                                      if (appointment is Event) {
+                                        if (appointment.id != 'dummy_t' &&
+                                            appointment.id != 'dummy_e' &&
+                                            appointment.id != 'dummy_eval') {
+                                          DateTime? occurrenceFrom;
+                                          if (rawAppointment is Appointment) {
+                                            occurrenceFrom =
+                                                rawAppointment.startTime;
+                                          } else {
+                                            occurrenceFrom = appointment.from;
+                                          }
+                                          final String selectionId =
+                                              appointment.recurrenceRule != null
+                                              ? "${appointment.id}_${occurrenceFrom.millisecondsSinceEpoch}"
+                                              : appointment.id;
+                                          appState.toggleEventSelection(
+                                            selectionId,
+                                          );
+                                        }
+                                      }
+                                    }
+                                    return;
+                                  }
+
+                                  if (details.targetElement ==
+                                      CalendarElement.appointment) {
+                                    if (details.appointments == null ||
+                                        details.appointments!.isEmpty) {
+                                      return;
+                                    }
+                                    final rawAppointment =
+                                        details.appointments!.last;
+                                    final appointment = _getOriginalItem(
+                                      rawAppointment,
+                                      appState,
+                                    );
+                                    if (appointment is DayNote) {
+                                      DayNoteDialog.show(
+                                        context,
+                                        appState,
+                                        DateTime(
+                                          appointment.date.year,
+                                          appointment.date.month,
+                                          appointment.date.day,
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    bool isAllDay = false;
+                                    DateTime? date;
+
+                                    if (rawAppointment is Appointment) {
+                                      date = rawAppointment.startTime;
+                                    } else if (rawAppointment is Event) {
+                                      date = rawAppointment.from;
+                                    } else if (rawAppointment is TaskItem) {
+                                      date = rawAppointment.from;
+                                    } else if (rawAppointment
+                                        is ProjectEvaluation) {
+                                      date = rawAppointment.sessionDate;
+                                    }
+
+                                    if (appointment is Event) {
+                                      isAllDay = appointment.isAllDay;
+                                      if (appointment.id == 'dummy_t' ||
+                                          appointment.id == 'dummy_e' ||
+                                          appointment.id == 'dummy_eval') {
+                                        final normalizedDate = DateTime(
+                                          date!.year,
+                                          date.month,
+                                          date.day,
+                                        );
+                                        _showAllDayItemsSheet(
+                                          context,
+                                          normalizedDate,
+                                        );
+                                        return;
+                                      }
+                                    } else if (appointment is TaskItem) {
+                                      isAllDay = appointment.isAllDay;
+                                    } else if (appointment
+                                        is ProjectEvaluation) {
+                                      isAllDay = true;
+                                    }
+
+                                    if (isAllDay && date != null) {
+                                      final normalizedDate = DateTime(
+                                        date.year,
+                                        date.month,
+                                        date.day,
+                                      );
+                                      _showAllDayItemsSheet(
+                                        context,
+                                        normalizedDate,
+                                      );
+                                    } else {
+                                      DateTime? occurrenceTime;
+                                      if (rawAppointment is Appointment) {
+                                        occurrenceTime =
+                                            rawAppointment.startTime;
+                                      }
+                                      dynamic targetAppointment = appointment;
+                                      DateTime? targetTappedDate =
+                                          occurrenceTime ??
+                                          details.date ??
+                                          date;
+
+                                      if (isDayOrWeek &&
+                                          _lastPointerGlobalPos != null) {
+                                        final hit = _hitTestDayWeekCard(
+                                          _lastPointerGlobalPos!,
+                                          listenerLocalPos:
+                                              _lastPointerLocalPos,
+                                        );
+                                        if (hit != null) {
+                                          targetAppointment =
+                                              hit.occurrence.originalItem;
+                                          targetTappedDate =
+                                              hit.occurrence.fullFrom;
+                                        }
+                                      }
+
+                                      _lastFocusedItem = targetAppointment;
+                                      _lastFocusedOccurrenceFrom =
+                                          targetTappedDate;
+                                      _showItemDetailsDialog(
+                                        context,
+                                        targetAppointment,
+                                        tappedDate: targetTappedDate,
+                                      );
+                                    }
+                                  } else if (appState.calendarView ==
+                                          CalendarView.month &&
+                                      details.targetElement ==
+                                          CalendarElement.calendarCell &&
+                                      details.date != null) {
+                                    if (_copiedItem != null) {
+                                      _pasteCopiedItemAt(
+                                        details.date!,
+                                        appState,
+                                        isMonthOrDateOnly: true,
+                                      );
+                                      return;
+                                    }
+                                    calendarController.displayDate =
+                                        details.date;
+                                    appState.setCalendarView(CalendarView.day);
+                                  } else if (isDayOrWeek &&
+                                      details.targetElement ==
+                                          CalendarElement.calendarCell &&
+                                      details.date != null) {
+                                    final tappedTime = details.date!;
+                                    if (_lastPointerGlobalPos != null) {
+                                      final hit = _hitTestDayWeekCard(
+                                        _lastPointerGlobalPos!,
+                                        listenerLocalPos: _lastPointerLocalPos,
+                                      );
+                                      if (hit != null) {
+                                        _lastFocusedItem =
+                                            hit.occurrence.originalItem;
+                                        _lastFocusedOccurrenceFrom =
+                                            hit.occurrence.fullFrom;
+                                        _showItemDetailsDialog(
+                                          context,
+                                          hit.occurrence.originalItem,
+                                          tappedDate: hit.occurrence.fullFrom,
+                                        );
+                                        return;
+                                      }
+                                    }
+                                    final double toleranceMinutes = 15.0;
+                                    dynamic clickedReminder;
+
+                                    for (var e in appState.filteredEvents) {
+                                      if (!e.isAllDay &&
+                                          e.from.isAtSameMomentAs(e.to)) {
+                                        final diff = e.from
+                                            .difference(tappedTime)
+                                            .inMinutes
+                                            .abs();
+                                        if (diff <= toleranceMinutes &&
+                                            e.from.day == tappedTime.day) {
+                                          clickedReminder = e;
+                                          break;
+                                        }
+                                      }
+                                    }
+
+                                    if (clickedReminder == null) {
+                                      for (var t in appState.filteredTasks) {
+                                        if (t.from != null &&
+                                            t.to != null &&
+                                            !t.isAllDay &&
+                                            t.from!.isAtSameMomentAs(t.to!)) {
+                                          final diff = t.from!
+                                              .difference(tappedTime)
+                                              .inMinutes
+                                              .abs();
+                                          if (diff <= toleranceMinutes &&
+                                              t.from!.day == tappedTime.day) {
+                                            clickedReminder = t;
+                                            break;
+                                          }
+                                        }
+                                      }
+                                    }
+
+                                    if (clickedReminder != null) {
+                                      final remDate = clickedReminder is Event
+                                          ? clickedReminder.from
+                                          : clickedReminder.from;
+                                      _lastFocusedItem = clickedReminder;
+                                      _lastFocusedOccurrenceFrom = remDate;
+                                      _showItemDetailsDialog(
+                                        context,
+                                        clickedReminder,
+                                        tappedDate: remDate,
+                                      );
+                                      return;
+                                    }
+
+                                    if (_copiedItem != null) {
+                                      _pasteCopiedItemAt(
+                                        _lastHoveredDateTime ?? tappedTime,
+                                        appState,
+                                        isMonthOrDateOnly:
+                                            _pasteUseOriginalTime,
+                                      );
+                                      return;
+                                    }
+
+                                    _showAddSelection(
+                                      context,
+                                      initialDate: details.date,
+                                    );
+                                  } else if (details.targetElement ==
+                                      CalendarElement.allDayPanel) {
                               final targetDate =
                                   (appState.calendarView == CalendarView.day)
                                   ? (calendarController.displayDate ??
@@ -2517,13 +4053,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             final isDayOrWeek =
                                 appState.calendarView == CalendarView.day ||
                                 appState.calendarView == CalendarView.week;
-                            if (isDayOrWeek &&
-                                !isAllDay &&
-                                !isReminder &&
-                                !isDummy &&
-                                from != null &&
-                                to != null) {
-                              final bounds = calendarAppointmentDetails.bounds;
+                             if (isDayOrWeek &&
+                                 !isAllDay &&
+                                 !isReminder &&
+                                 !isDummy &&
+                                 from != null &&
+                                 to != null) {
+                               final bounds = calendarAppointmentDetails.bounds;
                               final double calendarWidth = constraints.maxWidth;
                               final int numDays =
                                   appState.calendarView == CalendarView.week
@@ -2541,38 +4077,106 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               if (N < 1) N = 1;
 
                               if (bounds.width > 0) {
-                                // Get the exact day index (0 to 6) based on the appointment date
+                                // Determine exact rendered column index from SfCalendar's bounds.left
+                                // so overnight segments on Day 2 stay in Day 2's column instead of shifting left to Day 1.
                                 final int dayIndex = numDays == 1
                                     ? 0
-                                    : ((from.weekday -
-                                              appState.firstDayOfWeek) %
-                                          7);
+                                    : (((bounds.left - timeRulerWidth + 1.0) /
+                                                  columnWidth)
+                                              .floor())
+                                          .clamp(0, numDays - 1);
 
                                 // Calculate start of column i
                                 final double colStart =
                                     timeRulerWidth + dayIndex * columnWidth;
 
+                                DateTime segmentDayStart;
+                                if (numDays == 7 &&
+                                    _visibleDates.length >= 7) {
+                                  final d = _visibleDates[dayIndex];
+                                  segmentDayStart = DateTime(
+                                    d.year,
+                                    d.month,
+                                    d.day,
+                                  );
+                                } else if (numDays == 1) {
+                                  final d =
+                                      calendarController.displayDate ??
+                                      calendarAppointmentDetails.date;
+                                  segmentDayStart = DateTime(
+                                    d.year,
+                                    d.month,
+                                    d.day,
+                                  );
+                                } else {
+                                  final fromLoc = from.toLocal();
+                                  final int fromDayIdx =
+                                      (fromLoc.weekday -
+                                          appState.firstDayOfWeek) %
+                                      7;
+                                  final weekStart = DateTime(
+                                    fromLoc.year,
+                                    fromLoc.month,
+                                    fromLoc.day,
+                                  ).subtract(Duration(days: fromDayIdx));
+                                  segmentDayStart = weekStart.add(
+                                    Duration(days: dayIndex),
+                                  );
+                                }
+                                final DateTime segmentDayEnd = segmentDayStart
+                                    .add(const Duration(days: 1));
+                                final DateTime fromLocal = from.toLocal();
+                                final DateTime toLocal = to.toLocal();
+                                final DateTime segFrom =
+                                    fromLocal.isBefore(segmentDayStart)
+                                    ? segmentDayStart
+                                    : fromLocal;
+                                final DateTime segTo =
+                                    toLocal.isAfter(segmentDayEnd)
+                                    ? segmentDayEnd
+                                    : toLocal;
+
                                 final overlapInfo = _getOverlapLayoutInfo(
                                   appointment: appointment,
-                                  actualFrom: from,
-                                  actualTo: to,
+                                  actualFrom: segFrom,
+                                  actualTo: segTo,
                                   appState: appState,
+                                  activeIntervalHeight: activeIntervalHeight,
                                 );
-                                final int slotIndex = overlapInfo['index']!;
-                                final int totalOverlaps = overlapInfo['total']!;
+                                final double leftRatio =
+                                    overlapInfo['leftRatio'] ?? 0.0;
+                                final double widthRatio =
+                                    overlapInfo['widthRatio'] ?? 1.0;
+                                final double textWidthRatio =
+                                    overlapInfo['textWidthRatio'] ?? widthRatio;
+                                final bool isUpperOverlap =
+                                    (overlapInfo['zIndex'] ?? 0.0) > 0.0 &&
+                                    (overlapInfo['totalOverlaps'] ?? 1.0) > 1.0;
 
-                                final double startRatio =
-                                    slotIndex / totalOverlaps;
                                 double cardLeft =
-                                    colStart + startRatio * columnWidth;
-                                double cardWidth =
-                                    columnWidth * (1.0 - startRatio);
+                                    colStart + leftRatio * columnWidth;
+                                double cardWidth = columnWidth * widthRatio;
+                                double textCardWidth =
+                                    columnWidth * textWidthRatio;
 
                                 // Add a small right margin (e.g. 2px) to look clean
                                 if (cardWidth > 4.0) {
                                   cardWidth -= 2.0;
                                 }
-                                if (cardWidth < 10) cardWidth = 10;
+                                if (textCardWidth > 4.0) {
+                                  textCardWidth -= 2.0;
+                                }
+                                if (cardWidth < 10.0) cardWidth = 10.0;
+                                if (textCardWidth < 10.0) textCardWidth = 10.0;
+                                final double extraRightPad =
+                                    (cardWidth - textCardWidth).clamp(
+                                      0.0,
+                                      cardWidth,
+                                    );
+                                final Color opaqueCardBg = Color.alphaBlend(
+                                  bgColor,
+                                  Theme.of(context).scaffoldBackgroundColor,
+                                );
 
                                 // Kaydırma farkı
                                 double leftShift = bounds.left - cardLeft;
@@ -2584,20 +4188,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     ? 18.0
                                     : bounds.height;
 
-                                return OverflowBox(
-                                  alignment: Alignment.topLeft,
-                                  maxWidth: cardWidth,
-                                  minWidth: cardWidth,
-                                  maxHeight: visualHeight,
-                                  minHeight: visualHeight,
-                                  child: Transform.translate(
-                                    offset: Offset(-leftShift, 0),
-                                    child: wrapWithSelection(
-                                      (() {
+                                return Builder(
+                                  builder: (cardContext) {
+                                    _captureTimeGridFromCard(cardContext);
+                                    return OverflowBox(
+                                      alignment: Alignment.topLeft,
+                                      maxWidth: cardWidth,
+                                      minWidth: cardWidth,
+                                      maxHeight: visualHeight,
+                                      minHeight: visualHeight,
+                                      child: Transform.translate(
+                                        offset: Offset(-leftShift, 0),
+                                        child: wrapWithSelection(
+                                          (() {
                                         final Widget c = isTask
                                             ? Container(
                                                 decoration: BoxDecoration(
-                                                  color: bgColor,
+                                                  color: opaqueCardBg,
                                                   borderRadius:
                                                       BorderRadius.circular(6),
                                                   border: Border(
@@ -2638,9 +4245,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                   ),
                                                 ),
                                                 alignment: Alignment.topLeft,
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal: 4,
-                                                  vertical: isShortDuration
+                                                padding: EdgeInsets.only(
+                                                  left: 4,
+                                                  right: 4 + extraRightPad,
+                                                  top: isShortDuration
+                                                      ? 1.0
+                                                      : 2.5,
+                                                  bottom: isShortDuration
                                                       ? 1.0
                                                       : 2.5,
                                                 ),
@@ -2713,7 +4324,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                       ),
                                                       child: Container(
                                                         decoration: BoxDecoration(
-                                                          color: bgColor,
+                                                          color: opaqueCardBg,
                                                           borderRadius:
                                                               BorderRadius.circular(
                                                                 6,
@@ -2722,9 +4333,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                         alignment:
                                                             Alignment.topLeft,
                                                         padding:
-                                                            EdgeInsets.symmetric(
-                                                              horizontal: 4,
-                                                              vertical:
+                                                            EdgeInsets.only(
+                                                              left: 4,
+                                                              right:
+                                                                  4 +
+                                                                  extraRightPad,
+                                                              top:
+                                                                  isShortDuration
+                                                                  ? 1.0
+                                                                  : 2.5,
+                                                              bottom:
                                                                   isShortDuration
                                                                   ? 1.0
                                                                   : 2.5,
@@ -2776,7 +4394,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                     )
                                                   : Container(
                                                       decoration: BoxDecoration(
-                                                        color: bgColor,
+                                                        color: opaqueCardBg,
                                                         borderRadius:
                                                             BorderRadius.circular(
                                                               6,
@@ -2786,26 +4404,39 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                               ? Colors
                                                                     .green
                                                                     .shade400
-                                                              : Colors.white
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.25,
-                                                                    ),
+                                                              : (isUpperOverlap
+                                                                    ? Colors
+                                                                          .black
+                                                                          .withValues(
+                                                                            alpha:
+                                                                                0.7,
+                                                                          )
+                                                                    : Colors
+                                                                          .white
+                                                                          .withValues(
+                                                                            alpha:
+                                                                                0.25,
+                                                                          )),
                                                           width: isSelected
                                                               ? 2.5
-                                                              : 1.0,
+                                                              : (isUpperOverlap
+                                                                    ? 1.15
+                                                                    : 1.0),
                                                         ),
                                                       ),
                                                       alignment:
                                                           Alignment.topLeft,
-                                                      padding:
-                                                          EdgeInsets.symmetric(
-                                                            horizontal: 4,
-                                                            vertical:
-                                                                isShortDuration
-                                                                ? 1.0
-                                                                : 2.5,
-                                                          ),
+                                                      padding: EdgeInsets.only(
+                                                        left: 4,
+                                                        right:
+                                                            4 + extraRightPad,
+                                                        top: isShortDuration
+                                                            ? 1.0
+                                                            : 2.5,
+                                                        bottom: isShortDuration
+                                                            ? 1.0
+                                                            : 2.5,
+                                                      ),
                                                       clipBehavior:
                                                           Clip.hardEdge,
                                                       child: Row(
@@ -2850,15 +4481,128 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                         ],
                                                       ),
                                                     ));
+                                        final String itemId =
+                                            appointment is Event
+                                            ? appointment.id
+                                            : (appointment is TaskItem
+                                                  ? appointment.id
+                                                  : '');
+                                        final bool isBeingInteracted =
+                                            _interactionMode !=
+                                                _InteractionMode.none &&
+                                            _activeHit != null &&
+                                            _activeHit!.occurrence.id ==
+                                                itemId &&
+                                            (_activeHit!.occurrence.from
+                                                    .difference(segFrom)
+                                                    .inMinutes
+                                                    .abs() <=
+                                                1);
+                                        final bool isManipulating =
+                                            !appState.isBulkMode &&
+                                            (_isCardManipulated(
+                                                  itemId,
+                                                  fromLocal,
+                                                ) ||
+                                                isBeingInteracted);
+
+                                        Widget decoratedCard = c;
+                                        if (isManipulating) {
+                                          decoratedCard = CustomPaint(
+                                            foregroundPainter:
+                                                _MarchingAntsBorderPainter(
+                                                  animation:
+                                                      _marchingAntsController,
+                                                  borderRadius: 6.0,
+                                                ),
+                                            child: Stack(
+                                              clipBehavior: Clip.none,
+                                              children: [
+                                                Positioned.fill(child: c),
+                                                if (!fromLocal.isBefore(
+                                                  segmentDayStart,
+                                                ))
+                                                  Positioned(
+                                                    top: -2.0,
+                                                    left: 0,
+                                                    right: extraRightPad,
+                                                    child: Center(
+                                                      child: Container(
+                                                        width: 24,
+                                                        height: 6.0,
+                                                        decoration: BoxDecoration(
+                                                          color: Colors
+                                                              .amberAccent,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                3,
+                                                              ),
+                                                          border: Border.all(
+                                                            color:
+                                                                Colors.black87,
+                                                            width: 1.0,
+                                                          ),
+                                                        ),
+                                                        child: Center(
+                                                          child: Container(
+                                                            width: 12,
+                                                            height: 1.5,
+                                                            color:
+                                                                Colors.black87,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (!toLocal.isAfter(
+                                                  segmentDayEnd,
+                                                ))
+                                                  Positioned(
+                                                    bottom: -2.0,
+                                                    left: 0,
+                                                    right: extraRightPad,
+                                                    child: Center(
+                                                      child: Container(
+                                                        width: 24,
+                                                        height: 6.0,
+                                                        decoration: BoxDecoration(
+                                                          color: Colors
+                                                              .amberAccent,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                3,
+                                                              ),
+                                                          border: Border.all(
+                                                            color:
+                                                                Colors.black87,
+                                                            width: 1.0,
+                                                          ),
+                                                        ),
+                                                        child: Center(
+                                                          child: Container(
+                                                            width: 12,
+                                                            height: 1.5,
+                                                            color:
+                                                                Colors.black87,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+
                                         if (isHighImportance) {
                                           final Color protrusionColor =
                                               isSelected
                                               ? Colors.green.shade400
                                               : bgColor;
-                                          return Stack(
+                                          decoratedCard = Stack(
                                             clipBehavior: Clip.none,
                                             children: [
-                                              c,
+                                              decoratedCard,
                                               Positioned(
                                                 left: -6,
                                                 top: visualHeight / 2 - 1,
@@ -2880,14 +4624,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             ],
                                           );
                                         }
-                                        return c;
+                                        if (isBeingInteracted) {
+                                          return Opacity(
+                                            opacity: 0.35,
+                                            child: decoratedCard,
+                                          );
+                                        }
+                                        return decoratedCard;
                                       })(),
                                       isSelected: isSelected,
                                     ),
                                   ),
                                 );
-                              }
-                            }
+                              },
+                            );
+                          }
+                        }
 
                             return wrapWithSelection(
                               isTask
@@ -3266,19 +5018,106 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               if (t.importance == 2) highImportanceCount++;
                             }
 
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: isToday
-                                    ? Theme.of(
-                                        buildContext,
-                                      ).primaryColor.withValues(alpha: 0.1)
-                                    : null,
-                                border: Border.all(
-                                  color: Colors.grey.shade300,
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Stack(
+                            return DragTarget<Map<String, dynamic>>(
+                              onWillAcceptWithDetails: (dragDetails) {
+                                final data = dragDetails.data;
+                                final srcDate = data['sourceDate'] as DateTime?;
+                                if (srcDate == null) return false;
+                                return srcDate.year != details.date.year ||
+                                    srcDate.month != details.date.month ||
+                                    srcDate.day != details.date.day;
+                              },
+                              onAcceptWithDetails: (dragDetails) {
+                                final data = dragDetails.data;
+                                final dynamic draggedItem = data['item'];
+                                final DateTime srcDate =
+                                    data['sourceDate'] as DateTime;
+                                final DateTime targetDay = details.date;
+                                if (draggedItem is Event) {
+                                  final DateTime occStart = DateTime(
+                                    srcDate.year,
+                                    srcDate.month,
+                                    srcDate.day,
+                                    draggedItem.from.hour,
+                                    draggedItem.from.minute,
+                                  );
+                                  final Duration dur = draggedItem.to
+                                      .difference(draggedItem.from);
+                                  final DateTime newFrom = DateTime(
+                                    targetDay.year,
+                                    targetDay.month,
+                                    targetDay.day,
+                                    draggedItem.from.hour,
+                                    draggedItem.from.minute,
+                                  );
+                                  final DateTime newTo = dur.inMinutes > 0
+                                      ? newFrom.add(dur)
+                                      : newFrom.add(const Duration(hours: 1));
+                                  _commitMoveOrResize(
+                                    appState: appState,
+                                    item: draggedItem,
+                                    occurrenceStart: occStart,
+                                    newFrom: newFrom,
+                                    newTo: newTo,
+                                    isResize: false,
+                                  );
+                                } else if (draggedItem is TaskItem) {
+                                  final DateTime baseFrom =
+                                      draggedItem.from ?? srcDate;
+                                  final DateTime baseTo =
+                                      draggedItem.to ??
+                                      baseFrom.add(const Duration(hours: 1));
+                                  final DateTime occStart = DateTime(
+                                    srcDate.year,
+                                    srcDate.month,
+                                    srcDate.day,
+                                    baseFrom.hour,
+                                    baseFrom.minute,
+                                  );
+                                  final Duration dur = baseTo.difference(
+                                    baseFrom,
+                                  );
+                                  final DateTime newFrom = DateTime(
+                                    targetDay.year,
+                                    targetDay.month,
+                                    targetDay.day,
+                                    baseFrom.hour,
+                                    baseFrom.minute,
+                                  );
+                                  final DateTime newTo = dur.inMinutes > 0
+                                      ? newFrom.add(dur)
+                                      : newFrom.add(const Duration(hours: 1));
+                                  _commitMoveOrResize(
+                                    appState: appState,
+                                    item: draggedItem,
+                                    occurrenceStart: occStart,
+                                    newFrom: newFrom,
+                                    newTo: newTo,
+                                    isResize: false,
+                                  );
+                                }
+                              },
+                              builder: (context, candidateData, rejectedData) {
+                                final bool isDropTarget =
+                                    candidateData.isNotEmpty;
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: isDropTarget
+                                        ? Theme.of(buildContext).primaryColor
+                                              .withValues(alpha: 0.22)
+                                        : (isToday
+                                              ? Theme.of(buildContext)
+                                                    .primaryColor
+                                                    .withValues(alpha: 0.1)
+                                              : null),
+                                    border: Border.all(
+                                      color: isDropTarget
+                                          ? Theme.of(buildContext).primaryColor
+                                          : Colors.grey.shade300,
+                                      width: isDropTarget ? 1.5 : 0.5,
+                                    ),
+                                  ),
+                                  child: Stack(
                                 children: [
                                   LayoutBuilder(
                                     builder: (context, constraints) {
@@ -3343,7 +5182,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         if (allItems.length <= maxLines) {
                                           for (var item in allItems) {
                                             itemWidgets.add(
-                                              _buildCellItemLine(item),
+                                              _buildCellItemLine(
+                                                item,
+                                                sourceDate: details.date,
+                                              ),
                                             );
                                           }
                                         } else {
@@ -3353,7 +5195,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             i++
                                           ) {
                                             itemWidgets.add(
-                                              _buildCellItemLine(allItems[i]),
+                                              _buildCellItemLine(
+                                                allItems[i],
+                                                sourceDate: details.date,
+                                              ),
                                             );
                                           }
                                           itemWidgets.add(
@@ -3541,8 +5386,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                       );
                                     },
                                   ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                                );
+                              },
                             );
                           },
                           onLongPress: (CalendarLongPressDetails details) {
@@ -3553,6 +5400,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               );
                             }
                           },
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -3574,12 +5423,307 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     _buildCustomHeaderRow(context, appState, constraints),
                     if (_showWeekStrips)
                       _buildWeekStripsPanel(context, appState, constraints),
+                    _buildInteractionPreviewOverlay(appState),
+                    if (_copiedItem != null) _buildCopyPasteBanner(appState),
                   ],
                 ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildInteractionPreviewOverlay(AppState appState) {
+    if (_interactionMode == _InteractionMode.none ||
+        _activeHit == null ||
+        _previewFrom == null ||
+        _previewTo == null ||
+        _timeGridRenderBox == null ||
+        !_timeGridRenderBox!.attached) {
+      return const SizedBox.shrink();
+    }
+
+    final int numDays = appState.calendarView == CalendarView.week ? 7 : 1;
+    const double timeRulerWidth = 40.0;
+    final double columnWidth = (_lastCalendarWidth - timeRulerWidth) / numDays;
+    if (columnWidth <= 0) return const SizedBox.shrink();
+
+    final int dayIndex = _previewDayIndex.clamp(0, numDays - 1);
+    final double colStart = timeRulerWidth + dayIndex * columnWidth;
+
+    final double startHourVal =
+        (_previewFrom!.hour + _previewFrom!.minute / 60.0) - _lastStartHour;
+    final double totalDurHours =
+        _previewTo!.difference(_previewFrom!).inMinutes / 60.0;
+    final double clampedDurHours = totalDurHours.clamp(
+      0.25,
+      (_lastEndHour - _lastStartHour) - startHourVal,
+    );
+    final double gridTop = startHourVal * _lastActiveIntervalHeight;
+    final double gridHeight = math.max(
+      20.0,
+      clampedDurHours * _lastActiveIntervalHeight,
+    );
+
+    final RenderBox? stackBox =
+        _calendarStackKey.currentContext?.findRenderObject() as RenderBox?;
+    final Offset globalTopLeft = _timeGridRenderBox!.localToGlobal(
+      Offset(colStart, gridTop),
+    );
+    final Offset stackTopLeft = stackBox != null
+        ? stackBox.globalToLocal(globalTopLeft)
+        : globalTopLeft;
+
+    final dynamic item = _activeHit!.occurrence.originalItem;
+    final Color baseColor = item is Event
+        ? Color(item.colorValue)
+        : (item is TaskItem ? Color(item.colorValue) : Colors.blue);
+    final String title = item is Event
+        ? item.title
+        : (item is TaskItem ? item.title : '');
+    final bool isRecurring =
+        (item is Event &&
+            item.recurrenceRule != null &&
+            item.recurrenceRule!.isNotEmpty) ||
+        (item is TaskItem &&
+            item.recurrenceRule != null &&
+            item.recurrenceRule!.isNotEmpty);
+
+    const daysTr = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    final String dayName = daysTr[_previewFrom!.weekday - 1];
+    final String fromStr =
+        '${_previewFrom!.hour.toString().padLeft(2, '0')}:${_previewFrom!.minute.toString().padLeft(2, '0')}';
+    final String toStr =
+        '${_previewTo!.hour.toString().padLeft(2, '0')}:${_previewTo!.minute.toString().padLeft(2, '0')}';
+    final String badgeText = isRecurring
+        ? '$dayName $fromStr - $toStr • Bireysel'
+        : '$dayName $fromStr - $toStr';
+
+    return Positioned(
+      left: stackTopLeft.dx,
+      top: stackTopLeft.dy,
+      width: math.max(16.0, columnWidth - 2.0),
+      height: gridHeight,
+      child: IgnorePointer(
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                foregroundPainter: _MarchingAntsBorderPainter(
+                  animation: _marchingAntsController,
+                  borderRadius: 6.0,
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: baseColor.withValues(alpha: 0.90),
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 3,
+                  ),
+                  child: Text(
+                    title,
+                    maxLines: 6,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5 * appState.fontSizeMultiplier,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: -2.0,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  width: 24,
+                  height: 6.0,
+                  decoration: BoxDecoration(
+                    color: Colors.amberAccent,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: Colors.black87, width: 1.0),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -2.0,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  width: 24,
+                  height: 6.0,
+                  decoration: BoxDecoration(
+                    color: Colors.amberAccent,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: Colors.black87, width: 1.0),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: -22,
+              left: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.amberAccent, width: 0.8),
+                ),
+                child: Text(
+                  badgeText,
+                  style: const TextStyle(
+                    color: Colors.amberAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCopyPasteBanner(AppState appState) {
+    final dynamic item = _copiedItem;
+    if (item == null) return const SizedBox.shrink();
+    final String title = item is Event
+        ? item.title
+        : (item is TaskItem ? item.title : '');
+    final DateTime origFrom =
+        (_copiedOccurrenceFrom ??
+                (item is Event
+                    ? item.from
+                    : (item is TaskItem ? item.from : null)) ??
+                DateTime.now())
+            .toLocal();
+    final String origTimeStr =
+        '${origFrom.hour.toString().padLeft(2, '0')}:${origFrom.minute.toString().padLeft(2, '0')}';
+    final bool isDayOrWeek =
+        appState.calendarView == CalendarView.day ||
+        appState.calendarView == CalendarView.week;
+
+    return Positioned(
+      left: 12,
+      right: 12,
+      bottom: 12,
+      child: Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.teal.shade900,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.content_paste_go,
+                color: Colors.amberAccent,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '"$title" kopyalandı',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      isDayOrWeek
+                          ? (_pasteUseOriginalTime
+                                ? 'Tıkladığınız güne kendi saatiyle ($origTimeStr) yapıştırılır'
+                                : 'Takvimde tıkladığınız gün ve saate yapıştırılır (Ctrl+V)')
+                          : 'Takvimde yapıştırmak istediğiniz güne tıklayın',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isDayOrWeek) ...[
+                const SizedBox(width: 6),
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    setState(() {
+                      _pasteUseOriginalTime = !_pasteUseOriginalTime;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _pasteUseOriginalTime
+                          ? Colors.amberAccent.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _pasteUseOriginalTime
+                            ? Colors.amberAccent
+                            : Colors.white30,
+                      ),
+                    ),
+                    child: Text(
+                      _pasteUseOriginalTime
+                          ? 'Saat: $origTimeStr'
+                          : 'Tıklanan Saat',
+                      style: TextStyle(
+                        color: _pasteUseOriginalTime
+                            ? Colors.amberAccent
+                            : Colors.white,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 6),
+              IconButton(
+                tooltip: 'Kopyalamayı Kapat (Esc)',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                onPressed: () {
+                  setState(() {
+                    _copiedItem = null;
+                    _copiedOccurrenceFrom = null;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -4032,9 +6176,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   void _showAddSelection(BuildContext context, {DateTime? initialDate}) {
+    final appState = Provider.of<AppState>(context, listen: false);
     showModalBottomSheet(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Wrap(
             children: [
@@ -4042,13 +6187,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 leading: const Icon(Icons.event, color: Colors.blue),
                 title: const Text('Etkinlik Ekle'),
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          EventFormScreen(initialDate: initialDate),
-                    ),
+                  Navigator.pop(sheetContext);
+                  _pushRouteWithSnapshotUndo(
+                    appState: appState,
+                    actionLabel: 'Yeni etkinlik eklendi',
+                    builder: (context) =>
+                        EventFormScreen(initialDate: initialDate),
                   );
                 },
               ),
@@ -4056,7 +6200,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 leading: const Icon(Icons.rocket_launch, color: Colors.purple),
                 title: const Text('Proje Ekle'),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -4069,13 +6213,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 leading: const Icon(Icons.task_alt, color: Colors.green),
                 title: const Text('Görev Ekle'),
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          TaskFormScreen(initialDate: initialDate),
-                    ),
+                  Navigator.pop(sheetContext);
+                  _pushRouteWithSnapshotUndo(
+                    appState: appState,
+                    actionLabel: 'Yeni görev eklendi',
+                    builder: (context) =>
+                        TaskFormScreen(initialDate: initialDate),
                   );
                 },
               ),
@@ -4374,15 +6517,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                           false,
                                                         );
                                                       } else {
-                                                        Navigator.push(
-                                                          context,
-                                                          MaterialPageRoute(
-                                                            builder: (context) =>
-                                                                EventFormScreen(
-                                                                  existingEvent:
-                                                                      originalItem,
-                                                                ),
-                                                          ),
+                                                        _pushRouteWithSnapshotUndo(
+                                                          appState: appState,
+                                                          actionLabel:
+                                                              '"${originalItem.title}" düzenlendi',
+                                                          builder: (context) =>
+                                                              EventFormScreen(
+                                                                existingEvent:
+                                                                    originalItem,
+                                                              ),
                                                         );
                                                       }
                                                     },
@@ -4595,15 +6738,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                           false,
                                                         );
                                                       } else {
-                                                        Navigator.push(
-                                                          context,
-                                                          MaterialPageRoute(
-                                                            builder: (context) =>
-                                                                TaskFormScreen(
-                                                                  existingTask:
-                                                                      originalItem,
-                                                                ),
-                                                          ),
+                                                        _pushRouteWithSnapshotUndo(
+                                                          appState: appState,
+                                                          actionLabel:
+                                                              '"${originalItem.title}" düzenlendi',
+                                                          builder: (context) =>
+                                                              TaskFormScreen(
+                                                                existingTask:
+                                                                    originalItem,
+                                                              ),
                                                         );
                                                       }
                                                     },
@@ -4992,6 +7135,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     dynamic item, {
     DateTime? tappedDate,
   }) {
+    _lastFocusedItem = item;
+    _lastFocusedOccurrenceFrom = tappedDate;
     showDialog(
       context: context,
       builder: (context) {
@@ -5422,6 +7567,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   TextButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
+                      _copyItemToClipboard(item, tappedDate);
+                    },
+                    icon: const Icon(Icons.copy, size: 16),
+                    label: const Text('Kopyala'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.teal.shade700,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showCopyToDateDialog(
+                        this.context,
+                        item,
+                        tappedDate,
+                        appState,
+                      );
+                    },
+                    icon: const Icon(Icons.copy_all, size: 16),
+                    label: const Text('Başka Güne Kopyala'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.indigo.shade700,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
                       FollowUpLogDialog.show(
                         context,
                         baseItem: item,
@@ -5480,20 +7652,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       _handleRecurringAction(context, item, tappedDate, false);
                     } else {
                       if (item is Event) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                EventFormScreen(existingEvent: item),
-                          ),
+                        _pushRouteWithSnapshotUndo(
+                          appState: appState,
+                          actionLabel: '"${item.title}" düzenlendi',
+                          builder: (context) =>
+                              EventFormScreen(existingEvent: item),
                         );
                       } else if (item is TaskItem) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                TaskFormScreen(existingTask: item),
-                          ),
+                        _pushRouteWithSnapshotUndo(
+                          appState: appState,
+                          actionLabel: '"${item.title}" düzenlendi',
+                          builder: (context) =>
+                              TaskFormScreen(existingTask: item),
                         );
                       } else if (item is ProjectEvaluation &&
                           linkedProject != null) {
@@ -5555,7 +7725,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildCellItemLine(dynamic item) {
+  Widget _buildCellItemLine(dynamic item, {DateTime? sourceDate}) {
     Color color = Colors.blue;
     String title = '';
     bool isPast = false;
@@ -5573,7 +7743,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
     if (isPast) color = color.withValues(alpha: 0.4);
 
-    return Padding(
+    final Widget lineContent = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 0.5),
       child: Row(
         children: [
@@ -5605,6 +7775,39 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ],
       ),
+    );
+
+    if (sourceDate == null || (item is! Event && item is! TaskItem)) {
+      return lineContent;
+    }
+
+    return LongPressDraggable<Map<String, dynamic>>(
+      delay: const Duration(milliseconds: 380),
+      data: {'item': item, 'sourceDate': sourceDate},
+      feedback: Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(6),
+        color: color.withValues(alpha: 0.92),
+        child: CustomPaint(
+          foregroundPainter: _MarchingAntsBorderPainter(
+            animation: _marchingAntsController,
+            borderRadius: 6.0,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.35, child: lineContent),
+      child: lineContent,
     );
   }
 
@@ -5781,6 +7984,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     int option,
   ) {
     final appState = Provider.of<AppState>(context, listen: false);
+    final List<Event> preRecurringEvents = List<Event>.from(appState.events);
+    final List<TaskItem> preRecurringTasks = List<TaskItem>.from(
+      appState.tasks,
+    );
     final resolved = _getOriginalItem(item, appState);
     item = resolved;
 
@@ -5832,18 +8039,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
         }
       } else {
         if (item is Event) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EventFormScreen(existingEvent: item),
-            ),
+          _pushRouteWithSnapshotUndo(
+            appState: appState,
+            actionLabel: '"${item.title}" tüm serisi düzenlendi',
+            preCapturedEvents: preRecurringEvents,
+            preCapturedTasks: preRecurringTasks,
+            builder: (context) => EventFormScreen(existingEvent: item),
           );
         } else if (item is TaskItem) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TaskFormScreen(existingTask: item),
-            ),
+          _pushRouteWithSnapshotUndo(
+            appState: appState,
+            actionLabel: '"${item.title}" tüm serisi düzenlendi',
+            preCapturedEvents: preRecurringEvents,
+            preCapturedTasks: preRecurringTasks,
+            builder: (context) => TaskFormScreen(existingTask: item),
           );
         }
       }
@@ -5907,13 +8116,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
           );
           appState.addEvent(clone);
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EventFormScreen(
-                existingEvent: clone,
-                isSingleOccurrenceEdit: true,
-              ),
+          _pushRouteWithSnapshotUndo(
+            appState: appState,
+            actionLabel: '"${item.title}" tekrarı düzenlendi',
+            preCapturedEvents: preRecurringEvents,
+            preCapturedTasks: preRecurringTasks,
+            builder: (context) => EventFormScreen(
+              existingEvent: clone,
+              isSingleOccurrenceEdit: true,
             ),
           );
         }
@@ -5965,13 +8175,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
           );
           appState.addTask(clone);
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TaskFormScreen(
-                existingTask: clone,
-                isSingleOccurrenceEdit: true,
-              ),
+          _pushRouteWithSnapshotUndo(
+            appState: appState,
+            actionLabel: '"${item.title}" tekrarı düzenlendi',
+            preCapturedEvents: preRecurringEvents,
+            preCapturedTasks: preRecurringTasks,
+            builder: (context) => TaskFormScreen(
+              existingTask: clone,
+              isSingleOccurrenceEdit: true,
             ),
           );
         }
@@ -6040,11 +8251,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
           );
           appState.addEvent(clone);
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EventFormScreen(existingEvent: clone),
-            ),
+          _pushRouteWithSnapshotUndo(
+            appState: appState,
+            actionLabel: '"${item.title}" sonraki tekrarlar düzenlendi',
+            preCapturedEvents: preRecurringEvents,
+            preCapturedTasks: preRecurringTasks,
+            builder: (context) => EventFormScreen(existingEvent: clone),
           );
         }
       } else if (item is TaskItem) {
@@ -6095,11 +8307,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
           );
           appState.addTask(clone);
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TaskFormScreen(existingTask: clone),
-            ),
+          _pushRouteWithSnapshotUndo(
+            appState: appState,
+            actionLabel: '"${item.title}" sonraki tekrarlar düzenlendi',
+            preCapturedEvents: preRecurringEvents,
+            preCapturedTasks: preRecurringTasks,
+            builder: (context) => TaskFormScreen(existingTask: clone),
           );
         }
       }
@@ -6122,6 +8335,14 @@ class EventDataSource extends CalendarDataSource {
             ? DateTime.utc(item.from.year, item.from.month, item.from.day)
             : DateTime(item.from.year, item.from.month, item.from.day);
       }
+      if (!item.to.isAtSameMomentAs(item.from) &&
+          (item.recurrenceRule == null || item.recurrenceRule!.isEmpty)) {
+        final f = item.from;
+        final msOffset = (index % 800) + 1;
+        return f.isUtc
+            ? DateTime.utc(f.year, f.month, f.day, f.hour, f.minute, 0, msOffset)
+            : DateTime(f.year, f.month, f.day, f.hour, f.minute, 0, msOffset);
+      }
       return item.from;
     }
     if (item is TaskItem) {
@@ -6130,6 +8351,30 @@ class EventDataSource extends CalendarDataSource {
         return fromVal.isUtc
             ? DateTime.utc(fromVal.year, fromVal.month, fromVal.day)
             : DateTime(fromVal.year, fromVal.month, fromVal.day);
+      }
+      final toVal = item.to ?? fromVal.add(const Duration(hours: 1));
+      if (!toVal.isAtSameMomentAs(fromVal) &&
+          (item.recurrenceRule == null || item.recurrenceRule!.isEmpty)) {
+        final msOffset = (index % 800) + 1;
+        return fromVal.isUtc
+            ? DateTime.utc(
+                fromVal.year,
+                fromVal.month,
+                fromVal.day,
+                fromVal.hour,
+                fromVal.minute,
+                0,
+                msOffset,
+              )
+            : DateTime(
+                fromVal.year,
+                fromVal.month,
+                fromVal.day,
+                fromVal.hour,
+                fromVal.minute,
+                0,
+                msOffset,
+              );
       }
       return fromVal;
     }
@@ -6275,11 +8520,325 @@ class OccurrenceInfo {
   final String id;
   final DateTime from;
   final DateTime to;
+  final DateTime fullFrom;
+  final DateTime fullTo;
+  final DateTime createdAt;
   OccurrenceInfo({
     required this.originalItem,
     required this.id,
     required this.from,
     required this.to,
+    DateTime? fullFrom,
+    DateTime? fullTo,
+    DateTime? createdAt,
+  }) : fullFrom = fullFrom ?? from,
+       fullTo = fullTo ?? to,
+       createdAt = createdAt ?? DateTime(1970);
+}
+
+enum _CardHitZone { topResize, bottomResize, body }
+
+enum _InteractionMode { none, move, resizeTop, resizeBottom }
+
+class _CardHitResult {
+  final OccurrenceInfo occurrence;
+  final _CardHitZone zone;
+  final int dayIndex;
+  final Rect cardRectInGrid;
+  final Offset startGridPos;
+
+  _CardHitResult({
+    required this.occurrence,
+    required this.zone,
+    required this.dayIndex,
+    required this.cardRectInGrid,
+    required this.startGridPos,
+  });
+}
+
+class _CalendarInteractionGestureRecognizer
+    extends OneSequenceGestureRecognizer {
+  _CardHitResult? Function(Offset globalPos) onHitTest;
+  bool Function(_CardHitResult hit) isCardManipulated;
+  void Function(_CardHitResult hit) onActivateManipulation;
+  VoidCallback onClearManipulation;
+  void Function(_CardHitResult hit, Offset downGlobalPos) onInteractionStart;
+  void Function(Offset currentGlobalPos) onInteractionUpdate;
+  void Function(Offset upGlobalPos) onInteractionEnd;
+  VoidCallback onInteractionCancel;
+  void Function(_CardHitResult hit) onCardTap;
+  VoidCallback onLockScroll;
+  VoidCallback onUnlockScroll;
+  void Function(OccurrenceInfo occ) onFocusItem;
+
+  int? _activePointer;
+  Offset? _downGlobalPos;
+  _CardHitResult? _currentHit;
+  bool _isDragging = false;
+  bool _holdActivated = false;
+  bool _wasAlreadyManipulatedOnDown = false;
+  Timer? _holdTimer;
+
+  _CalendarInteractionGestureRecognizer({
+    required this.onHitTest,
+    required this.isCardManipulated,
+    required this.onActivateManipulation,
+    required this.onClearManipulation,
+    required this.onInteractionStart,
+    required this.onInteractionUpdate,
+    required this.onInteractionEnd,
+    required this.onInteractionCancel,
+    required this.onCardTap,
+    required this.onLockScroll,
+    required this.onUnlockScroll,
+    required this.onFocusItem,
+  });
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    if (_activePointer != null) {
+      return;
+    }
+    if (event.kind == PointerDeviceKind.mouse &&
+        event.buttons != kPrimaryMouseButton) {
+      return;
+    }
+    final hit = onHitTest(event.position);
+    if (hit == null) {
+      onClearManipulation();
+      return;
+    }
+
+    _activePointer = event.pointer;
+    _downGlobalPos = event.position;
+    _currentHit = hit;
+    _isDragging = false;
+    onFocusItem(hit.occurrence);
+    startTrackingPointer(event.pointer, event.transform);
+
+    if (isCardManipulated(hit)) {
+      _wasAlreadyManipulatedOnDown = true;
+      _holdActivated = true;
+      onLockScroll();
+      resolve(GestureDisposition.accepted);
+    } else {
+      onClearManipulation();
+      _wasAlreadyManipulatedOnDown = false;
+      _holdActivated = false;
+      _holdTimer?.cancel();
+      _holdTimer = Timer(const Duration(milliseconds: 380), () {
+        if (_activePointer == null || _currentHit == null) return;
+        _holdActivated = true;
+        onActivateManipulation(_currentHit!);
+        onLockScroll();
+        resolve(GestureDisposition.accepted);
+      });
+    }
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event.pointer != _activePointer) return;
+
+    if (event is PointerMoveEvent) {
+      if (_downGlobalPos == null || _currentHit == null) return;
+      final double dist = (event.position - _downGlobalPos!).distance;
+
+      if (!_holdActivated) {
+        if (dist > 8.0) {
+          _holdTimer?.cancel();
+          _holdTimer = null;
+          final int p = event.pointer;
+          _cleanup();
+          stopTrackingPointer(p);
+          resolve(GestureDisposition.rejected);
+        }
+        return;
+      }
+
+      if (!_isDragging) {
+        if (dist > 4.0) {
+          _isDragging = true;
+          if (event.kind != PointerDeviceKind.mouse) {
+            HapticFeedback.selectionClick();
+          }
+          onInteractionStart(_currentHit!, _downGlobalPos!);
+          onInteractionUpdate(event.position);
+        }
+      } else {
+        onInteractionUpdate(event.position);
+      }
+    } else if (event is PointerUpEvent) {
+      _holdTimer?.cancel();
+      _holdTimer = null;
+      final bool wasDragging = _isDragging;
+      final bool wasHoldActivated = _holdActivated;
+      final bool wasAlreadyManipulated = _wasAlreadyManipulatedOnDown;
+      final _CardHitResult? hit = _currentHit;
+      final int p = event.pointer;
+      _cleanup();
+      stopTrackingPointer(p);
+      onUnlockScroll();
+      if (wasDragging) {
+        onInteractionEnd(event.position);
+      } else if (!wasHoldActivated && hit != null) {
+        resolve(GestureDisposition.accepted);
+        onCardTap(hit);
+      } else if (wasHoldActivated && wasAlreadyManipulated && hit != null) {
+        onClearManipulation();
+        onCardTap(hit);
+      }
+    } else if (event is PointerCancelEvent) {
+      _holdTimer?.cancel();
+      _holdTimer = null;
+      final bool wasDragging = _isDragging;
+      final int p = event.pointer;
+      _cleanup();
+      stopTrackingPointer(p);
+      onUnlockScroll();
+      if (wasDragging) {
+        onInteractionCancel();
+      }
+    }
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {}
+
+  void _cleanup() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    _activePointer = null;
+    _downGlobalPos = null;
+    _currentHit = null;
+    _isDragging = false;
+    _holdActivated = false;
+    _wasAlreadyManipulatedOnDown = false;
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    onUnlockScroll();
+    super.dispose();
+  }
+
+  @override
+  String get debugDescription => 'calendarInteraction';
+}
+
+class _MarchingAntsBorderPainter extends CustomPainter {
+  final Animation<double> animation;
+  final double borderRadius;
+  final double strokeWidth;
+  final double dashWidth;
+  final double dashSpace;
+
+  _MarchingAntsBorderPainter({
+    required this.animation,
+    this.borderRadius = 6.0,
+    this.strokeWidth = 2.4,
+    this.dashWidth = 6.0,
+    this.dashSpace = 5.0,
+  }) : super(repaint: animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    final RRect rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        strokeWidth / 2,
+        strokeWidth / 2,
+        math.max(0.0, size.width - strokeWidth),
+        math.max(0.0, size.height - strokeWidth),
+      ),
+      Radius.circular(borderRadius),
+    );
+
+    final Path path = Path()..addRRect(rrect);
+
+    final Paint basePaint = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+    canvas.drawPath(path, basePaint);
+
+    final Paint dashPaint = Paint()
+      ..color = Colors.amberAccent
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final double period = dashWidth + dashSpace;
+    final double phase = animation.value * period;
+    final Path dashedPath = Path();
+
+    for (final PathMetric metric in path.computeMetrics()) {
+      final double totalLen = metric.length;
+      if (totalLen <= 0) continue;
+      double start = -period + (phase % period);
+      while (start < totalLen) {
+        final double extractStart = math.max(0.0, start);
+        final double extractEnd = math.min(totalLen, start + dashWidth);
+        if (extractEnd > extractStart) {
+          dashedPath.addPath(
+            metric.extractPath(extractStart, extractEnd),
+            Offset.zero,
+          );
+        }
+        start += period;
+      }
+    }
+
+    canvas.drawPath(dashedPath, dashPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MarchingAntsBorderPainter oldDelegate) {
+    return oldDelegate.animation != animation ||
+        oldDelegate.borderRadius != borderRadius ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.dashWidth != dashWidth ||
+        oldDelegate.dashSpace != dashSpace;
+  }
+}
+
+class _CalendarHistorySnapshot {
+  final List<Event> events;
+  final List<TaskItem> tasks;
+  final Map<String, String> eventJsonById;
+  final Map<String, String> taskJsonById;
+
+  _CalendarHistorySnapshot({
+    required this.events,
+    required this.tasks,
+    required this.eventJsonById,
+    required this.taskJsonById,
+  });
+
+  factory _CalendarHistorySnapshot.capture(AppState appState) {
+    final evs = List<Event>.from(appState.events);
+    final tks = List<TaskItem>.from(appState.tasks);
+    return _CalendarHistorySnapshot(
+      events: evs,
+      tasks: tks,
+      eventJsonById: {for (final e in evs) e.id: jsonEncode(e.toJson())},
+      taskJsonById: {for (final t in tks) t.id: jsonEncode(t.toJson())},
+    );
+  }
+}
+
+class _CalendarUndoEntry {
+  final String message;
+  final VoidCallback onUndo;
+  final VoidCallback? onRedo;
+
+  _CalendarUndoEntry({
+    required this.message,
+    required this.onUndo,
+    this.onRedo,
   });
 }
 

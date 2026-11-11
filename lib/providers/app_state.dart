@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '2.87';
+  static const String appVersion = '2.99';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -1360,6 +1360,13 @@ class AppState extends ChangeNotifier {
           followUpReference: existing.followUpReference,
         );
       }
+      if (incoming.untilEventId == null && existing.untilEventId != null) {
+        incoming = incoming.copyWith(
+          untilEventId: existing.untilEventId,
+          untilOffsetMinutes: existing.untilOffsetMinutes,
+          untilReference: existing.untilReference,
+        );
+      }
       incoming = _normalizeFollowUpLink(incoming, existing);
       _events[index] = incoming;
       final changed = _syncFollowUpsOf(incoming.id);
@@ -1389,32 +1396,57 @@ class AppState extends ChangeNotifier {
 
   /// Bağlı etkinliğin bağını doğrular; elle taşındıysa offset'i yeniden hesaplar.
   Event _normalizeFollowUpLink(Event incoming, Event? existing) {
-    final parentId = incoming.parentEventId;
-    if (parentId == null) return incoming;
-    final parent = getEventById(parentId);
-    if (parent == null || parentId == incoming.id) {
-      return incoming.copyWith(clearParentEventId: true);
-    }
-    if (existing != null && incoming.from != existing.from) {
-      var ref = _followUpRefTime(parent, incoming.followUpReference);
-      if (parent.recurrenceRule != null && parent.recurrenceRule!.isNotEmpty) {
-        ref = DateTime(
-          incoming.from.year,
-          incoming.from.month,
-          incoming.from.day,
-          ref.hour,
-          ref.minute,
-          ref.second,
+    var result = incoming;
+    final parentId = result.parentEventId;
+    if (parentId != null) {
+      final parent = getEventById(parentId);
+      if (parent == null || parentId == result.id) {
+        result = result.copyWith(clearParentEventId: true);
+      } else if (existing != null && result.from != existing.from) {
+        var ref = _followUpRefTime(parent, result.followUpReference);
+        if (parent.recurrenceRule != null && parent.recurrenceRule!.isNotEmpty) {
+          ref = DateTime(
+            result.from.year,
+            result.from.month,
+            result.from.day,
+            ref.hour,
+            ref.minute,
+            ref.second,
+          );
+        }
+        result = result.copyWith(
+          followUpOffsetMinutes: result.from.difference(ref).inMinutes,
         );
       }
-      return incoming.copyWith(
-        followUpOffsetMinutes: incoming.from.difference(ref).inMinutes,
-      );
     }
-    return incoming;
+
+    final untilId = result.untilEventId;
+    if (untilId != null) {
+      final untilParent = getEventById(untilId);
+      if (untilParent == null || untilId == result.id) {
+        result = result.copyWith(clearUntilEventId: true);
+      } else if (existing != null && result.to != existing.to) {
+        var ref = _followUpRefTime(untilParent, result.untilReference);
+        if (untilParent.recurrenceRule != null &&
+            untilParent.recurrenceRule!.isNotEmpty) {
+          ref = DateTime(
+            result.from.year,
+            result.from.month,
+            result.from.day,
+            ref.hour,
+            ref.minute,
+            ref.second,
+          );
+        }
+        result = result.copyWith(
+          untilOffsetMinutes: result.to.difference(ref).inMinutes,
+        );
+      }
+    }
+    return result;
   }
 
-  /// Ana etkinliğe bağlı tüm etkinlikleri (zincirleme) yeniden konumlandırır.
+  /// Ana etkinliğe veya Until hedef etkinliğine bağlı tüm etkinlikleri (zincirleme) yeniden konumlandırır.
   /// Konumu değişen etkinlikleri döner (kaydetme/bildirim için).
   List<Event> _syncFollowUpsOf(String parentId, [Set<String>? visited]) {
     visited ??= <String>{};
@@ -1422,22 +1454,68 @@ class AppState extends ChangeNotifier {
     if (!visited.add(parentId)) return changed;
     final parent = getEventById(parentId);
     if (parent == null) return changed;
-    // Eğer ana etkinlik tekrarlıysa (recurrenceRule varsa), takip eden kayıt spesifik bir güne eklenmiştir;
-    // ana etkinliğin ilk gününün saatine (parent.from/to) zorla çekilmemelidir.
-    if (parent.recurrenceRule != null && parent.recurrenceRule!.isNotEmpty) {
-      return changed;
-    }
+
     for (int i = 0; i < _events.length; i++) {
       final child = _events[i];
-      if (child.parentEventId != parentId || child.id == parentId) continue;
-      final duration = child.to.difference(child.from);
-      final newFrom = _followUpRefTime(parent, child.followUpReference)
-          .add(Duration(minutes: child.followUpOffsetMinutes));
-      if (newFrom != child.from) {
-        final aligned = child.copyWith(
-          from: newFrom,
-          to: newFrom.add(duration),
-        );
+      if (child.id == parentId) continue;
+      final bool isStartLinked = child.parentEventId == parentId;
+      final bool isUntilLinked = child.untilEventId == parentId;
+      if (!isStartLinked && !isUntilLinked) continue;
+
+      DateTime newFrom = child.from;
+      DateTime newTo = child.to;
+      final Duration oldDuration = child.to.difference(child.from);
+
+      if (child.parentEventId != null) {
+        final startParent = getEventById(child.parentEventId!);
+        if (startParent != null) {
+          var ref = _followUpRefTime(startParent, child.followUpReference);
+          if (startParent.recurrenceRule != null &&
+              startParent.recurrenceRule!.isNotEmpty) {
+            ref = DateTime(
+              child.from.year,
+              child.from.month,
+              child.from.day,
+              ref.hour,
+              ref.minute,
+              ref.second,
+            );
+          }
+          newFrom = ref.add(Duration(minutes: child.followUpOffsetMinutes));
+        }
+      }
+
+      if (child.untilEventId != null) {
+        final untilParent = getEventById(child.untilEventId!);
+        if (untilParent != null) {
+          var endRef = _followUpRefTime(untilParent, child.untilReference);
+          if (untilParent.recurrenceRule != null &&
+              untilParent.recurrenceRule!.isNotEmpty) {
+            endRef = DateTime(
+              newFrom.year,
+              newFrom.month,
+              newFrom.day,
+              endRef.hour,
+              endRef.minute,
+              endRef.second,
+            );
+            if (endRef.isBefore(newFrom)) {
+              endRef = endRef.add(const Duration(days: 1));
+            }
+          }
+          newTo = endRef.add(Duration(minutes: child.untilOffsetMinutes));
+          if (!newTo.isAfter(newFrom)) {
+            newTo = newFrom.add(const Duration(minutes: 15));
+          }
+        } else {
+          newTo = newFrom.add(oldDuration);
+        }
+      } else {
+        newTo = newFrom.add(oldDuration);
+      }
+
+      if (newFrom != child.from || newTo != child.to) {
+        final aligned = child.copyWith(from: newFrom, to: newTo);
         _events[i] = aligned;
         changed.add(aligned);
       }
@@ -1449,8 +1527,16 @@ class AppState extends ChangeNotifier {
   /// Ana etkinlik silindiğinde bağlı etkinlikleri serbest bırakır.
   void _releaseFollowUpsOf(String parentId) {
     for (int i = 0; i < _events.length; i++) {
+      bool modified = false;
       if (_events[i].parentEventId == parentId) {
         _events[i] = _events[i].copyWith(clearParentEventId: true);
+        modified = true;
+      }
+      if (_events[i].untilEventId == parentId) {
+        _events[i] = _events[i].copyWith(clearUntilEventId: true);
+        modified = true;
+      }
+      if (modified) {
         _firestoreSaveEvent(_events[i]);
       }
     }

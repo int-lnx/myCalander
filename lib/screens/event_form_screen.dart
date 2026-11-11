@@ -18,6 +18,9 @@ class EventFormScreen extends StatefulWidget {
   final String? initialParentEventId;
   final int? initialFollowUpOffsetMinutes;
   final String? initialFollowUpReference;
+  final String? initialUntilEventId;
+  final int? initialUntilOffsetMinutes;
+  final String? initialUntilReference;
   const EventFormScreen({
     super.key,
     this.existingEvent,
@@ -29,6 +32,9 @@ class EventFormScreen extends StatefulWidget {
     this.initialParentEventId,
     this.initialFollowUpOffsetMinutes,
     this.initialFollowUpReference,
+    this.initialUntilEventId,
+    this.initialUntilOffsetMinutes,
+    this.initialUntilReference,
   });
 
   @override
@@ -56,6 +62,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
   String? _parentEventId;
   int _followUpOffsetMinutes = 0;
   String _followUpReference = 'end';
+  String? _untilEventId;
+  int _untilOffsetMinutes = 0;
+  String _untilReference = 'start';
   late bool _showInMonthView;
 
   final List<int> _colors = const [
@@ -106,6 +115,11 @@ class _EventFormScreenState extends State<EventFormScreen> {
         event?.followUpOffsetMinutes ?? widget.initialFollowUpOffsetMinutes ?? 0;
     _followUpReference =
         event?.followUpReference ?? widget.initialFollowUpReference ?? 'end';
+    _untilEventId = event?.untilEventId ?? widget.initialUntilEventId;
+    _untilOffsetMinutes =
+        event?.untilOffsetMinutes ?? widget.initialUntilOffsetMinutes ?? 0;
+    _untilReference =
+        event?.untilReference ?? widget.initialUntilReference ?? 'start';
     _showInMonthView = event?.showInMonthView ?? true;
   }
 
@@ -1171,6 +1185,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
         parentEventId: _parentEventId,
         followUpOffsetMinutes: _followUpOffsetMinutes,
         followUpReference: _followUpReference,
+        untilEventId: _untilEventId,
+        untilOffsetMinutes: _untilOffsetMinutes,
+        untilReference: _untilReference,
         showInMonthView: _showInMonthView,
       );
 

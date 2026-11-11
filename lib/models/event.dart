@@ -29,6 +29,15 @@ class Event {
   /// Referans noktası: 'end' (ana etkinliğin bitişi) veya 'start' (başlangıcı).
   final String followUpReference;
 
+  /// Until (Hedef) Etkinlik: bitiş zamanının dinamik olarak bağlandığı etkinliğin ID'si.
+  final String? untilEventId;
+
+  /// Hedef etkinliğin referans noktasına göre öteleme (dakika).
+  final int untilOffsetMinutes;
+
+  /// Hedef etkinliğin referans noktası: 'start' (başlangıcı) veya 'end' (bitişi).
+  final String untilReference;
+
   /// Aylık takvim görünümünde hücrede gösterilsin mi?
   final bool showInMonthView;
 
@@ -56,6 +65,9 @@ class Event {
     this.parentEventId,
     this.followUpOffsetMinutes = 0,
     this.followUpReference = 'end',
+    this.untilEventId,
+    this.untilOffsetMinutes = 0,
+    this.untilReference = 'start',
     this.showInMonthView = true,
   })  : seriesId = seriesId ?? id,
         createdAt = createdAt ?? DateTime.now();
@@ -85,8 +97,12 @@ class Event {
     String? parentEventId,
     int? followUpOffsetMinutes,
     String? followUpReference,
+    String? untilEventId,
+    int? untilOffsetMinutes,
+    String? untilReference,
     bool? showInMonthView,
     bool clearParentEventId = false,
+    bool clearUntilEventId = false,
     bool clearRecurrenceRule = false,
     bool clearRecurrenceExceptionDates = false,
     bool clearProjectId = false,
@@ -124,6 +140,14 @@ class Event {
       followUpReference: clearParentEventId
           ? 'end'
           : (followUpReference ?? this.followUpReference),
+      untilEventId:
+          clearUntilEventId ? null : (untilEventId ?? this.untilEventId),
+      untilOffsetMinutes: clearUntilEventId
+          ? 0
+          : (untilOffsetMinutes ?? this.untilOffsetMinutes),
+      untilReference: clearUntilEventId
+          ? 'start'
+          : (untilReference ?? this.untilReference),
       showInMonthView: showInMonthView ?? this.showInMonthView,
     );
   }
@@ -155,6 +179,9 @@ class Event {
       'parentEventId': parentEventId,
       'followUpOffsetMinutes': followUpOffsetMinutes,
       'followUpReference': followUpReference,
+      'untilEventId': untilEventId,
+      'untilOffsetMinutes': untilOffsetMinutes,
+      'untilReference': untilReference,
       'showInMonthView': showInMonthView,
     };
   }
@@ -213,6 +240,10 @@ class Event {
       followUpOffsetMinutes:
           (json['followUpOffsetMinutes'] as num?)?.toInt() ?? 0,
       followUpReference: json['followUpReference'] as String? ?? 'end',
+      untilEventId: json['untilEventId'] as String?,
+      untilOffsetMinutes:
+          (json['untilOffsetMinutes'] as num?)?.toInt() ?? 0,
+      untilReference: json['untilReference'] as String? ?? 'start',
       showInMonthView: json['showInMonthView'] as bool? ?? true,
     );
   }
