@@ -253,8 +253,6 @@ class _CalendarScreenState extends State<CalendarScreen>
       }
       return;
     }
-    _lastFocusedItem = hit.occurrence.originalItem;
-    _lastFocusedOccurrenceFrom = hit.occurrence.fullFrom;
     _showItemDetailsDialog(
       context,
       hit.occurrence.originalItem,
@@ -486,8 +484,6 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
     SystemMouseCursor desiredCursor = SystemMouseCursors.basic;
     if (hit != null) {
-      _lastFocusedItem = hit.occurrence.originalItem;
-      _lastFocusedOccurrenceFrom = hit.occurrence.fullFrom;
       if (_isCardManipulated(hit.occurrence.id, hit.occurrence.fullFrom)) {
         if (hit.zone == _CardHitZone.topResize ||
             hit.zone == _CardHitZone.bottomResize) {
@@ -986,10 +982,45 @@ class _CalendarScreenState extends State<CalendarScreen>
     }
   }
 
+  bool _isEditableTextFocused() {
+    final focusNode = FocusManager.instance.primaryFocus;
+    final focusContext = focusNode?.context;
+    if (focusContext == null) return false;
+    final w = focusContext.widget;
+    if (w is EditableText || w is TextField || w is TextFormField) {
+      return true;
+    }
+    if (focusContext.findAncestorStateOfType<EditableTextState>() != null ||
+        focusContext.findAncestorWidgetOfExactType<EditableText>() != null ||
+        focusContext.findAncestorWidgetOfExactType<TextField>() != null ||
+        focusContext.findAncestorWidgetOfExactType<TextFormField>() != null) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _isCalendarGridActive() {
+    if (!mounted) return false;
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return false;
+    if (Scaffold.maybeOf(context)?.isDrawerOpen == true) return false;
+    if (_isEditableTextFocused()) return false;
+
+    final appState = Provider.of<AppState>(context, listen: false);
+    if (appState.showPlanView ||
+        appState.showSeritView ||
+        appState.showRecentView ||
+        appState.showDailyNotesView) {
+      return false;
+    }
+    return appState.calendarView == CalendarView.day ||
+        appState.calendarView == CalendarView.week ||
+        appState.calendarView == CalendarView.month;
+  }
+
   bool _handleKeyEvent(KeyEvent event) {
     if (!mounted || event is! KeyDownEvent) return false;
-    final focusWidget = FocusManager.instance.primaryFocus?.context?.widget;
-    if (focusWidget is EditableText) return false;
+    if (!_isCalendarGridActive()) return false;
 
     final bool isCtrlOrMeta =
         HardwareKeyboard.instance.isControlPressed ||
@@ -1011,7 +1042,6 @@ class _CalendarScreenState extends State<CalendarScreen>
     }
 
     if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyZ) {
-      if (ModalRoute.of(context)?.isCurrent == false) return false;
       final bool isShift = HardwareKeyboard.instance.isShiftPressed;
       if (isShift) {
         if (_redoStack.isNotEmpty) {
@@ -1028,7 +1058,6 @@ class _CalendarScreenState extends State<CalendarScreen>
     }
 
     if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyY) {
-      if (ModalRoute.of(context)?.isCurrent == false) return false;
       if (_redoStack.isNotEmpty) {
         _performLastRedo();
         return true;
@@ -1036,12 +1065,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       return false;
     }
 
-    if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyC) {
-      if (_lastFocusedItem != null) {
-        _copyItemToClipboard(_lastFocusedItem, _lastFocusedOccurrenceFrom);
-        return true;
-      }
-    } else if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyV) {
+    if (isCtrlOrMeta && event.logicalKey == LogicalKeyboardKey.keyV) {
       if (_copiedItem != null) {
         final appState = Provider.of<AppState>(context, listen: false);
         final DateTime target =
@@ -2617,16 +2641,31 @@ class _CalendarScreenState extends State<CalendarScreen>
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    if (appState.showPlanView) {
-      return const PlanScreen();
-    }
-    if (appState.showSeritView) {
-      return const AllTimelineScreen();
-    }
-    if (appState.showRecentView) {
-      return const RecentItemsScreen();
-    }
-    if (appState.showDailyNotesView) {
+    if (appState.showPlanView ||
+        appState.showSeritView ||
+        appState.showRecentView ||
+        appState.showDailyNotesView) {
+      if (_copiedItem != null || _manipulatedCardId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _copiedItem = null;
+              _copiedOccurrenceFrom = null;
+              _manipulatedCardId = null;
+              _manipulatedCardFrom = null;
+            });
+          }
+        });
+      }
+      if (appState.showPlanView) {
+        return const PlanScreen();
+      }
+      if (appState.showSeritView) {
+        return const AllTimelineScreen();
+      }
+      if (appState.showRecentView) {
+        return const RecentItemsScreen();
+      }
       return const DailyNotesScreen();
     }
     final calendarController = appState.calendarController;
