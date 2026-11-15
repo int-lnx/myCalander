@@ -96,9 +96,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     _projectTag = task?.projectTag;
     _notificationOffsets = task?.notificationOffsets != null
         ? List<int>.from(task!.notificationOffsets)
-        : ((task?.hasNotification ?? false) && task?.notificationMinutesBefore != null
-            ? [task!.notificationMinutesBefore!]
-            : const []);
+        : ((task?.hasNotification ?? false) &&
+                  task?.notificationMinutesBefore != null
+              ? [task!.notificationMinutesBefore!]
+              : const []);
     _showInMonthView = task?.showInMonthView ?? true;
   }
 
@@ -142,7 +143,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     super.dispose();
   }
 
-  Future<void> _showProjectPickerDialog(BuildContext context, AppState appState) async {
+  Future<void> _showProjectPickerDialog(
+    BuildContext context,
+    AppState appState,
+  ) async {
     final selected = await showDialog<String?>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -157,8 +161,12 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 ListTile(
                   leading: const Icon(Icons.layers_clear, color: Colors.grey),
                   title: const Text('Hiçbiri (Bağımsız)'),
-                  trailing: _projectId == null ? const Icon(Icons.check, color: Colors.blue) : null,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  trailing: _projectId == null
+                      ? const Icon(Icons.check, color: Colors.blue)
+                      : null,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   selected: _projectId == null,
                   selectedTileColor: Colors.blue.withOpacity(0.08),
                   onTap: () => Navigator.pop(ctx, 'NONE'),
@@ -172,9 +180,15 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                       backgroundColor: Color(p.colorValue),
                     ),
                     title: Text(p.title),
-                    subtitle: p.tag.isNotEmpty ? Text(p.tag, style: const TextStyle(fontSize: 11)) : null,
-                    trailing: isSel ? const Icon(Icons.check, color: Colors.blue) : null,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    subtitle: p.tag.isNotEmpty
+                        ? Text(p.tag, style: const TextStyle(fontSize: 11))
+                        : null,
+                    trailing: isSel
+                        ? const Icon(Icons.check, color: Colors.blue)
+                        : null,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     selected: isSel,
                     selectedTileColor: Colors.blue.withOpacity(0.08),
                     onTap: () => Navigator.pop(ctx, p.id),
@@ -182,8 +196,17 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 }),
                 const Divider(),
                 ListTile(
-                  leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
-                  title: const Text('+ Yeni Proje Ekle...', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                  leading: const Icon(
+                    Icons.add_circle_outline,
+                    color: Colors.blue,
+                  ),
+                  title: const Text(
+                    '+ Yeni Proje Ekle...',
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   onTap: () => Navigator.pop(ctx, 'NEW'),
                 ),
               ],
@@ -191,7 +214,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
         ],
       ),
     );
@@ -240,20 +266,27 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           title: Row(
             children: [
               Icon(
-                isStart ? Icons.play_circle_outline : Icons.stop_circle_outlined,
+                isStart
+                    ? Icons.play_circle_outline
+                    : Icons.stop_circle_outlined,
                 color: isStart ? Colors.blue : Colors.indigo,
                 size: 22,
               ),
               const SizedBox(width: 8),
               Text(
                 isStart ? 'Başlangıç Tarihi ve Saati' : 'Bitiş Tarihi ve Saati',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -275,7 +308,13 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                       lastDate: DateTime(2100),
                       onDateChanged: (d) {
                         setDialogState(() {
-                          tempDate = DateTime(d.year, d.month, d.day, tempHour, tempMinute);
+                          tempDate = DateTime(
+                            d.year,
+                            d.month,
+                            d.day,
+                            tempHour,
+                            tempMinute,
+                          );
                         });
                       },
                     ),
@@ -284,7 +323,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     const Divider(height: 1),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(12),
@@ -295,9 +337,19 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.access_time, size: 20, color: Colors.blueGrey),
+                              const Icon(
+                                Icons.access_time,
+                                size: 20,
+                                color: Colors.blueGrey,
+                              ),
                               const SizedBox(width: 8),
-                              const Text('Saat:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                              const Text(
+                                'Saat:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
                               const SizedBox(width: 8),
                               DropdownButton<int>(
                                 value: tempHour,
@@ -309,15 +361,25 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                                     value: i,
                                     child: Text(
                                       i.toString().padLeft(2, '0'),
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val != null) setDialogState(() => tempHour = val);
+                                  if (val != null)
+                                    setDialogState(() => tempHour = val);
                                 },
                               ),
-                              const Text(' : ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              const Text(
+                                ' : ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
                               DropdownButton<int>(
                                 value: tempMinute,
                                 isDense: true,
@@ -328,22 +390,33 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                                     value: i,
                                     child: Text(
                                       i.toString().padLeft(2, '0'),
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val != null) setDialogState(() => tempMinute = val);
+                                  if (val != null)
+                                    setDialogState(() => tempMinute = val);
                                 },
                               ),
                               const SizedBox(width: 8),
                               IconButton(
-                                icon: const Icon(Icons.watch_later_outlined, size: 20, color: Colors.blue),
+                                icon: const Icon(
+                                  Icons.watch_later_outlined,
+                                  size: 20,
+                                  color: Colors.blue,
+                                ),
                                 tooltip: 'Saat Kadranından Seç',
                                 onPressed: () async {
                                   final pTime = await showTimePicker(
                                     context: ctx,
-                                    initialTime: TimeOfDay(hour: tempHour, minute: tempMinute),
+                                    initialTime: TimeOfDay(
+                                      hour: tempHour,
+                                      minute: tempMinute,
+                                    ),
                                   );
                                   if (pTime != null) {
                                     setDialogState(() {
@@ -361,25 +434,41 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                             children: [0, 15, 30, 45].map((m) {
                               final isSel = tempMinute == m;
                               return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
                                 child: InkWell(
-                                  onTap: () => setDialogState(() => tempMinute = m),
+                                  onTap: () =>
+                                      setDialogState(() => tempMinute = m),
                                   borderRadius: BorderRadius.circular(6),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: isSel ? (isStart ? Colors.blue : Colors.indigo) : Colors.white,
+                                      color: isSel
+                                          ? (isStart
+                                                ? Colors.blue
+                                                : Colors.indigo)
+                                          : Colors.white,
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
-                                        color: isSel ? Colors.transparent : Colors.grey.shade300,
+                                        color: isSel
+                                            ? Colors.transparent
+                                            : Colors.grey.shade300,
                                       ),
                                     ),
                                     child: Text(
                                       ':${m.toString().padLeft(2, '0')}',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                        color: isSel ? Colors.white : Colors.black87,
+                                        fontWeight: isSel
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: isSel
+                                            ? Colors.white
+                                            : Colors.black87,
                                       ),
                                     ),
                                   ),
@@ -429,10 +518,15 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     if (picked != null) {
       setState(() {
         if (isStart) {
-          final diff = _to != null && _from != null ? _to!.difference(_from!) : const Duration(hours: 1);
+          final diff = _to != null && _from != null
+              ? _to!.difference(_from!)
+              : const Duration(hours: 1);
           _from = picked;
-          if (_to != null && (_to!.isBefore(_from!) || _to!.isAtSameMomentAs(_from!))) {
-            _to = _from!.add(diff.inMinutes > 0 ? diff : const Duration(hours: 1));
+          if (_to != null &&
+              (_to!.isBefore(_from!) || _to!.isAtSameMomentAs(_from!))) {
+            _to = _from!.add(
+              diff.inMinutes > 0 ? diff : const Duration(hours: 1),
+            );
           }
         } else {
           var newTo = picked;
@@ -461,7 +555,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     if (pickedDate != null) {
       setState(() {
         if (isStart) {
-          final diff = _to != null && _from != null ? _to!.difference(_from!) : const Duration(hours: 1);
+          final diff = _to != null && _from != null
+              ? _to!.difference(_from!)
+              : const Duration(hours: 1);
           _from = DateTime(
             pickedDate.year,
             pickedDate.month,
@@ -470,7 +566,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             _from!.minute,
           );
           if (_to != null && _to!.isBefore(_from!)) {
-            _to = _from!.add(diff.inMinutes > 0 ? diff : const Duration(hours: 1));
+            _to = _from!.add(
+              diff.inMinutes > 0 ? diff : const Duration(hours: 1),
+            );
           }
         } else {
           _to = DateTime(
@@ -508,7 +606,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     if (pickedTime != null) {
       setState(() {
         if (isStart) {
-          final oldDiff = _to != null && _from != null ? _to!.difference(_from!) : const Duration(hours: 1);
+          final oldDiff = _to != null && _from != null
+              ? _to!.difference(_from!)
+              : const Duration(hours: 1);
           _from = DateTime(
             _from!.year,
             _from!.month,
@@ -516,8 +616,11 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             pickedTime.hour,
             pickedTime.minute,
           );
-          if (_to != null && (_to!.isBefore(_from!) || _to!.isAtSameMomentAs(_from!))) {
-            _to = _from!.add(oldDiff.inMinutes > 0 ? oldDiff : const Duration(hours: 1));
+          if (_to != null &&
+              (_to!.isBefore(_from!) || _to!.isAtSameMomentAs(_from!))) {
+            _to = _from!.add(
+              oldDiff.inMinutes > 0 ? oldDiff : const Duration(hours: 1),
+            );
           }
         } else {
           var newTo = DateTime(
@@ -527,7 +630,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             pickedTime.hour,
             pickedTime.minute,
           );
-          final isSameDay = _from != null &&
+          final isSameDay =
+              _from != null &&
               _to!.year == _from!.year &&
               _to!.month == _from!.month &&
               _to!.day == _from!.day;
@@ -536,7 +640,13 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               (pickedTime.hour == 0 && pickedTime.minute == 0 ||
                   newTo.isBefore(_from!) ||
                   newTo.isAtSameMomentAs(_from!))) {
-            newTo = DateTime(_from!.year, _from!.month, _from!.day + 1, pickedTime.hour, pickedTime.minute);
+            newTo = DateTime(
+              _from!.year,
+              _from!.month,
+              _from!.day + 1,
+              pickedTime.hour,
+              pickedTime.minute,
+            );
           }
           _to = newTo;
         }
@@ -550,7 +660,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         '${_from!.hour.toString().padLeft(2, '0')}:${_from!.minute.toString().padLeft(2, '0')}';
     final endStr =
         '${_to!.hour.toString().padLeft(2, '0')}:${_to!.minute.toString().padLeft(2, '0')}';
-    final isNextDay = _to!.day != _from!.day || _to!.month != _from!.month || _to!.year != _from!.year;
+    final isNextDay =
+        _to!.day != _from!.day ||
+        _to!.month != _from!.month ||
+        _to!.year != _from!.year;
     final diff = _to!.difference(_from!);
     final hours = diff.inHours;
     final minutes = diff.inMinutes % 60;
@@ -602,10 +715,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           const SizedBox(height: 4),
           Text(
             'İpucu: 12:00 AM = Gece Yarısı (00:00) | 12:00 PM = Öğlen (12:00)',
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -614,9 +724,19 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
   Widget _buildPrioritySelector() {
     final priorities = [
-      {'val': 0, 'label': 'Düşük', 'color': Colors.green, 'icon': Icons.arrow_downward},
+      {
+        'val': 0,
+        'label': 'Düşük',
+        'color': Colors.green,
+        'icon': Icons.arrow_downward,
+      },
       {'val': 1, 'label': 'Orta', 'color': Colors.orange, 'icon': Icons.remove},
-      {'val': 2, 'label': 'Yüksek', 'color': Colors.red, 'icon': Icons.priority_high},
+      {
+        'val': 2,
+        'label': 'Yüksek',
+        'color': Colors.red,
+        'icon': Icons.priority_high,
+      },
     ];
 
     return Column(
@@ -649,7 +769,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
-                      color: isSelected ? color.withOpacity(0.15) : Colors.transparent,
+                      color: isSelected
+                          ? color.withOpacity(0.15)
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isSelected ? color : Colors.grey.shade300,
@@ -659,13 +781,19 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(icon, size: 16, color: isSelected ? color : Colors.grey),
+                        Icon(
+                          icon,
+                          size: 16,
+                          color: isSelected ? color : Colors.grey,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           label,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                             color: isSelected ? color : Colors.grey.shade700,
                           ),
                         ),
@@ -684,7 +812,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   Widget _buildTagSection(AppState appState) {
     final sortedTags = appState.getSortedTaskTagsByUsage();
     final filterText = _tagController.text.trim().toLowerCase();
-    final filteredTags = sortedTags.where((t) => t.toLowerCase().contains(filterText)).toList();
+    final filteredTags = sortedTags
+        .where((t) => t.toLowerCase().contains(filterText))
+        .toList();
     final exactMatch = sortedTags.any((t) => t.toLowerCase() == filterText);
     final subTags = appState.taskSubTags[_tag] ?? [];
     final isProjectBound = _projectId != null;
@@ -732,7 +862,11 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           const SizedBox(height: 4),
           const Text(
             'Tag seçili projeye bağlıdır.',
-            style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ],
         const SizedBox(height: 8),
@@ -764,7 +898,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               ],
               ...filteredTags.map((t) {
                 final isSelected = _tag == t;
-                final tagColor = Color(appState.getTaskTagColor(t) ?? 0xFF2196F3);
+                final tagColor = Color(
+                  appState.getTaskTagColor(t) ?? 0xFF2196F3,
+                );
 
                 return Padding(
                   padding: const EdgeInsets.only(right: 6.0),
@@ -787,7 +923,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     ),
                     labelStyle: TextStyle(
                       color: isSelected ? tagColor : Colors.black87,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       fontSize: 12,
                     ),
                     onSelected: isProjectBound
@@ -798,7 +936,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                               _tagController.text = t;
                               _subTag = null;
                               final defaultColor = appState.getTaskTagColor(t);
-                              if (defaultColor != null) _colorValue = defaultColor;
+                              if (defaultColor != null)
+                                _colorValue = defaultColor;
                             });
                           },
                   ),
@@ -825,17 +964,28 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 const Spacer(),
                 GestureDetector(
                   onTap: () async {
-                    final ns = await _showCreateSubTagDialog(context, appState, _tag);
+                    final ns = await _showCreateSubTagDialog(
+                      context,
+                      appState,
+                      _tag,
+                    );
                     if (ns != null) setState(() => _subTag = ns);
                   },
                   child: const Row(
                     children: [
-                      Icon(Icons.add_circle_outline, size: 14, color: Colors.blue),
+                      Icon(
+                        Icons.add_circle_outline,
+                        size: 14,
+                        color: Colors.blue,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'Alt Tag Ekle',
                         style: TextStyle(
-                            fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600),
+                          fontSize: 12,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -860,7 +1010,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                           },
                     labelStyle: TextStyle(
                       fontSize: 12,
-                      fontWeight: _subTag == null ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: _subTag == null
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -880,7 +1032,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                             },
                       labelStyle: TextStyle(
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                   );
@@ -952,12 +1106,19 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Görev Başlığı',
                             isDense: true,
-                            prefixIcon: Icon(Icons.check_circle_outline, size: 20),
+                            prefixIcon: Icon(
+                              Icons.check_circle_outline,
+                              size: 20,
+                            ),
                             border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
                           ),
-                          validator: (val) =>
-                              val == null || val.isEmpty ? 'Başlık zorunludur' : null,
+                          validator: (val) => val == null || val.isEmpty
+                              ? 'Başlık zorunludur'
+                              : null,
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
@@ -968,17 +1129,25 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                           maxLines: _isDetailsExpanded ? 20 : 6,
                           enableInteractiveSelection: true,
                           selectionControls: materialTextSelectionControls,
-                          contextMenuBuilder: (BuildContext context, EditableTextState editableTextState) {
-                            return AdaptiveTextSelectionToolbar.editableText(
-                              editableTextState: editableTextState,
-                            );
-                          },
+                          contextMenuBuilder:
+                              (
+                                BuildContext context,
+                                EditableTextState editableTextState,
+                              ) {
+                                return AdaptiveTextSelectionToolbar.editableText(
+                                  editableTextState: editableTextState,
+                                );
+                              },
                           decoration: InputDecoration(
                             labelText: 'Açıklama / Detaylar',
                             alignLabelWithHint: true,
                             isDense: true,
                             prefixIcon: Container(
-                              padding: const EdgeInsets.only(top: 10, left: 10, right: 8),
+                              padding: const EdgeInsets.only(
+                                top: 10,
+                                left: 10,
+                                right: 8,
+                              ),
                               alignment: Alignment.topCenter,
                               width: 38,
                               child: const Icon(Icons.notes, size: 20),
@@ -992,13 +1161,24 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                               children: [
                                 if (_detailsController.text.isNotEmpty)
                                   IconButton(
-                                    icon: const Icon(Icons.copy_rounded, size: 18),
+                                    icon: const Icon(
+                                      Icons.copy_rounded,
+                                      size: 18,
+                                    ),
                                     tooltip: 'Açıklamayı Kopyala',
                                     onPressed: () {
-                                      Clipboard.setData(ClipboardData(text: _detailsController.text));
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      Clipboard.setData(
+                                        ClipboardData(
+                                          text: _detailsController.text,
+                                        ),
+                                      );
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         const SnackBar(
-                                          content: Text('Açıklama panoya kopyalandı'),
+                                          content: Text(
+                                            'Açıklama panoya kopyalandı',
+                                          ),
                                           duration: Duration(seconds: 1),
                                         ),
                                       );
@@ -1006,10 +1186,14 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                                   ),
                                 IconButton(
                                   icon: Icon(
-                                    _isDetailsExpanded ? Icons.unfold_less : Icons.unfold_more,
+                                    _isDetailsExpanded
+                                        ? Icons.unfold_less
+                                        : Icons.unfold_more,
                                     size: 20,
                                   ),
-                                  tooltip: _isDetailsExpanded ? 'Alanı Daralt' : 'Alanı Genişlet',
+                                  tooltip: _isDetailsExpanded
+                                      ? 'Alanı Daralt'
+                                      : 'Alanı Genişlet',
                                   onPressed: () {
                                     setState(() {
                                       _isDetailsExpanded = !_isDetailsExpanded;
@@ -1019,7 +1203,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                               ],
                             ),
                             border: const OutlineInputBorder(),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
                           ),
                         ),
                       ],
@@ -1033,16 +1220,32 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: _hasDate ? Theme.of(context).primaryColor.withOpacity(0.08) : Colors.grey.shade100,
+                            color: _hasDate
+                                ? Theme.of(
+                                    context,
+                                  ).primaryColor.withOpacity(0.08)
+                                : Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: _hasDate ? Theme.of(context).primaryColor.withOpacity(0.3) : Colors.grey.shade300,
+                              color: _hasDate
+                                  ? Theme.of(
+                                      context,
+                                    ).primaryColor.withOpacity(0.3)
+                                  : Colors.grey.shade300,
                             ),
                           ),
                           child: SwitchListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
                             dense: true,
-                            title: const Text('Tarih Ekle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            title: const Text(
+                              'Tarih Ekle',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                             value: _hasDate,
                             onChanged: (val) => setState(() => _hasDate = val),
                           ),
@@ -1053,18 +1256,31 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                         Expanded(
                           child: Container(
                             decoration: BoxDecoration(
-                              color: _isAllDay ? Colors.teal.withOpacity(0.08) : Colors.grey.shade100,
+                              color: _isAllDay
+                                  ? Colors.teal.withOpacity(0.08)
+                                  : Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: _isAllDay ? Colors.teal.withOpacity(0.3) : Colors.grey.shade300,
+                                color: _isAllDay
+                                    ? Colors.teal.withOpacity(0.3)
+                                    : Colors.grey.shade300,
                               ),
                             ),
                             child: SwitchListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               dense: true,
-                              title: const Text('Tüm Gün', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                              title: const Text(
+                                'Tüm Gün',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                               value: _isAllDay,
-                              onChanged: (val) => setState(() => _isAllDay = val),
+                              onChanged: (val) =>
+                                  setState(() => _isAllDay = val),
                             ),
                           ),
                         ),
@@ -1089,21 +1305,32 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                             children: [
                               Expanded(
                                 child: InkWell(
-                                  onTap: () => _pickCombinedDateTime(context, true),
+                                  onTap: () =>
+                                      _pickCombinedDateTime(context, true),
                                   borderRadius: BorderRadius.circular(10),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.blue.withOpacity(0.06),
                                       borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                                      border: Border.all(
+                                        color: Colors.blue.withOpacity(0.3),
+                                      ),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
                                           children: [
-                                            Icon(Icons.play_circle_outline, size: 14, color: Colors.blue.shade700),
+                                            Icon(
+                                              Icons.play_circle_outline,
+                                              size: 14,
+                                              color: Colors.blue.shade700,
+                                            ),
                                             const SizedBox(width: 4),
                                             Text(
                                               'Başlangıç',
@@ -1118,7 +1345,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                                         const SizedBox(height: 4),
                                         Text(
                                           '${_from!.day}/${_from!.month}/${_from!.year}',
-                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                         if (!_isAllDay) ...[
                                           const SizedBox(height: 2),
@@ -1139,21 +1369,32 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: InkWell(
-                                  onTap: () => _pickCombinedDateTime(context, false),
+                                  onTap: () =>
+                                      _pickCombinedDateTime(context, false),
                                   borderRadius: BorderRadius.circular(10),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.indigo.withOpacity(0.06),
                                       borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: Colors.indigo.withOpacity(0.3)),
+                                      border: Border.all(
+                                        color: Colors.indigo.withOpacity(0.3),
+                                      ),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
                                           children: [
-                                            Icon(Icons.stop_circle_outlined, size: 14, color: Colors.indigo.shade700),
+                                            Icon(
+                                              Icons.stop_circle_outlined,
+                                              size: 14,
+                                              color: Colors.indigo.shade700,
+                                            ),
                                             const SizedBox(width: 4),
                                             Text(
                                               'Bitiş',
@@ -1168,7 +1409,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                                         const SizedBox(height: 4),
                                         Text(
                                           '${_to!.day}/${_to!.month}/${_to!.year}',
-                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                         if (!_isAllDay) ...[
                                           const SizedBox(height: 2),
@@ -1219,7 +1463,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _colors.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
                       itemBuilder: (ctx, index) {
                         final color = _colors[index];
                         final isSelected = _colorValue == color;
@@ -1233,7 +1477,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                               color: Color(color),
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: isSelected ? Colors.black87 : Colors.transparent,
+                                color: isSelected
+                                    ? Colors.black87
+                                    : Colors.transparent,
                                 width: 2,
                               ),
                               boxShadow: isSelected
@@ -1242,12 +1488,16 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                                         color: Color(color).withOpacity(0.4),
                                         blurRadius: 6,
                                         spreadRadius: 1,
-                                      )
+                                      ),
                                     ]
                                   : null,
                             ),
                             child: isSelected
-                                ? const Icon(Icons.check, color: Colors.white, size: 20)
+                                ? const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 20,
+                                  )
                                 : null,
                           ),
                         );
@@ -1259,68 +1509,119 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   // ── Proje Seçimi (Madde 5: Pop-up Screen Açılır) ───────────
                   Builder(
                     builder: (ctx) {
-                      final selectedProject = appState.projects.where((p) => p.id == _projectId).firstOrNull;
+                      final selectedProject = appState.projects
+                          .where((p) => p.id == _projectId)
+                          .firstOrNull;
                       return Row(
                         children: [
                           Expanded(
                             child: InkWell(
-                              onTap: () => _showProjectPickerDialog(context, appState),
+                              onTap: () =>
+                                  _showProjectPickerDialog(context, appState),
                               borderRadius: BorderRadius.circular(10),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
                                     Icon(
                                       Icons.folder_outlined,
                                       size: 20,
-                                      color: selectedProject != null ? Color(selectedProject.colorValue) : Colors.grey,
+                                      color: selectedProject != null
+                                          ? Color(selectedProject.colorValue)
+                                          : Colors.grey,
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          const Text('Proje', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                          const Text(
+                                            'Proje',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
                                           Text(
-                                            selectedProject != null ? selectedProject.title : 'Hiçbiri (Bağımsız)',
-                                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                            selectedProject != null
+                                                ? selectedProject.title
+                                                : 'Hiçbiri (Bağımsız)',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ],
                                       ),
                                     ),
-                                    const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                                    const Icon(
+                                      Icons.arrow_drop_down,
+                                      color: Colors.grey,
+                                    ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                          if (selectedProject != null && selectedProject.tags.isNotEmpty) ...[
+                          if (selectedProject != null &&
+                              selectedProject.tags.isNotEmpty) ...[
                             const SizedBox(width: 8),
                             Expanded(
                               child: DropdownButtonFormField<String?>(
-                                initialValue: selectedProject.tags.contains(_projectTag) ? _projectTag : null,
+                                initialValue:
+                                    selectedProject.tags.contains(_projectTag)
+                                    ? _projectTag
+                                    : null,
                                 decoration: const InputDecoration(
                                   labelText: 'Proje İçi Etiket',
                                   isDense: true,
                                   border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 10,
+                                  ),
                                 ),
                                 items: [
-                                  const DropdownMenuItem<String?>(value: null, child: Text('Etiket Yok')),
-                                  ...selectedProject.tags.map((t) => DropdownMenuItem<String?>(value: t, child: Text(t))),
+                                  const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text('Etiket Yok'),
+                                  ),
+                                  ...selectedProject.tags.map(
+                                    (t) => DropdownMenuItem<String?>(
+                                      value: t,
+                                      child: Text(t),
+                                    ),
+                                  ),
                                   const DropdownMenuItem<String?>(
                                     value: 'add_new_project_tag',
-                                    child: Text('+ Yeni Etiket...', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                                    child: Text(
+                                      '+ Yeni Etiket...',
+                                      style: TextStyle(
+                                        color: Colors.blue,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
                                 ],
                                 onChanged: (val) async {
                                   if (val == 'add_new_project_tag') {
-                                    final newTag = await _showCreateProjectTagDialog(context, appState, selectedProject);
+                                    final newTag =
+                                        await _showCreateProjectTagDialog(
+                                          context,
+                                          appState,
+                                          selectedProject,
+                                        );
                                     setState(() => _projectTag = newTag);
                                   } else {
                                     setState(() => _projectTag = val);
@@ -1370,7 +1671,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   if (_hasDate && !widget.isSingleOccurrenceEdit)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Tekrarlama', style: TextStyle(fontSize: 14)),
+                      title: const Text(
+                        'Tekrarlama',
+                        style: TextStyle(fontSize: 14),
+                      ),
                       subtitle: Text(
                         RRuleTranslator.translate(_recurrenceRule),
                         style: const TextStyle(fontSize: 12),
@@ -1386,11 +1690,18 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     const SizedBox(height: 8),
                     const Row(
                       children: [
-                        Icon(Icons.notifications_outlined, size: 18, color: Colors.blueGrey),
+                        Icon(
+                          Icons.notifications_outlined,
+                          size: 18,
+                          color: Colors.blueGrey,
+                        ),
                         SizedBox(width: 6),
                         Text(
                           'Bildirimler',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
                         ),
                       ],
                     ),
@@ -1429,7 +1740,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                         } else if (offset % 60 == 0) {
                           label = '${offset ~/ 60} saat önce';
                         } else if (offset >= 1440) {
-                          label = '${offset ~/ 1440} gün ${offset % 1440 ~/ 60} saat önce';
+                          label =
+                              '${offset ~/ 1440} gün ${offset % 1440 ~/ 60} saat önce';
                         } else if (offset >= 60) {
                           label = '${offset ~/ 60} saat ${offset % 60} dk önce';
                         } else {
@@ -1462,7 +1774,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                           value: '30',
                           child: Text('30 dakika önce'),
                         ),
-                        DropdownMenuItem(value: '60', child: Text('1 saat önce')),
+                        DropdownMenuItem(
+                          value: '60',
+                          child: Text('1 saat önce'),
+                        ),
                         DropdownMenuItem(
                           value: '120',
                           child: Text('2 saat önce'),
@@ -1475,7 +1790,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                           value: '10080',
                           child: Text('1 hafta önce'),
                         ),
-                        DropdownMenuItem(value: 'custom', child: Text('Özel...')),
+                        DropdownMenuItem(
+                          value: 'custom',
+                          child: Text('Özel...'),
+                        ),
                       ],
                       onChanged: (val) async {
                         if (val == null) return;
@@ -1505,10 +1823,14 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   // ── Aylık Görünüm Ayarı (Madde 6) ─────────────────────────
                   Container(
                     decoration: BoxDecoration(
-                      color: _showInMonthView ? Colors.purple.withOpacity(0.06) : Colors.grey.shade100,
+                      color: _showInMonthView
+                          ? Colors.purple.withOpacity(0.06)
+                          : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: _showInMonthView ? Colors.purple.withOpacity(0.25) : Colors.grey.shade300,
+                        color: _showInMonthView
+                            ? Colors.purple.withOpacity(0.25)
+                            : Colors.grey.shade300,
                       ),
                     ),
                     child: SwitchListTile(
@@ -1519,7 +1841,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                       ),
                       title: const Text(
                         'Aylık Takvimde Göster',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       subtitle: const Text(
                         'Kapalıyken bu görev takvimin aylık görünümünde hücreyi doldurmaz, görünümü sade tutar.',
@@ -1600,13 +1925,17 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
   void _saveForm(BuildContext context, AppState appState) async {
     if (_hasDate && _to != null && _from != null && _to!.isBefore(_from!)) {
-      if (_to!.year == _from!.year && _to!.month == _from!.month && _to!.day == _from!.day) {
+      if (_to!.year == _from!.year &&
+          _to!.month == _from!.month &&
+          _to!.day == _from!.day) {
         _to = _to!.add(const Duration(days: 1));
       } else {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Lütfen zaman aralığına dikkat edin (Bitiş başlangıçtan önce olamaz)'),
+            content: Text(
+              'Lütfen zaman aralığına dikkat edin (Bitiş başlangıçtan önce olamaz)',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -1901,6 +2230,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       },
     );
   }
+
   Future<int?> _showCustomNotificationDialog(BuildContext context) async {
     final valueCtrl = TextEditingController(text: '15');
     String unit = 'minutes';
@@ -1911,7 +2241,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               title: const Text('Özel Bildirim Ayarla'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1934,7 +2266,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Sayı / Süre',
                             border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
                           ),
                         ),
                       ),
@@ -1942,17 +2277,29 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                       Expanded(
                         flex: 5,
                         child: DropdownButtonFormField<String>(
-                          value: unit,
+                          initialValue: unit,
                           decoration: const InputDecoration(
                             labelText: 'Birim',
                             border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 12,
+                            ),
                           ),
                           items: const [
-                            DropdownMenuItem(value: 'minutes', child: Text('Dakika (dk)')),
-                            DropdownMenuItem(value: 'hours', child: Text('Saat')),
+                            DropdownMenuItem(
+                              value: 'minutes',
+                              child: Text('Dakika (dk)'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'hours',
+                              child: Text('Saat'),
+                            ),
                             DropdownMenuItem(value: 'days', child: Text('Gün')),
-                            DropdownMenuItem(value: 'weeks', child: Text('Hafta')),
+                            DropdownMenuItem(
+                              value: 'weeks',
+                              child: Text('Hafta'),
+                            ),
                           ],
                           onChanged: (val) {
                             if (val != null) {
@@ -1995,4 +2342,3 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     );
   }
 }
-

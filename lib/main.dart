@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'providers/app_state.dart';
 import 'services/notification_service.dart';
 import 'screens/calendar_screen.dart';
@@ -43,11 +44,31 @@ void main() async {
     if (kIsWeb) {
       await Firebase.initializeApp(options: firebaseOptions);
       await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+      try {
+        FirebaseFirestore.instance.settings = const Settings(
+          persistenceEnabled: true,
+          cacheSizeBytes: 40 * 1024 * 1024, // 40 MB LRU limit - data bloating prevention
+        );
+      } catch (e) {
+        debugPrint('Firestore persistence initialization notice: $e');
+      }
     } else if (isDesktop) {
       await Firebase.initializeApp(options: firebaseOptions);
+      try {
+        FirebaseFirestore.instance.settings = const Settings(
+          persistenceEnabled: true,
+          cacheSizeBytes: 40 * 1024 * 1024,
+        );
+      } catch (e) {
+        debugPrint('Firestore persistence initialization notice: $e');
+      }
     } else {
       try {
         await Firebase.initializeApp();
+        FirebaseFirestore.instance.settings = const Settings(
+          persistenceEnabled: true,
+          cacheSizeBytes: 40 * 1024 * 1024,
+        );
       } catch (e) {
         debugPrint('Platform default Firebase initialization failed, trying with firebaseOptions: $e');
         await Firebase.initializeApp(options: firebaseOptions);

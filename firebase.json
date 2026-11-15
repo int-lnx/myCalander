@@ -6,6 +6,26 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "headers": [
+      {
+        "source": "@(index.html|flutter_service_worker.js|flutter_bootstrap.js|manifest.json)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(js|wasm|css|png|jpg|jpeg|svg|ttf|woff|woff2|json)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400, stale-while-revalidate=86400"
+          }
+        ]
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

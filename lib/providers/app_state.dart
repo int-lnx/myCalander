@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.00';
+  static const String appVersion = '3.01';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -59,6 +59,19 @@ class AppState extends ChangeNotifier {
   bool _selectedProjectIdsNeedsInit = false;
 
   Future<void> _saveDeletedIds() async {
+    // Sınırlandırma (LRU cap): Bellek ve çerez şişmesini önlemek için en fazla son 200 silinmiş ID tutulur
+    if (_deletedTaskIds.length > 200) {
+      _deletedTaskIds = _deletedTaskIds.sublist(_deletedTaskIds.length - 200);
+    }
+    if (_deletedEventIds.length > 200) {
+      _deletedEventIds = _deletedEventIds.sublist(_deletedEventIds.length - 200);
+    }
+    if (_deletedDayNoteIds.length > 200) {
+      _deletedDayNoteIds = _deletedDayNoteIds.sublist(_deletedDayNoteIds.length - 200);
+    }
+    if (_deletedProjectIds.length > 200) {
+      _deletedProjectIds = _deletedProjectIds.sublist(_deletedProjectIds.length - 200);
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('deletedTaskIds', _deletedTaskIds);
     await prefs.setStringList('deletedEventIds', _deletedEventIds);
@@ -2765,6 +2778,58 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  int get completedTasksOlderThan30DaysCount {
+    final threshold = DateTime.now().subtract(const Duration(days: 30));
+    return _tasks.where((t) {
+      if (!t.isCompleted) return false;
+      final date = t.from ?? t.to ?? t.createdAt;
+      return date.isBefore(threshold);
+    }).length;
+  }
+
+  Future<int> deleteCompletedTasksOlderThanDays(int days) async {
+    final threshold = DateTime.now().subtract(Duration(days: days));
+    final toDelete = _tasks.where((t) {
+      if (!t.isCompleted) return false;
+      final date = t.from ?? t.to ?? t.createdAt;
+      return date.isBefore(threshold);
+    }).toList();
+
+    for (final task in toDelete) {
+      _tasks.removeWhere((item) => item.id == task.id);
+      _deletedTaskIds.add(task.id);
+      _firestoreDeleteTask(task.id);
+    }
+
+    await _saveTasks();
+    await _saveDeletedIds();
+    notifyListeners();
+    return toDelete.length;
+  }
+
+  Map<String, dynamic> getStorageUsageStats() {
+    int totalBytes = 0;
+    try {
+      totalBytes += json.encode(_events.map((e) => e.toJson()).toList()).length;
+      totalBytes += json.encode(_tasks.map((t) => t.toJson()).toList()).length;
+      totalBytes += json.encode(_projects.map((p) => p.toJson()).toList()).length;
+      totalBytes += json.encode(_dayNotes.map((d) => d.toJson()).toList()).length;
+      totalBytes += json.encode(_notes.map((n) => n.toJson()).toList()).length;
+      totalBytes += json.encode(_serits.map((s) => s.toJson()).toList()).length;
+    } catch (_) {}
+
+    final double kb = totalBytes / 1024.0;
+    return {
+      'events': _events.length,
+      'tasks': _tasks.length,
+      'completedTasks': _tasks.where((t) => t.isCompleted).length,
+      'projects': _projects.length,
+      'dayNotes': _dayNotes.length,
+      'notes': _notes.length,
+      'sizeKB': kb.toStringAsFixed(1),
+    };
+  }
+
   Future<void> clearLocalCache() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
@@ -2980,12 +3045,27 @@ class AppState extends ChangeNotifier {
       final firestore = FirebaseFirestore.instance;
 
       Future<List<Map<String, dynamic>>> getDocs(String path) async {
-        final snap = await firestore
-            .collection('users')
-            .doc(userId)
-            .collection(path)
-            .get();
-        return snap.docs.map((d) => d.data()).toList();
+        try {
+          final snap = await firestore
+              .collection('users')
+              .doc(userId)
+              .collection(path)
+              .get(const GetOptions(source: Source.serverAndCache))
+              .timeout(const Duration(seconds: 6));
+          return snap.docs.map((d) => d.data()).toList();
+        } catch (e) {
+          debugPrint('getDocs server timeout/error for $path, falling back to cache: $e');
+          try {
+            final snap = await firestore
+                .collection('users')
+                .doc(userId)
+                .collection(path)
+                .get(const GetOptions(source: Source.cache));
+            return snap.docs.map((d) => d.data()).toList();
+          } catch (_) {
+            return [];
+          }
+        }
       }
 
       final remoteEventsJson = await getDocs('events');

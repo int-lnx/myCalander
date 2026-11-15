@@ -92,7 +92,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
     _detailsController = TextEditingController(text: event?.description ?? '');
     _detailsController.addListener(_onDetailsChanged);
     _from = event?.from ?? widget.initialDate ?? DateTime.now();
-    _to = event?.to ??
+    _to =
+        event?.to ??
         widget.initialTo ??
         (widget.initialDate != null
             ? widget.initialDate!.add(const Duration(hours: 1))
@@ -112,7 +113,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
         : [];
     _parentEventId = event?.parentEventId ?? widget.initialParentEventId;
     _followUpOffsetMinutes =
-        event?.followUpOffsetMinutes ?? widget.initialFollowUpOffsetMinutes ?? 0;
+        event?.followUpOffsetMinutes ??
+        widget.initialFollowUpOffsetMinutes ??
+        0;
     _followUpReference =
         event?.followUpReference ?? widget.initialFollowUpReference ?? 'end';
     _untilEventId = event?.untilEventId ?? widget.initialUntilEventId;
@@ -139,7 +142,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
   // ── Helper dialogs ────────────────────────────────────────────────────────
 
   Future<String?> _showCreateTagDialog(
-      BuildContext context, AppState appState) async {
+    BuildContext context,
+    AppState appState,
+  ) async {
     final ctrl = TextEditingController();
     return showDialog<String>(
       context: context,
@@ -151,7 +156,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
           ElevatedButton(
             onPressed: () {
               final name = ctrl.text.trim();
@@ -168,7 +176,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
   }
 
   Future<String?> _showCreateSubTagDialog(
-      BuildContext context, AppState appState, String parentTag) async {
+    BuildContext context,
+    AppState appState,
+    String parentTag,
+  ) async {
     final ctrl = TextEditingController();
     return showDialog<String>(
       context: context,
@@ -180,7 +191,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
           ElevatedButton(
             onPressed: () {
               final name = ctrl.text.trim();
@@ -197,7 +211,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
   }
 
   Future<String?> _showCreateProjectTagDialog(
-      BuildContext context, AppState appState, Project project) async {
+    BuildContext context,
+    AppState appState,
+    Project project,
+  ) async {
     final ctrl = TextEditingController();
     return showDialog<String>(
       context: context,
@@ -209,7 +226,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
           ElevatedButton(
             onPressed: () {
               final name = ctrl.text.trim();
@@ -223,7 +243,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
   }
 
   Future<Project?> _showCreateProjectDialog(
-      BuildContext context, AppState appState) async {
+    BuildContext context,
+    AppState appState,
+  ) async {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     int selectedColor = _colors[0];
@@ -244,8 +266,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: descCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Açıklama (İsteğe Bağlı)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Açıklama (İsteğe Bağlı)',
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -257,7 +280,11 @@ class _EventFormScreenState extends State<EventFormScreen> {
                         radius: 18,
                         backgroundColor: Color(c),
                         child: selectedColor == c
-                            ? const Icon(Icons.check, color: Colors.white, size: 18)
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 18,
+                              )
                             : null,
                       ),
                     );
@@ -267,7 +294,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('İptal'),
+            ),
             ElevatedButton(
               onPressed: () {
                 final title = titleCtrl.text.trim();
@@ -300,7 +330,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text('Özel Bildirim Ayarla'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -323,7 +355,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Sayı / Süre',
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -331,14 +366,20 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   Expanded(
                     flex: 5,
                     child: DropdownButtonFormField<String>(
-                      value: unit,
+                      initialValue: unit,
                       decoration: const InputDecoration(
                         labelText: 'Birim',
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 12,
+                        ),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'minutes', child: Text('Dakika (dk)')),
+                        DropdownMenuItem(
+                          value: 'minutes',
+                          child: Text('Dakika (dk)'),
+                        ),
                         DropdownMenuItem(value: 'hours', child: Text('Saat')),
                         DropdownMenuItem(value: 'days', child: Text('Gün')),
                         DropdownMenuItem(value: 'weeks', child: Text('Hafta')),
@@ -378,7 +419,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
     );
   }
 
-  Future<void> _showProjectPickerDialog(BuildContext context, AppState appState) async {
+  Future<void> _showProjectPickerDialog(
+    BuildContext context,
+    AppState appState,
+  ) async {
     final selected = await showDialog<String?>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -393,8 +437,12 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 ListTile(
                   leading: const Icon(Icons.layers_clear, color: Colors.grey),
                   title: const Text('Hiçbiri (Bağımsız)'),
-                  trailing: _projectId == null ? const Icon(Icons.check, color: Colors.blue) : null,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  trailing: _projectId == null
+                      ? const Icon(Icons.check, color: Colors.blue)
+                      : null,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   selected: _projectId == null,
                   selectedTileColor: Colors.blue.withOpacity(0.08),
                   onTap: () => Navigator.pop(ctx, 'NONE'),
@@ -408,9 +456,15 @@ class _EventFormScreenState extends State<EventFormScreen> {
                       backgroundColor: Color(p.colorValue),
                     ),
                     title: Text(p.title),
-                    subtitle: p.tag.isNotEmpty ? Text(p.tag, style: const TextStyle(fontSize: 11)) : null,
-                    trailing: isSel ? const Icon(Icons.check, color: Colors.blue) : null,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    subtitle: p.tag.isNotEmpty
+                        ? Text(p.tag, style: const TextStyle(fontSize: 11))
+                        : null,
+                    trailing: isSel
+                        ? const Icon(Icons.check, color: Colors.blue)
+                        : null,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     selected: isSel,
                     selectedTileColor: Colors.blue.withOpacity(0.08),
                     onTap: () => Navigator.pop(ctx, p.id),
@@ -418,8 +472,17 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 }),
                 const Divider(),
                 ListTile(
-                  leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
-                  title: const Text('+ Yeni Proje Ekle...', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                  leading: const Icon(
+                    Icons.add_circle_outline,
+                    color: Colors.blue,
+                  ),
+                  title: const Text(
+                    '+ Yeni Proje Ekle...',
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   onTap: () => Navigator.pop(ctx, 'NEW'),
                 ),
               ],
@@ -427,7 +490,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
         ],
       ),
     );
@@ -471,20 +537,27 @@ class _EventFormScreenState extends State<EventFormScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           title: Row(
             children: [
               Icon(
-                isStart ? Icons.play_circle_outline : Icons.stop_circle_outlined,
+                isStart
+                    ? Icons.play_circle_outline
+                    : Icons.stop_circle_outlined,
                 color: isStart ? Colors.blue : Colors.indigo,
                 size: 22,
               ),
               const SizedBox(width: 8),
               Text(
                 isStart ? 'Başlangıç Tarihi ve Saati' : 'Bitiş Tarihi ve Saati',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -506,7 +579,13 @@ class _EventFormScreenState extends State<EventFormScreen> {
                       lastDate: DateTime(2100),
                       onDateChanged: (d) {
                         setDialogState(() {
-                          tempDate = DateTime(d.year, d.month, d.day, tempHour, tempMinute);
+                          tempDate = DateTime(
+                            d.year,
+                            d.month,
+                            d.day,
+                            tempHour,
+                            tempMinute,
+                          );
                         });
                       },
                     ),
@@ -515,7 +594,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
                     const Divider(height: 1),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(12),
@@ -526,9 +608,19 @@ class _EventFormScreenState extends State<EventFormScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.access_time, size: 20, color: Colors.blueGrey),
+                              const Icon(
+                                Icons.access_time,
+                                size: 20,
+                                color: Colors.blueGrey,
+                              ),
                               const SizedBox(width: 8),
-                              const Text('Saat:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                              const Text(
+                                'Saat:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
                               const SizedBox(width: 8),
                               DropdownButton<int>(
                                 value: tempHour,
@@ -540,15 +632,25 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                     value: i,
                                     child: Text(
                                       i.toString().padLeft(2, '0'),
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val != null) setDialogState(() => tempHour = val);
+                                  if (val != null)
+                                    setDialogState(() => tempHour = val);
                                 },
                               ),
-                              const Text(' : ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              const Text(
+                                ' : ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
                               DropdownButton<int>(
                                 value: tempMinute,
                                 isDense: true,
@@ -559,22 +661,33 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                     value: i,
                                     child: Text(
                                       i.toString().padLeft(2, '0'),
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val != null) setDialogState(() => tempMinute = val);
+                                  if (val != null)
+                                    setDialogState(() => tempMinute = val);
                                 },
                               ),
                               const SizedBox(width: 8),
                               IconButton(
-                                icon: const Icon(Icons.watch_later_outlined, size: 20, color: Colors.blue),
+                                icon: const Icon(
+                                  Icons.watch_later_outlined,
+                                  size: 20,
+                                  color: Colors.blue,
+                                ),
                                 tooltip: 'Saat Kadranından Seç',
                                 onPressed: () async {
                                   final pTime = await showTimePicker(
                                     context: ctx,
-                                    initialTime: TimeOfDay(hour: tempHour, minute: tempMinute),
+                                    initialTime: TimeOfDay(
+                                      hour: tempHour,
+                                      minute: tempMinute,
+                                    ),
                                   );
                                   if (pTime != null) {
                                     setDialogState(() {
@@ -592,25 +705,41 @@ class _EventFormScreenState extends State<EventFormScreen> {
                             children: [0, 15, 30, 45].map((m) {
                               final isSel = tempMinute == m;
                               return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
                                 child: InkWell(
-                                  onTap: () => setDialogState(() => tempMinute = m),
+                                  onTap: () =>
+                                      setDialogState(() => tempMinute = m),
                                   borderRadius: BorderRadius.circular(6),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: isSel ? (isStart ? Colors.blue : Colors.indigo) : Colors.white,
+                                      color: isSel
+                                          ? (isStart
+                                                ? Colors.blue
+                                                : Colors.indigo)
+                                          : Colors.white,
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
-                                        color: isSel ? Colors.transparent : Colors.grey.shade300,
+                                        color: isSel
+                                            ? Colors.transparent
+                                            : Colors.grey.shade300,
                                       ),
                                     ),
                                     child: Text(
                                       ':${m.toString().padLeft(2, '0')}',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                        color: isSel ? Colors.white : Colors.black87,
+                                        fontWeight: isSel
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: isSel
+                                            ? Colors.white
+                                            : Colors.black87,
                                       ),
                                     ),
                                   ),
@@ -663,7 +792,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
           final diff = _to.difference(_from);
           _from = picked;
           if (_to.isBefore(_from) || _to.isAtSameMomentAs(_from)) {
-            _to = _from.add(diff.inMinutes > 0 ? diff : const Duration(hours: 1));
+            _to = _from.add(
+              diff.inMinutes > 0 ? diff : const Duration(hours: 1),
+            );
           }
         } else {
           var newTo = picked;
@@ -693,12 +824,26 @@ class _EventFormScreenState extends State<EventFormScreen> {
       setState(() {
         if (isStart) {
           final diff = _to.difference(_from);
-          _from = DateTime(picked.year, picked.month, picked.day, _from.hour, _from.minute);
+          _from = DateTime(
+            picked.year,
+            picked.month,
+            picked.day,
+            _from.hour,
+            _from.minute,
+          );
           if (_to.isBefore(_from)) {
-            _to = _from.add(diff.inMinutes > 0 ? diff : const Duration(hours: 1));
+            _to = _from.add(
+              diff.inMinutes > 0 ? diff : const Duration(hours: 1),
+            );
           }
         } else {
-          _to = DateTime(picked.year, picked.month, picked.day, _to.hour, _to.minute);
+          _to = DateTime(
+            picked.year,
+            picked.month,
+            picked.day,
+            _to.hour,
+            _to.minute,
+          );
           if (_to.isBefore(_from) &&
               _to.year == _from.year &&
               _to.month == _from.month &&
@@ -726,19 +871,42 @@ class _EventFormScreenState extends State<EventFormScreen> {
       setState(() {
         if (isStart) {
           final oldDiff = _to.difference(_from);
-          _from = DateTime(_from.year, _from.month, _from.day, picked.hour, picked.minute);
+          _from = DateTime(
+            _from.year,
+            _from.month,
+            _from.day,
+            picked.hour,
+            picked.minute,
+          );
           if (_to.isBefore(_from) || _to.isAtSameMomentAs(_from)) {
-            _to = _from.add(oldDiff.inMinutes > 0 ? oldDiff : const Duration(hours: 1));
+            _to = _from.add(
+              oldDiff.inMinutes > 0 ? oldDiff : const Duration(hours: 1),
+            );
           }
         } else {
-          var newTo = DateTime(_to.year, _to.month, _to.day, picked.hour, picked.minute);
-          final isSameDay = _to.year == _from.year && _to.month == _from.month && _to.day == _from.day;
+          var newTo = DateTime(
+            _to.year,
+            _to.month,
+            _to.day,
+            picked.hour,
+            picked.minute,
+          );
+          final isSameDay =
+              _to.year == _from.year &&
+              _to.month == _from.month &&
+              _to.day == _from.day;
           // Gece yarısı (00:00 / 12 AM) veya başlangıçtan küçük/eşit bitiş seçilirse ertesi güne taşır
           if (isSameDay &&
               (picked.hour == 0 && picked.minute == 0 ||
                   newTo.isBefore(_from) ||
                   newTo.isAtSameMomentAs(_from))) {
-            newTo = DateTime(_from.year, _from.month, _from.day + 1, picked.hour, picked.minute);
+            newTo = DateTime(
+              _from.year,
+              _from.month,
+              _from.day + 1,
+              picked.hour,
+              picked.minute,
+            );
           }
           _to = newTo;
         }
@@ -751,7 +919,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
         '${_from.hour.toString().padLeft(2, '0')}:${_from.minute.toString().padLeft(2, '0')}';
     final endStr =
         '${_to.hour.toString().padLeft(2, '0')}:${_to.minute.toString().padLeft(2, '0')}';
-    final isNextDay = _to.day != _from.day || _to.month != _from.month || _to.year != _from.year;
+    final isNextDay =
+        _to.day != _from.day ||
+        _to.month != _from.month ||
+        _to.year != _from.year;
     final diff = _to.difference(_from);
     final hours = diff.inHours;
     final minutes = diff.inMinutes % 60;
@@ -803,10 +974,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
           const SizedBox(height: 4),
           Text(
             'İpucu: 12:00 AM = Gece Yarısı (00:00) | 12:00 PM = Öğlen (12:00)',
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -815,9 +983,19 @@ class _EventFormScreenState extends State<EventFormScreen> {
 
   Widget _buildPrioritySelector() {
     final priorities = [
-      {'val': 0, 'label': 'Düşük', 'color': Colors.green, 'icon': Icons.arrow_downward},
+      {
+        'val': 0,
+        'label': 'Düşük',
+        'color': Colors.green,
+        'icon': Icons.arrow_downward,
+      },
       {'val': 1, 'label': 'Orta', 'color': Colors.orange, 'icon': Icons.remove},
-      {'val': 2, 'label': 'Yüksek', 'color': Colors.red, 'icon': Icons.priority_high},
+      {
+        'val': 2,
+        'label': 'Yüksek',
+        'color': Colors.red,
+        'icon': Icons.priority_high,
+      },
     ];
 
     return Column(
@@ -850,7 +1028,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
-                      color: isSelected ? color.withOpacity(0.15) : Colors.transparent,
+                      color: isSelected
+                          ? color.withOpacity(0.15)
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isSelected ? color : Colors.grey.shade300,
@@ -860,13 +1040,19 @@ class _EventFormScreenState extends State<EventFormScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(icon, size: 16, color: isSelected ? color : Colors.grey),
+                        Icon(
+                          icon,
+                          size: 16,
+                          color: isSelected ? color : Colors.grey,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           label,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                             color: isSelected ? color : Colors.grey.shade700,
                           ),
                         ),
@@ -885,7 +1071,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
   Widget _buildTagSection(AppState appState) {
     final sortedTags = appState.getSortedEventTagsByUsage();
     final filterText = _tagController.text.trim().toLowerCase();
-    final filteredTags = sortedTags.where((t) => t.toLowerCase().contains(filterText)).toList();
+    final filteredTags = sortedTags
+        .where((t) => t.toLowerCase().contains(filterText))
+        .toList();
     final exactMatch = sortedTags.any((t) => t.toLowerCase() == filterText);
     final subTags = appState.eventSubTags[_tag] ?? [];
     final isProjectBound = _projectId != null;
@@ -931,7 +1119,11 @@ class _EventFormScreenState extends State<EventFormScreen> {
           const SizedBox(height: 4),
           const Text(
             'Kategori seçili projeye bağlıdır.',
-            style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ],
         const SizedBox(height: 8),
@@ -963,7 +1155,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
               ],
               ...filteredTags.map((t) {
                 final isSelected = _tag == t;
-                final tagColor = Color(appState.getEventTagColor(t) ?? 0xFF2196F3);
+                final tagColor = Color(
+                  appState.getEventTagColor(t) ?? 0xFF2196F3,
+                );
 
                 return Padding(
                   padding: const EdgeInsets.only(right: 6.0),
@@ -986,7 +1180,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
                     ),
                     labelStyle: TextStyle(
                       color: isSelected ? tagColor : Colors.black87,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       fontSize: 12,
                     ),
                     onSelected: isProjectBound
@@ -1022,17 +1218,28 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 const Spacer(),
                 GestureDetector(
                   onTap: () async {
-                    final ns = await _showCreateSubTagDialog(context, appState, _tag);
+                    final ns = await _showCreateSubTagDialog(
+                      context,
+                      appState,
+                      _tag,
+                    );
                     if (ns != null) setState(() => _subTag = ns);
                   },
                   child: const Row(
                     children: [
-                      Icon(Icons.add_circle_outline, size: 14, color: Colors.blue),
+                      Icon(
+                        Icons.add_circle_outline,
+                        size: 14,
+                        color: Colors.blue,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'Alt Etiket Ekle',
                         style: TextStyle(
-                            fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600),
+                          fontSize: 12,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -1057,7 +1264,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
                           },
                     labelStyle: TextStyle(
                       fontSize: 12,
-                      fontWeight: _subTag == null ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: _subTag == null
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -1077,7 +1286,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
                             },
                       labelStyle: TextStyle(
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                   );
@@ -1095,7 +1306,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
       padding: const EdgeInsets.only(right: 8),
       child: ActionChip(
         label: Text(label),
-        onPressed: () => setState(() => _to = _from.add(Duration(minutes: minutes))),
+        onPressed: () =>
+            setState(() => _to = _from.add(Duration(minutes: minutes))),
       ),
     );
   }
@@ -1114,8 +1326,14 @@ class _EventFormScreenState extends State<EventFormScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(title: const Text('Tekrarlama (Yok)'), onTap: () => _updateRRule(null)),
-            ListTile(title: const Text('Her Gün'), onTap: () => _updateRRule('FREQ=DAILY')),
+            ListTile(
+              title: const Text('Tekrarlama (Yok)'),
+              onTap: () => _updateRRule(null),
+            ),
+            ListTile(
+              title: const Text('Her Gün'),
+              onTap: () => _updateRRule('FREQ=DAILY'),
+            ),
             ListTile(
               title: const Text('Her Hafta'),
               onTap: () {
@@ -1123,8 +1341,14 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 _updateRRule('FREQ=WEEKLY;BYDAY=${days[_from.weekday - 1]}');
               },
             ),
-            ListTile(title: const Text('Her Ay'), onTap: () => _updateRRule('FREQ=MONTHLY')),
-            ListTile(title: const Text('Her Yıl'), onTap: () => _updateRRule('FREQ=YEARLY')),
+            ListTile(
+              title: const Text('Her Ay'),
+              onTap: () => _updateRRule('FREQ=MONTHLY'),
+            ),
+            ListTile(
+              title: const Text('Her Yıl'),
+              onTap: () => _updateRRule('FREQ=YEARLY'),
+            ),
             ListTile(
               title: const Text('Özel...'),
               onTap: () async {
@@ -1149,13 +1373,17 @@ class _EventFormScreenState extends State<EventFormScreen> {
 
   void _saveForm(BuildContext context, AppState appState) {
     if (_to.isBefore(_from)) {
-      if (_to.year == _from.year && _to.month == _from.month && _to.day == _from.day) {
+      if (_to.year == _from.year &&
+          _to.month == _from.month &&
+          _to.day == _from.day) {
         _to = _to.add(const Duration(days: 1));
       } else {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Lütfen zaman aralığına dikkat edin (Bitiş başlangıçtan önce olamaz)'),
+            content: Text(
+              'Lütfen zaman aralığına dikkat edin (Bitiş başlangıçtan önce olamaz)',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -1165,7 +1393,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
     if (_formKey.currentState!.validate()) {
       final resolvedColor = appState.getEventTagColor(_tag) ?? _colors[0];
       final event = Event(
-        id: widget.existingEvent?.id ?? IdGenerator.generate(_titleController.text),
+        id:
+            widget.existingEvent?.id ??
+            IdGenerator.generate(_titleController.text),
         title: _titleController.text,
         description: _detailsController.text,
         from: _from,
@@ -1176,7 +1406,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
         subTag: _subTag,
         importance: _importance,
         recurrenceRule: _recurrenceRule,
-        recurrenceExceptionDates: widget.existingEvent?.recurrenceExceptionDates,
+        recurrenceExceptionDates:
+            widget.existingEvent?.recurrenceExceptionDates,
         projectId: _projectId,
         isTrackingEnabled: _isTrackingEnabled,
         projectTag: _projectId != null ? _projectTag : null,
@@ -1191,7 +1422,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
         showInMonthView: _showInMonthView,
       );
 
-      if (widget.existingEvent == null || !appState.events.any((e) => e.id == event.id)) {
+      if (widget.existingEvent == null ||
+          !appState.events.any((e) => e.id == event.id)) {
         appState.addEvent(event);
       } else {
         appState.updateEvent(event);
@@ -1213,7 +1445,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
     if (offset % 10080 == 0) return '${offset ~/ 10080} hafta önce';
     if (offset % 1440 == 0) return '${offset ~/ 1440} gün önce';
     if (offset % 60 == 0) return '${offset ~/ 60} saat önce';
-    if (offset >= 1440) return '${offset ~/ 1440} gün ${offset % 1440 ~/ 60} saat önce';
+    if (offset >= 1440)
+      return '${offset ~/ 1440} gün ${offset % 1440 ~/ 60} saat önce';
     if (offset >= 60) return '${offset ~/ 60} saat ${offset % 60} dk önce';
     return '$offset dk önce';
   }
@@ -1230,7 +1463,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existingEvent != null ? 'Etkinliği Düzenle' : 'Yeni Etkinlik'),
+        title: Text(
+          widget.existingEvent != null ? 'Etkinliği Düzenle' : 'Yeni Etkinlik',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.check),
@@ -1264,10 +1499,14 @@ class _EventFormScreenState extends State<EventFormScreen> {
                             isDense: true,
                             prefixIcon: Icon(Icons.title, size: 20),
                             border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
                           ),
-                          validator: (v) =>
-                              (v == null || v.trim().isEmpty) ? 'Başlık zorunludur' : null,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Başlık zorunludur'
+                              : null,
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
@@ -1278,17 +1517,25 @@ class _EventFormScreenState extends State<EventFormScreen> {
                           maxLines: _isDetailsExpanded ? 20 : 6,
                           enableInteractiveSelection: true,
                           selectionControls: materialTextSelectionControls,
-                          contextMenuBuilder: (BuildContext context, EditableTextState editableTextState) {
-                            return AdaptiveTextSelectionToolbar.editableText(
-                              editableTextState: editableTextState,
-                            );
-                          },
+                          contextMenuBuilder:
+                              (
+                                BuildContext context,
+                                EditableTextState editableTextState,
+                              ) {
+                                return AdaptiveTextSelectionToolbar.editableText(
+                                  editableTextState: editableTextState,
+                                );
+                              },
                           decoration: InputDecoration(
                             labelText: 'Açıklama / Detaylar',
                             alignLabelWithHint: true,
                             isDense: true,
                             prefixIcon: Container(
-                              padding: const EdgeInsets.only(top: 10, left: 10, right: 8),
+                              padding: const EdgeInsets.only(
+                                top: 10,
+                                left: 10,
+                                right: 8,
+                              ),
                               alignment: Alignment.topCenter,
                               width: 38,
                               child: const Icon(Icons.notes, size: 20),
@@ -1302,13 +1549,24 @@ class _EventFormScreenState extends State<EventFormScreen> {
                               children: [
                                 if (_detailsController.text.isNotEmpty)
                                   IconButton(
-                                    icon: const Icon(Icons.copy_rounded, size: 18),
+                                    icon: const Icon(
+                                      Icons.copy_rounded,
+                                      size: 18,
+                                    ),
                                     tooltip: 'Açıklamayı Kopyala',
                                     onPressed: () {
-                                      Clipboard.setData(ClipboardData(text: _detailsController.text));
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      Clipboard.setData(
+                                        ClipboardData(
+                                          text: _detailsController.text,
+                                        ),
+                                      );
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         const SnackBar(
-                                          content: Text('Açıklama panoya kopyalandı'),
+                                          content: Text(
+                                            'Açıklama panoya kopyalandı',
+                                          ),
                                           duration: Duration(seconds: 1),
                                         ),
                                       );
@@ -1316,10 +1574,14 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                   ),
                                 IconButton(
                                   icon: Icon(
-                                    _isDetailsExpanded ? Icons.unfold_less : Icons.unfold_more,
+                                    _isDetailsExpanded
+                                        ? Icons.unfold_less
+                                        : Icons.unfold_more,
                                     size: 20,
                                   ),
-                                  tooltip: _isDetailsExpanded ? 'Alanı Daralt' : 'Alanı Genişlet',
+                                  tooltip: _isDetailsExpanded
+                                      ? 'Alanı Daralt'
+                                      : 'Alanı Genişlet',
                                   onPressed: () {
                                     setState(() {
                                       _isDetailsExpanded = !_isDetailsExpanded;
@@ -1329,7 +1591,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
                               ],
                             ),
                             border: const OutlineInputBorder(),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
                           ),
                         ),
                       ],
@@ -1350,11 +1615,19 @@ class _EventFormScreenState extends State<EventFormScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.calendar_month, size: 18, color: Colors.blueGrey),
+                            const Icon(
+                              Icons.calendar_month,
+                              size: 18,
+                              color: Colors.blueGrey,
+                            ),
                             const SizedBox(width: 6),
                             const Text(
                               'Zaman ve Tarih',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueGrey,
+                              ),
                             ),
                             const Spacer(),
                             Text(
@@ -1380,21 +1653,32 @@ class _EventFormScreenState extends State<EventFormScreen> {
                           children: [
                             Expanded(
                               child: InkWell(
-                                onTap: () => _pickCombinedDateTime(context, true),
+                                onTap: () =>
+                                    _pickCombinedDateTime(context, true),
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.blue.withOpacity(0.06),
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                                    border: Border.all(
+                                      color: Colors.blue.withOpacity(0.3),
+                                    ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
-                                          Icon(Icons.play_circle_outline, size: 14, color: Colors.blue.shade700),
+                                          Icon(
+                                            Icons.play_circle_outline,
+                                            size: 14,
+                                            color: Colors.blue.shade700,
+                                          ),
                                           const SizedBox(width: 4),
                                           Text(
                                             'Başlangıç',
@@ -1409,7 +1693,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         '${_from.day}/${_from.month}/${_from.year}',
-                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                       if (!_isAllDay) ...[
                                         const SizedBox(height: 2),
@@ -1430,21 +1717,32 @@ class _EventFormScreenState extends State<EventFormScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: InkWell(
-                                onTap: () => _pickCombinedDateTime(context, false),
+                                onTap: () =>
+                                    _pickCombinedDateTime(context, false),
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.indigo.withOpacity(0.06),
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: Colors.indigo.withOpacity(0.3)),
+                                    border: Border.all(
+                                      color: Colors.indigo.withOpacity(0.3),
+                                    ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
-                                          Icon(Icons.stop_circle_outlined, size: 14, color: Colors.indigo.shade700),
+                                          Icon(
+                                            Icons.stop_circle_outlined,
+                                            size: 14,
+                                            color: Colors.indigo.shade700,
+                                          ),
                                           const SizedBox(width: 4),
                                           Text(
                                             'Bitiş',
@@ -1459,7 +1757,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         '${_to.day}/${_to.month}/${_to.year}',
-                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                       if (!_isAllDay) ...[
                                         const SizedBox(height: 2),
@@ -1506,68 +1807,119 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   // ── Proje Seçimi (Pop-up Dialog Tabanlı) ─────────────────
                   Builder(
                     builder: (ctx) {
-                      final selectedProject = projects.where((p) => p.id == _projectId).firstOrNull;
+                      final selectedProject = projects
+                          .where((p) => p.id == _projectId)
+                          .firstOrNull;
                       return Row(
                         children: [
                           Expanded(
                             child: InkWell(
-                              onTap: () => _showProjectPickerDialog(context, appState),
+                              onTap: () =>
+                                  _showProjectPickerDialog(context, appState),
                               borderRadius: BorderRadius.circular(10),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
                                     Icon(
                                       Icons.folder_outlined,
                                       size: 20,
-                                      color: selectedProject != null ? Color(selectedProject.colorValue) : Colors.grey,
+                                      color: selectedProject != null
+                                          ? Color(selectedProject.colorValue)
+                                          : Colors.grey,
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          const Text('Proje', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                          const Text(
+                                            'Proje',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
                                           Text(
-                                            selectedProject != null ? selectedProject.title : 'Hiçbiri (Bağımsız)',
-                                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                            selectedProject != null
+                                                ? selectedProject.title
+                                                : 'Hiçbiri (Bağımsız)',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ],
                                       ),
                                     ),
-                                    const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                                    const Icon(
+                                      Icons.arrow_drop_down,
+                                      color: Colors.grey,
+                                    ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                          if (selectedProject != null && selectedProject.tags.isNotEmpty) ...[
+                          if (selectedProject != null &&
+                              selectedProject.tags.isNotEmpty) ...[
                             const SizedBox(width: 8),
                             Expanded(
                               child: DropdownButtonFormField<String?>(
-                                initialValue: selectedProject.tags.contains(_projectTag) ? _projectTag : null,
+                                initialValue:
+                                    selectedProject.tags.contains(_projectTag)
+                                    ? _projectTag
+                                    : null,
                                 decoration: const InputDecoration(
                                   labelText: 'Proje İçi Etiket',
                                   isDense: true,
                                   border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 10,
+                                  ),
                                 ),
                                 items: [
-                                  const DropdownMenuItem<String?>(value: null, child: Text('Etiket Yok')),
-                                  ...selectedProject.tags.map((t) => DropdownMenuItem<String?>(value: t, child: Text(t))),
+                                  const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text('Etiket Yok'),
+                                  ),
+                                  ...selectedProject.tags.map(
+                                    (t) => DropdownMenuItem<String?>(
+                                      value: t,
+                                      child: Text(t),
+                                    ),
+                                  ),
                                   const DropdownMenuItem<String?>(
                                     value: 'add_new_project_tag',
-                                    child: Text('+ Yeni Etiket...', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                                    child: Text(
+                                      '+ Yeni Etiket...',
+                                      style: TextStyle(
+                                        color: Colors.blue,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
                                 ],
                                 onChanged: (val) async {
                                   if (val == 'add_new_project_tag') {
-                                    final nt = await _showCreateProjectTagDialog(context, appState, selectedProject);
+                                    final nt =
+                                        await _showCreateProjectTagDialog(
+                                          context,
+                                          appState,
+                                          selectedProject,
+                                        );
                                     setState(() => _projectTag = nt);
                                   } else {
                                     setState(() => _projectTag = val);
@@ -1593,8 +1945,14 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   // ── Zaman Takibi ────────────────────────────────────────
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Zaman Takibini Etkinleştir', style: TextStyle(fontSize: 14)),
-                    subtitle: const Text('Etkinlik için süre takibi yapılsın mı?', style: TextStyle(fontSize: 12)),
+                    title: const Text(
+                      'Zaman Takibini Etkinleştir',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Etkinlik için süre takibi yapılsın mı?',
+                      style: TextStyle(fontSize: 12),
+                    ),
                     value: _isTrackingEnabled,
                     onChanged: (v) => setState(() => _isTrackingEnabled = v),
                   ),
@@ -1604,8 +1962,14 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   if (!widget.isSingleOccurrenceEdit)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Tekrarlama', style: TextStyle(fontSize: 14)),
-                      subtitle: Text(RRuleTranslator.translate(_recurrenceRule), style: const TextStyle(fontSize: 12)),
+                      title: const Text(
+                        'Tekrarlama',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        RRuleTranslator.translate(_recurrenceRule),
+                        style: const TextStyle(fontSize: 12),
+                      ),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 14),
                       onTap: () => _showRecurrenceOptions(context),
                     ),
@@ -1616,17 +1980,30 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   const SizedBox(height: 8),
                   const Row(
                     children: [
-                      Icon(Icons.notifications_outlined, size: 18, color: Colors.blueGrey),
+                      Icon(
+                        Icons.notifications_outlined,
+                        size: 18,
+                        color: Colors.blueGrey,
+                      ),
                       SizedBox(width: 6),
-                      Text('Bildirimler', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      Text(
+                        'Bildirimler',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   if (_notificationOffsets.isEmpty)
-                    const Text('Bildirim ayarlanmadı.',
-                        style: TextStyle(
-                            color: Colors.grey,
-                            fontStyle: FontStyle.italic)),
+                    const Text(
+                      'Bildirim ayarlanmadı.',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
@@ -1643,22 +2020,38 @@ class _EventFormScreenState extends State<EventFormScreen> {
                     initialValue: null,
                     hint: const Text('+ Bildirim Ekle'),
                     items: const [
-                      DropdownMenuItem(value: '0', child: Text('Etkinlik anında')),
-                      DropdownMenuItem(value: '10', child: Text('10 dakika önce')),
-                      DropdownMenuItem(value: '30', child: Text('30 dakika önce')),
+                      DropdownMenuItem(
+                        value: '0',
+                        child: Text('Etkinlik anında'),
+                      ),
+                      DropdownMenuItem(
+                        value: '10',
+                        child: Text('10 dakika önce'),
+                      ),
+                      DropdownMenuItem(
+                        value: '30',
+                        child: Text('30 dakika önce'),
+                      ),
                       DropdownMenuItem(value: '60', child: Text('1 saat önce')),
-                      DropdownMenuItem(value: '120', child: Text('2 saat önce')),
-                      DropdownMenuItem(value: '1440', child: Text('1 gün önce')),
-                      DropdownMenuItem(value: '10080', child: Text('1 hafta önce')),
+                      DropdownMenuItem(
+                        value: '120',
+                        child: Text('2 saat önce'),
+                      ),
+                      DropdownMenuItem(
+                        value: '1440',
+                        child: Text('1 gün önce'),
+                      ),
+                      DropdownMenuItem(
+                        value: '10080',
+                        child: Text('1 hafta önce'),
+                      ),
                       DropdownMenuItem(value: 'custom', child: Text('Özel...')),
                     ],
                     onChanged: (val) async {
                       if (val == null) return;
                       if (val == 'custom') {
-                        final cv =
-                            await _showCustomNotificationDialog(context);
-                        if (cv != null &&
-                            !_notificationOffsets.contains(cv)) {
+                        final cv = await _showCustomNotificationDialog(context);
+                        if (cv != null && !_notificationOffsets.contains(cv)) {
                           setState(() => _notificationOffsets.add(cv));
                         }
                       } else {
@@ -1674,10 +2067,14 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   // ── Aylık Görünüm Ayarı (Madde 6) ─────────────────────────
                   Container(
                     decoration: BoxDecoration(
-                      color: _showInMonthView ? Colors.purple.withOpacity(0.06) : Colors.grey.shade100,
+                      color: _showInMonthView
+                          ? Colors.purple.withOpacity(0.06)
+                          : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: _showInMonthView ? Colors.purple.withOpacity(0.25) : Colors.grey.shade300,
+                        color: _showInMonthView
+                            ? Colors.purple.withOpacity(0.25)
+                            : Colors.grey.shade300,
                       ),
                     ),
                     child: SwitchListTile(
@@ -1688,7 +2085,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
                       ),
                       title: const Text(
                         'Aylık Takvimde Göster',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       subtitle: const Text(
                         'Kapalıyken bu etkinlik takvimin aylık görünümünde hücreyi doldurmaz, görünümü sade tutar.',

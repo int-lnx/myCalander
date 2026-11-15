@@ -42,11 +42,7 @@ class FollowUpLogDialog extends StatefulWidget {
   final dynamic baseItem; // Event or TaskItem
   final DateTime? tappedDate;
 
-  const FollowUpLogDialog({
-    super.key,
-    required this.baseItem,
-    this.tappedDate,
-  });
+  const FollowUpLogDialog({super.key, required this.baseItem, this.tappedDate});
 
   static Future<void> show(
     BuildContext context, {
@@ -55,10 +51,8 @@ class FollowUpLogDialog extends StatefulWidget {
   }) async {
     await showDialog(
       context: context,
-      builder: (ctx) => FollowUpLogDialog(
-        baseItem: baseItem,
-        tappedDate: tappedDate,
-      ),
+      builder: (ctx) =>
+          FollowUpLogDialog(baseItem: baseItem, tappedDate: tappedDate),
     );
   }
 
@@ -249,7 +243,9 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
     if (candidates.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Bu saatten sonra yakın tarihte uygun etkinlik bulunamadı.'),
+          content: Text(
+            'Bu saatten sonra yakın tarihte uygun etkinlik bulunamadı.',
+          ),
           duration: Duration(seconds: 2),
         ),
       );
@@ -278,7 +274,7 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
             height: 340,
             child: ListView.separated(
               itemCount: candidates.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final c = candidates[index];
                 final isSelected =
@@ -309,11 +305,17 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                     '${!startsAfter ? ' (Başlangıcı geçmiş, bitişi seçilebilir)' : ''}',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade700,
                     ),
                   ),
                   trailing: isSelected
-                      ? const Icon(Icons.check_circle, color: Colors.blue, size: 18)
+                      ? const Icon(
+                          Icons.check_circle,
+                          color: Colors.blue,
+                          size: 18,
+                        )
                       : const Icon(Icons.chevron_right, size: 18),
                   onTap: () => Navigator.pop(ctx, c),
                 );
@@ -377,8 +379,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
   }
 
   String _formatDateTime(DateTime dt) {
-    final d = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
-    final t = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final d =
+        '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
+    final t =
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     return '$d $t';
   }
 
@@ -462,7 +466,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                 children: [
                   Expanded(
                     child: RadioListTile<FollowUpReferencePoint>(
-                      title: const Text('Bitiş', style: TextStyle(fontSize: 13)),
+                      title: const Text(
+                        'Bitiş',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       subtitle: Text(
                         _formatDateTime(_baseEnd),
                         style: const TextStyle(fontSize: 11),
@@ -478,7 +485,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   ),
                   Expanded(
                     child: RadioListTile<FollowUpReferencePoint>(
-                      title: const Text('Başlangıç', style: TextStyle(fontSize: 13)),
+                      title: const Text(
+                        'Başlangıç',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       subtitle: Text(
                         _formatDateTime(_baseStart),
                         style: const TextStyle(fontSize: 11),
@@ -523,7 +533,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                       final isSelected =
                           _offsetMinutesController.text == m.toString();
                       return ChoiceChip(
-                        label: Text('$m dk', style: const TextStyle(fontSize: 11)),
+                        label: Text(
+                          '$m dk',
+                          style: const TextStyle(fontSize: 11),
+                        ),
                         selected: isSelected,
                         padding: EdgeInsets.zero,
                         onSelected: (selected) {
@@ -551,13 +564,17 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   Expanded(
                     child: ChoiceChip(
                       label: const Center(
-                        child: Text('Toplam Süre (dk)', style: TextStyle(fontSize: 12)),
+                        child: Text(
+                          'Toplam Süre (dk)',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                       selected: _durationType == FollowUpDurationType.duration,
                       onSelected: (selected) {
                         if (selected) {
                           setState(
-                              () => _durationType = FollowUpDurationType.duration);
+                            () => _durationType = FollowUpDurationType.duration,
+                          );
                         }
                       },
                     ),
@@ -566,7 +583,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   Expanded(
                     child: ChoiceChip(
                       label: const Center(
-                        child: Text('Bitiş Saati Seç', style: TextStyle(fontSize: 12)),
+                        child: Text(
+                          'Bitiş Saati Seç',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                       selected: _durationType == FollowUpDurationType.endTime,
                       onSelected: (selected) {
@@ -585,7 +605,13 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   Expanded(
                     child: ChoiceChip(
                       label: const Center(
-                        child: Text('Until', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        child: Text(
+                          'Until',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                       selected: _durationType == FollowUpDurationType.until,
                       onSelected: (selected) async {
@@ -622,7 +648,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                         decoration: InputDecoration(
                           labelText: 'Etkinlik Süresi (dk)',
                           isDense: true,
-                          prefixIcon: const Icon(Icons.hourglass_bottom, size: 20),
+                          prefixIcon: const Icon(
+                            Icons.hourglass_bottom,
+                            size: 20,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -637,7 +666,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                         final isSelected =
                             _durationMinutesController.text == m.toString();
                         return ChoiceChip(
-                          label: Text('$m dk', style: const TextStyle(fontSize: 11)),
+                          label: Text(
+                            '$m dk',
+                            style: const TextStyle(fontSize: 11),
+                          ),
                           selected: isSelected,
                           padding: EdgeInsets.zero,
                           onSelected: (selected) {
@@ -655,7 +687,8 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
               ] else if (_durationType == FollowUpDurationType.endTime) ...[
                 InkWell(
                   onTap: () async {
-                    final initial = _selectedEndTime ??
+                    final initial =
+                        _selectedEndTime ??
                         TimeOfDay.fromDateTime(
                           calculatedStart.add(const Duration(hours: 1)),
                         );
@@ -670,7 +703,9 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 12),
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: isDark
@@ -688,7 +723,9 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                               ? 'Bitiş Saati: ${_selectedEndTime!.format(context)}'
                               : 'Bitiş Saati Seçin',
                           style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w500),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         const Spacer(),
                         const Icon(Icons.edit_calendar, size: 18),
@@ -705,7 +742,9 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                         : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                      color: isDark
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade300,
                     ),
                   ),
                   child: Column(
@@ -713,8 +752,11 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.event_available,
-                              size: 18, color: Colors.blue),
+                          const Icon(
+                            Icons.event_available,
+                            size: 18,
+                            color: Colors.blue,
+                          ),
                           const SizedBox(width: 6),
                           const Expanded(
                             child: Text(
@@ -728,7 +770,9 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                           TextButton.icon(
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
@@ -756,13 +800,16 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                           borderRadius: BorderRadius.circular(6),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: isDark ? Colors.black26 : Colors.white,
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: Color(_selectedUntilCandidate!.colorValue)
-                                    .withValues(alpha: 0.6),
+                                color: Color(
+                                  _selectedUntilCandidate!.colorValue,
+                                ).withValues(alpha: 0.6),
                               ),
                             ),
                             child: Row(
@@ -772,7 +819,8 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                                   height: 10,
                                   decoration: BoxDecoration(
                                     color: Color(
-                                        _selectedUntilCandidate!.colorValue),
+                                      _selectedUntilCandidate!.colorValue,
+                                    ),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -810,17 +858,22 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                         const Text(
                           'Hedef Etkinliğin Neresi Referans Alınsın?',
                           style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Row(
                           children: [
                             Expanded(
                               child: RadioListTile<FollowUpReferencePoint>(
-                                title: const Text('Başlangıç',
-                                    style: TextStyle(fontSize: 12.5)),
+                                title: const Text(
+                                  'Başlangıç',
+                                  style: TextStyle(fontSize: 12.5),
+                                ),
                                 subtitle: Text(
                                   _formatDateTime(
-                                      _selectedUntilCandidate!.from),
+                                    _selectedUntilCandidate!.from,
+                                  ),
                                   style: const TextStyle(fontSize: 11),
                                 ),
                                 value: FollowUpReferencePoint.start,
@@ -836,8 +889,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                             ),
                             Expanded(
                               child: RadioListTile<FollowUpReferencePoint>(
-                                title: const Text('Bitiş',
-                                    style: TextStyle(fontSize: 12.5)),
+                                title: const Text(
+                                  'Bitiş',
+                                  style: TextStyle(fontSize: 12.5),
+                                ),
                                 subtitle: Text(
                                   _formatDateTime(_selectedUntilCandidate!.to),
                                   style: const TextStyle(fontSize: 11),
@@ -860,7 +915,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                           padding: EdgeInsets.symmetric(vertical: 6),
                           child: Text(
                             'Yakın tarihte sonraki bir etkinlik bulunamadı. Lütfen "Etkinlik Seç" butonuna tıklayın.',
-                            style: TextStyle(fontSize: 12, color: Colors.orange),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange,
+                            ),
                           ),
                         ),
                       ],
@@ -905,7 +963,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                           children: [
                             Icon(Icons.push_pin_outlined, size: 15),
                             SizedBox(width: 4),
-                            Text('Tek Seferlik', style: TextStyle(fontSize: 12)),
+                            Text(
+                              'Tek Seferlik',
+                              style: TextStyle(fontSize: 12),
+                            ),
                           ],
                         ),
                       ),
@@ -972,7 +1033,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                     ),
                     Text(
                       '• Toplam Süre: ${calculatedEnd.difference(calculatedStart).inMinutes} dk (${_isDynamicLink ? "Dinamik Bağlı" : "Tek Seferlik"})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -991,15 +1055,16 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
           onPressed: () {
             final offsetMins =
                 int.tryParse(_offsetMinutesController.text.trim()) ?? 0;
-            final refStr =
-                _referencePoint == FollowUpReferencePoint.start ? 'start' : 'end';
+            final refStr = _referencePoint == FollowUpReferencePoint.start
+                ? 'start'
+                : 'end';
             final untilRefStr =
                 _untilReferencePoint == FollowUpReferencePoint.start
-                    ? 'start'
-                    : 'end';
+                ? 'start'
+                : 'end';
             final effectiveParentId = _isDynamicLink ? _baseEventId : null;
-            final effectiveUntilId = (_isDynamicLink &&
-                    _durationType == FollowUpDurationType.until)
+            final effectiveUntilId =
+                (_isDynamicLink && _durationType == FollowUpDurationType.until)
                 ? _selectedUntilCandidate?.eventId
                 : null;
 
@@ -1037,15 +1102,16 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                 : _titleController.text.trim();
             final offsetMins =
                 int.tryParse(_offsetMinutesController.text.trim()) ?? 0;
-            final refStr =
-                _referencePoint == FollowUpReferencePoint.start ? 'start' : 'end';
+            final refStr = _referencePoint == FollowUpReferencePoint.start
+                ? 'start'
+                : 'end';
             final untilRefStr =
                 _untilReferencePoint == FollowUpReferencePoint.start
-                    ? 'start'
-                    : 'end';
+                ? 'start'
+                : 'end';
             final effectiveParentId = _isDynamicLink ? _baseEventId : null;
-            final effectiveUntilId = (_isDynamicLink &&
-                    _durationType == FollowUpDurationType.until)
+            final effectiveUntilId =
+                (_isDynamicLink && _durationType == FollowUpDurationType.until)
                 ? _selectedUntilCandidate?.eventId
                 : null;
 
@@ -1078,7 +1144,9 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                 behavior: SnackBarBehavior.floating,
                 showCloseIcon: true,
                 closeIconColor: Colors.white70,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 action: SnackBarAction(
                   label: 'Geri Al',

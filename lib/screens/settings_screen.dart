@@ -674,6 +674,113 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          // Depolama ve Veri Sağlığı (Şişmeyi Önleme)
+          Card(
+            margin: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Builder(
+                builder: (context) {
+                  final stats = appState.getStorageUsageStats();
+                  final oldCompleted = appState.completedTasksOlderThan30DaysCount;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.storage_rounded, color: Colors.deepPurple),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Depolama ve Veri Sağlığı (Şişmeyi Önleme)',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.deepPurple.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      const Text(
+                        'Uygulamanın hızlı çalışması ve çevrimdışı önbelleğin şişmemesi için veriler otomatik LRU önbellek (40 MB sınır) ile korunur. '
+                        'Buradan yerel veri miktarınızı izleyebilir ve eski tamamlanmış görevleri temizleyebilirsiniz.',
+                        style: TextStyle(color: Colors.black54, fontSize: 13),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.event, size: 16),
+                            label: Text('Etkinlik: ${stats['events']}'),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.check_circle_outline, size: 16),
+                            label: Text('Görev: ${stats['tasks']} (Tamamlanan: ${stats['completedTasks']})'),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.folder, size: 16),
+                            label: Text('Proje: ${stats['projects']}'),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.note, size: 16),
+                            label: Text('Günlük Not: ${stats['dayNotes']}'),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.data_usage, size: 16),
+                            backgroundColor: Colors.deepPurple.shade50,
+                            label: Text('Tahmini Boyut: ~${stats['estimatedKb']} KB', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      if (oldCompleted > 0)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.auto_delete_outlined, color: Colors.orange),
+                          title: Text('$oldCompleted Eski Tamamlanmış Görevi Temizle (30+ gün)'),
+                          subtitle: const Text('30 günden eski tamamlanan görevleri temizleyerek depolamayı hafifletir.'),
+                          trailing: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade50, foregroundColor: Colors.orange.shade900),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Eski Görevleri Temizle'),
+                                  content: Text('30 günden eski $oldCompleted adet tamamlanmış görev silinecektir. Emin misiniz?'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('İptal')),
+                                    ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Temizle')),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                final deleted = await appState.deleteCompletedTasksOlderThanDays(30);
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('$deleted eski tamamlanmış görev temizlendi.')),
+                                );
+                              }
+                            },
+                            child: const Text('Temizle'),
+                          ),
+                        )
+                      else
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            '✓ 30 günden eski tamamlanmış görev bulunmuyor, verileriniz optimize durumda.',
+                            style: TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
         ],
       ),
