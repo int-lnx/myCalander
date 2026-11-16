@@ -386,6 +386,76 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
     return '$d $t';
   }
 
+  Widget _buildReferenceOptionTile({
+    required String title,
+    required String timeStr,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    const activeColor = Colors.blue;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor.withValues(alpha: isDark ? 0.2 : 0.1)
+              : (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? activeColor
+                : (isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              size: 16,
+              color: isSelected
+                  ? activeColor
+                  : (isDark ? Colors.grey.shade500 : Colors.grey.shade600),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      color: isSelected ? activeColor : null,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    timeStr,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context, listen: false);
@@ -405,8 +475,11 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
     final isDark = theme.brightness == Brightness.dark;
 
     return AlertDialog(
-      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-      contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+      titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      contentPadding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       title: Row(
         children: [
           Container(
@@ -421,104 +494,96 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
           const Expanded(
             child: Text(
               'Takip Eden Kayıt Ekle',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
-      content: SingleChildScrollView(
-        child: SizedBox(
-          width: 460,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Referans Etkinlik: $_baseTitle',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12,
                   color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               // Başlık
               TextField(
                 controller: _titleController,
+                style: const TextStyle(fontSize: 13.5),
                 decoration: InputDecoration(
                   labelText: 'Kayıt / Etkinlik Başlığı',
                   isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // Referans Noktası Seçimi (Başlangıç vs Bitiş)
               const Text(
                 'İlk Etkinlik Referans Noktası:',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   Expanded(
-                    child: RadioListTile<FollowUpReferencePoint>(
-                      title: const Text(
-                        'Bitiş',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                      subtitle: Text(
-                        _formatDateTime(_baseEnd),
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      value: FollowUpReferencePoint.end,
-                      groupValue: _referencePoint,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        if (val != null) setState(() => _referencePoint = val);
-                      },
+                    child: _buildReferenceOptionTile(
+                      title: 'Bitiş',
+                      timeStr: _formatDateTime(_baseEnd),
+                      isSelected: _referencePoint == FollowUpReferencePoint.end,
+                      onTap: () => setState(() => _referencePoint = FollowUpReferencePoint.end),
+                      isDark: isDark,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: RadioListTile<FollowUpReferencePoint>(
-                      title: const Text(
-                        'Başlangıç',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                      subtitle: Text(
-                        _formatDateTime(_baseStart),
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      value: FollowUpReferencePoint.start,
-                      groupValue: _referencePoint,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        if (val != null) setState(() => _referencePoint = val);
-                      },
+                    child: _buildReferenceOptionTile(
+                      title: 'Başlangıç',
+                      timeStr: _formatDateTime(_baseStart),
+                      isSelected: _referencePoint == FollowUpReferencePoint.start,
+                      onTap: () => setState(() => _referencePoint = FollowUpReferencePoint.start),
+                      isDark: isDark,
                     ),
                   ),
                 ],
               ),
-              const Divider(height: 16),
+              const Divider(height: 18),
 
               // Offset (Öteleme Süresi)
               Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Expanded(
-                    flex: 2,
+                  SizedBox(
+                    width: 105,
                     child: TextField(
                       controller: _offsetMinutesController,
                       keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 13),
                       decoration: InputDecoration(
-                        labelText: 'Offset / Gecikme (dk)',
-                        hintText: 'Örn: 30',
+                        labelText: 'Öteleme',
+                        suffixText: 'dk',
+                        suffixStyle: const TextStyle(fontSize: 11),
+                        prefixIcon: const Icon(Icons.timer_outlined, size: 18),
+                        prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                         isDense: true,
-                        prefixIcon: const Icon(Icons.timer_outlined, size: 20),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -527,46 +592,62 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Wrap(
-                    spacing: 4,
-                    children: [0, 15, 30, 60].map((m) {
-                      final isSelected =
-                          _offsetMinutesController.text == m.toString();
-                      return ChoiceChip(
-                        label: Text(
-                          '$m dk',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        selected: isSelected,
-                        padding: EdgeInsets.zero,
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() {
-                              _offsetMinutesController.text = m.toString();
-                            });
-                          }
-                        },
-                      );
-                    }).toList(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [0, 15, 30, 60].map((m) {
+                          final isSelected =
+                              _offsetMinutesController.text == m.toString();
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: ChoiceChip(
+                              showCheckmark: false,
+                              label: Text(
+                                '+$m dk',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              selected: isSelected,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() {
+                                    _offsetMinutesController.text = m.toString();
+                                  });
+                                }
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // Süre / Bitiş Belirleme Türü
               const Text(
                 'Süre Belirleme Yöntemi:',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   Expanded(
                     child: ChoiceChip(
+                      showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
                       label: const Center(
                         child: Text(
-                          'Toplam Süre (dk)',
+                          'Süre (dk)',
                           style: TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       selected: _durationType == FollowUpDurationType.duration,
@@ -582,10 +663,14 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: ChoiceChip(
+                      showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
                       label: const Center(
                         child: Text(
-                          'Bitiş Saati Seç',
+                          'Bitiş Saati',
                           style: TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       selected: _durationType == FollowUpDurationType.endTime,
@@ -604,6 +689,9 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: ChoiceChip(
+                      showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
                       label: const Center(
                         child: Text(
                           'Until',
@@ -611,6 +699,7 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       selected: _durationType == FollowUpDurationType.until,
@@ -640,18 +729,23 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
               if (_durationType == FollowUpDurationType.duration) ...[
                 Row(
                   children: [
-                    Expanded(
-                      flex: 2,
+                    SizedBox(
+                      width: 105,
                       child: TextField(
                         controller: _durationMinutesController,
                         keyboardType: TextInputType.number,
+                        style: const TextStyle(fontSize: 13),
                         decoration: InputDecoration(
-                          labelText: 'Etkinlik Süresi (dk)',
-                          isDense: true,
+                          labelText: 'Süre',
+                          suffixText: 'dk',
+                          suffixStyle: const TextStyle(fontSize: 11),
                           prefixIcon: const Icon(
                             Icons.hourglass_bottom,
-                            size: 20,
+                            size: 18,
                           ),
+                          prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -660,27 +754,39 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Wrap(
-                      spacing: 4,
-                      children: [30, 45, 60, 90, 120].map((m) {
-                        final isSelected =
-                            _durationMinutesController.text == m.toString();
-                        return ChoiceChip(
-                          label: Text(
-                            '$m dk',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          selected: isSelected,
-                          padding: EdgeInsets.zero,
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() {
-                                _durationMinutesController.text = m.toString();
-                              });
-                            }
-                          },
-                        );
-                      }).toList(),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [15, 30, 45, 60, 90, 120].map((m) {
+                            final isSelected =
+                                _durationMinutesController.text == m.toString();
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: ChoiceChip(
+                                showCheckmark: false,
+                                label: Text(
+                                  '$m dk',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                selected: isSelected,
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    setState(() {
+                                      _durationMinutesController.text = m.toString();
+                                    });
+                                  }
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -704,7 +810,7 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 12,
+                      vertical: 11,
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(
@@ -716,19 +822,19 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.access_time, size: 20),
+                        const Icon(Icons.access_time, size: 18),
                         const SizedBox(width: 8),
                         Text(
                           _selectedEndTime != null
                               ? 'Bitiş Saati: ${_selectedEndTime!.format(context)}'
                               : 'Bitiş Saati Seçin',
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         const Spacer(),
-                        const Icon(Icons.edit_calendar, size: 18),
+                        const Icon(Icons.edit_calendar, size: 16),
                       ],
                     ),
                   ),
@@ -754,7 +860,7 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                         children: [
                           const Icon(
                             Icons.event_available,
-                            size: 18,
+                            size: 16,
                             color: Colors.blue,
                           ),
                           const SizedBox(width: 6),
@@ -770,8 +876,8 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                           TextButton.icon(
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                                horizontal: 6,
+                                vertical: 2,
                               ),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -781,10 +887,10 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                               untilCandidates,
                               calculatedStart,
                             ),
-                            icon: const Icon(Icons.swap_horiz, size: 15),
+                            icon: const Icon(Icons.swap_horiz, size: 14),
                             label: const Text(
                               'Etkinlik Seç',
-                              style: TextStyle(fontSize: 12),
+                              style: TextStyle(fontSize: 11.5),
                             ),
                           ),
                         ],
@@ -801,7 +907,7 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
-                              vertical: 8,
+                              vertical: 7,
                             ),
                             decoration: BoxDecoration(
                               color: isDark ? Colors.black26 : Colors.white,
@@ -833,79 +939,63 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                                       Text(
                                         _selectedUntilCandidate!.title,
                                         style: const TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 12.5,
                                           fontWeight: FontWeight.bold,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       Text(
                                         '${_formatDateTime(_selectedUntilCandidate!.from)} - ${_formatDateTime(_selectedUntilCandidate!.to)}',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 10.5,
                                           color: isDark
                                               ? Colors.grey.shade400
                                               : Colors.grey.shade700,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.arrow_drop_down, size: 20),
+                                const Icon(Icons.arrow_drop_down, size: 18),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         const Text(
                           'Hedef Etkinliğin Neresi Referans Alınsın?',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        const SizedBox(height: 4),
                         Row(
                           children: [
                             Expanded(
-                              child: RadioListTile<FollowUpReferencePoint>(
-                                title: const Text(
-                                  'Başlangıç',
-                                  style: TextStyle(fontSize: 12.5),
+                              child: _buildReferenceOptionTile(
+                                title: 'Başlangıç',
+                                timeStr: _formatDateTime(
+                                  _selectedUntilCandidate!.from,
                                 ),
-                                subtitle: Text(
-                                  _formatDateTime(
-                                    _selectedUntilCandidate!.from,
-                                  ),
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                                value: FollowUpReferencePoint.start,
-                                groupValue: _untilReferencePoint,
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setState(() => _untilReferencePoint = val);
-                                  }
-                                },
+                                isSelected: _untilReferencePoint == FollowUpReferencePoint.start,
+                                onTap: () => setState(() => _untilReferencePoint = FollowUpReferencePoint.start),
+                                isDark: isDark,
                               ),
                             ),
+                            const SizedBox(width: 8),
                             Expanded(
-                              child: RadioListTile<FollowUpReferencePoint>(
-                                title: const Text(
-                                  'Bitiş',
-                                  style: TextStyle(fontSize: 12.5),
+                              child: _buildReferenceOptionTile(
+                                title: 'Bitiş',
+                                timeStr: _formatDateTime(
+                                  _selectedUntilCandidate!.to,
                                 ),
-                                subtitle: Text(
-                                  _formatDateTime(_selectedUntilCandidate!.to),
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                                value: FollowUpReferencePoint.end,
-                                groupValue: _untilReferencePoint,
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setState(() => _untilReferencePoint = val);
-                                  }
-                                },
+                                isSelected: _untilReferencePoint == FollowUpReferencePoint.end,
+                                onTap: () => setState(() => _untilReferencePoint = FollowUpReferencePoint.end),
+                                isDark: isDark,
                               ),
                             ),
                           ],
@@ -916,7 +1006,7 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                           child: Text(
                             'Yakın tarihte sonraki bir etkinlik bulunamadı. Lütfen "Etkinlik Seç" butonuna tıklayın.',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11.5,
                               color: Colors.orange,
                             ),
                           ),
@@ -926,18 +1016,21 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   ),
                 ),
               ],
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // Dinamik / Tek Seferlik Bağlantı Ayarı
               const Text(
                 'Referans Bağlantı Tipi:',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   Expanded(
                     child: ChoiceChip(
+                      showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       label: const Center(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -957,6 +1050,9 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: ChoiceChip(
+                      showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       label: const Center(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -981,19 +1077,19 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
               const SizedBox(height: 4),
               Text(
                 _isDynamicLink
-                    ? 'Dinamik: Referans alınan etkinliklerin saati değişirse bu kayıt da otomatik olarak güncellenir.'
-                    : 'Tek Seferlik: Etkinlikleri yalnızca ilk oluşturma aşamasında referans alır, sonraki değişikliklerden etkilenmez.',
+                    ? 'Dinamik: Referans alınan etkinliklerin saati değişirse bu kayıt da otomatik güncellenir.'
+                    : 'Tek Seferlik: Yalnızca ilk oluşturma anında referans alır, sonraki değişikliklerden etkilenmez.',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10.5,
                   color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // Özet / Önizleme Kartı
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: isDark
                       ? Colors.blue.withValues(alpha: 0.12)
@@ -1010,31 +1106,29 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.info_outline, size: 15, color: Colors.blue),
+                        Icon(Icons.info_outline, size: 14, color: Colors.blue),
                         SizedBox(width: 6),
                         Text(
                           'Hesaplanan Zaman Çizelgesi:',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                             color: Colors.blue,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
-                      '• Başlangıç: ${_formatDateTime(calculatedStart)}',
-                      style: const TextStyle(fontSize: 12),
+                      '• Başlangıç: ${_formatDateTime(calculatedStart)}  •  Bitiş: ${_formatDateTime(calculatedEnd)}',
+                      style: const TextStyle(fontSize: 11.5),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      '• Bitiş: ${_formatDateTime(calculatedEnd)}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    Text(
-                      '• Toplam Süre: ${calculatedEnd.difference(calculatedStart).inMinutes} dk (${_isDynamicLink ? "Dinamik Bağlı" : "Tek Seferlik"})',
+                      '• Süre: ${calculatedEnd.difference(calculatedStart).inMinutes} dk (${_isDynamicLink ? "Dinamik Bağlı" : "Tek Seferlik"})',
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1046,119 +1140,168 @@ class _FollowUpLogDialogState extends State<FollowUpLogDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('İptal'),
-        ),
-        // Gelişmiş formda aç
-        TextButton.icon(
-          onPressed: () {
-            final offsetMins =
-                int.tryParse(_offsetMinutesController.text.trim()) ?? 0;
-            final refStr = _referencePoint == FollowUpReferencePoint.start
-                ? 'start'
-                : 'end';
-            final untilRefStr =
-                _untilReferencePoint == FollowUpReferencePoint.start
-                ? 'start'
-                : 'end';
-            final effectiveParentId = _isDynamicLink ? _baseEventId : null;
-            final effectiveUntilId =
-                (_isDynamicLink && _durationType == FollowUpDurationType.until)
-                ? _selectedUntilCandidate?.eventId
-                : null;
-
-            Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => EventFormScreen(
-                  initialDate: calculatedStart,
-                  initialTo: calculatedEnd,
-                  initialTag: _tag,
-                  initialSubTag: _subTag,
-                  initialParentEventId: effectiveParentId,
-                  initialFollowUpOffsetMinutes: offsetMins,
-                  initialFollowUpReference: refStr,
-                  initialUntilEventId: effectiveUntilId,
-                  initialUntilOffsetMinutes: 0,
-                  initialUntilReference: untilRefStr,
+        Row(
+          children: [
+            // İptal Butonu
+            Expanded(
+              flex: 2,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'İptal',
+                  style: TextStyle(fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            );
-          },
-          icon: const Icon(Icons.open_in_new, size: 15),
-          label: const Text('Detaylı Form'),
-        ),
-        // Hızlı kaydet
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () {
-            final title = _titleController.text.trim().isEmpty
-                ? '$_baseTitle (Takip)'
-                : _titleController.text.trim();
-            final offsetMins =
-                int.tryParse(_offsetMinutesController.text.trim()) ?? 0;
-            final refStr = _referencePoint == FollowUpReferencePoint.start
-                ? 'start'
-                : 'end';
-            final untilRefStr =
-                _untilReferencePoint == FollowUpReferencePoint.start
-                ? 'start'
-                : 'end';
-            final effectiveParentId = _isDynamicLink ? _baseEventId : null;
-            final effectiveUntilId =
-                (_isDynamicLink && _durationType == FollowUpDurationType.until)
-                ? _selectedUntilCandidate?.eventId
-                : null;
-
-            final newEvent = Event(
-              id: IdGenerator.generate(title, date: calculatedStart),
-              title: title,
-              from: calculatedStart,
-              to: calculatedEnd,
-              colorValue: _colorValue,
-              tag: _tag,
-              subTag: _subTag,
-              projectId: _projectId,
-              parentEventId: effectiveParentId,
-              followUpOffsetMinutes: offsetMins,
-              followUpReference: refStr,
-              untilEventId: effectiveUntilId,
-              untilOffsetMinutes: 0,
-              untilReference: untilRefStr,
-            );
-
-            appState.addEvent(newEvent);
-            Navigator.pop(context);
-
-            final messenger = ScaffoldMessenger.of(context);
-            messenger.hideCurrentSnackBar();
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text('Takip eden kayıt oluşturuldu: "$title"'),
-                duration: const Duration(seconds: 4),
-                behavior: SnackBarBehavior.floating,
-                showCloseIcon: true,
-                closeIconColor: Colors.white70,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            ),
+            const SizedBox(width: 6),
+            // Detaylı Form Butonu
+            Expanded(
+              flex: 3,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                action: SnackBarAction(
-                  label: 'Geri Al',
-                  textColor: Colors.amber,
-                  onPressed: () {
-                    appState.deleteEvent(newEvent.id);
-                  },
+                onPressed: () {
+                  final offsetMins =
+                      int.tryParse(_offsetMinutesController.text.trim()) ?? 0;
+                  final refStr = _referencePoint == FollowUpReferencePoint.start
+                      ? 'start'
+                      : 'end';
+                  final untilRefStr =
+                      _untilReferencePoint == FollowUpReferencePoint.start
+                      ? 'start'
+                      : 'end';
+                  final effectiveParentId = _isDynamicLink ? _baseEventId : null;
+                  final effectiveUntilId =
+                      (_isDynamicLink && _durationType == FollowUpDurationType.until)
+                      ? _selectedUntilCandidate?.eventId
+                      : null;
+
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EventFormScreen(
+                        initialDate: calculatedStart,
+                        initialTo: calculatedEnd,
+                        initialTag: _tag,
+                        initialSubTag: _subTag,
+                        initialParentEventId: effectiveParentId,
+                        initialFollowUpOffsetMinutes: offsetMins,
+                        initialFollowUpReference: refStr,
+                        initialUntilEventId: effectiveUntilId,
+                        initialUntilOffsetMinutes: 0,
+                        initialUntilReference: untilRefStr,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: const Text(
+                  'Detaylı Form',
+                  style: TextStyle(fontSize: 11.5),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            );
-          },
-          child: const Text('Hızlı Ekle'),
+            ),
+            const SizedBox(width: 6),
+            // Hızlı Ekle Butonu
+            Expanded(
+              flex: 3,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 1,
+                ),
+                onPressed: () {
+                  final title = _titleController.text.trim().isEmpty
+                      ? '$_baseTitle (Takip)'
+                      : _titleController.text.trim();
+                  final offsetMins =
+                      int.tryParse(_offsetMinutesController.text.trim()) ?? 0;
+                  final refStr = _referencePoint == FollowUpReferencePoint.start
+                      ? 'start'
+                      : 'end';
+                  final untilRefStr =
+                      _untilReferencePoint == FollowUpReferencePoint.start
+                      ? 'start'
+                      : 'end';
+                  final effectiveParentId = _isDynamicLink ? _baseEventId : null;
+                  final effectiveUntilId =
+                      (_isDynamicLink && _durationType == FollowUpDurationType.until)
+                      ? _selectedUntilCandidate?.eventId
+                      : null;
+
+                  final newEvent = Event(
+                    id: IdGenerator.generate(title, date: calculatedStart),
+                    title: title,
+                    from: calculatedStart,
+                    to: calculatedEnd,
+                    colorValue: _colorValue,
+                    tag: _tag,
+                    subTag: _subTag,
+                    projectId: _projectId,
+                    parentEventId: effectiveParentId,
+                    followUpOffsetMinutes: offsetMins,
+                    followUpReference: refStr,
+                    untilEventId: effectiveUntilId,
+                    untilOffsetMinutes: 0,
+                    untilReference: untilRefStr,
+                  );
+
+                  appState.addEvent(newEvent);
+                  Navigator.pop(context);
+
+                  final messenger = ScaffoldMessenger.of(context);
+                  messenger.hideCurrentSnackBar();
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Takip eden kayıt oluşturuldu: "$title"'),
+                      duration: const Duration(seconds: 4),
+                      behavior: SnackBarBehavior.floating,
+                      showCloseIcon: true,
+                      closeIconColor: Colors.white70,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      action: SnackBarAction(
+                        label: 'Geri Al',
+                        textColor: Colors.amber,
+                        onPressed: () {
+                          appState.deleteEvent(newEvent.id);
+                        },
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.flash_on, size: 14),
+                label: const Text(
+                  'Hızlı Ekle',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
