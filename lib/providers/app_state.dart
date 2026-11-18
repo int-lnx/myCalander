@@ -45,7 +45,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.02';
+  static const String appVersion = '3.03';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -693,6 +693,17 @@ class AppState extends ChangeNotifier {
     _evaluationsSubscription = _firestoreService.getEvaluations(userId).listen((
       newEvals,
     ) async {
+      for (int i = 0; i < newEvals.length; i++) {
+        final ev = newEvals[i];
+        if (ev.checkStepsSnapshot == null) {
+          final proj = _projects.where((p) => p.id == ev.projectId).firstOrNull;
+          if (proj != null && (proj.checkSteps.isNotEmpty || ev.checkedSteps.isNotEmpty)) {
+            newEvals[i] = ev.copyWith(
+              checkStepsSnapshot: ev.getEffectiveSteps(proj.checkSteps),
+            );
+          }
+        }
+      }
       final oldJson = json.encode(_evaluations.map((e) => e.toJson()).toList());
       final newJson = json.encode(newEvals.map((e) => e.toJson()).toList());
       if (oldJson != newJson) {
@@ -889,6 +900,23 @@ class AppState extends ChangeNotifier {
       } catch (err) {
         debugPrint('Error loading evaluation: $err');
       }
+    }
+    // Snapshot koruması: Geçmiş değerlendirmelerde adımların kopyasını (snapshot) garantiye alıyoruz
+    bool evalsNeedsSave = false;
+    for (int i = 0; i < _evaluations.length; i++) {
+      final ev = _evaluations[i];
+      if (ev.checkStepsSnapshot == null) {
+        final proj = _projects.where((p) => p.id == ev.projectId).firstOrNull;
+        if (proj != null && (proj.checkSteps.isNotEmpty || ev.checkedSteps.isNotEmpty)) {
+          _evaluations[i] = ev.copyWith(
+            checkStepsSnapshot: ev.getEffectiveSteps(proj.checkSteps),
+          );
+          evalsNeedsSave = true;
+        }
+      }
+    }
+    if (evalsNeedsSave) {
+      _saveEvaluations();
     }
 
     final dayNotesJson = prefs.getStringList('dayNotes') ?? [];
@@ -2518,23 +2546,33 @@ class AppState extends ChangeNotifier {
   }
 
   void addOrUpdateEvaluation(ProjectEvaluation evaluation) {
+    ProjectEvaluation finalEval = evaluation;
+    if (finalEval.checkStepsSnapshot == null) {
+      final proj = _projects.where((p) => p.id == finalEval.projectId).firstOrNull;
+      if (proj != null && (proj.checkSteps.isNotEmpty || finalEval.checkedSteps.isNotEmpty)) {
+        finalEval = finalEval.copyWith(
+          checkStepsSnapshot: finalEval.getEffectiveSteps(proj.checkSteps),
+        );
+      }
+    }
+
     final index = _evaluations.indexWhere(
       (e) =>
-          e.projectId == evaluation.projectId &&
-          e.sessionDate == evaluation.sessionDate,
+          e.projectId == finalEval.projectId &&
+          e.sessionDate == finalEval.sessionDate,
     );
 
     String? oldStepId;
     if (index != -1) {
       oldStepId = _evaluations[index].stepId;
-      _evaluations[index] = evaluation;
+      _evaluations[index] = finalEval;
     } else {
-      _evaluations.add(evaluation);
+      _evaluations.add(finalEval);
     }
 
     // Limit to latest 100 evaluations for this project
     final projectEvals = _evaluations
-        .where((e) => e.projectId == evaluation.projectId)
+        .where((e) => e.projectId == finalEval.projectId)
         .toList();
     if (projectEvals.length > 100) {
       projectEvals.sort(
@@ -2548,10 +2586,10 @@ class AppState extends ChangeNotifier {
 
     // Synchronize daily reports of associated Steps
     final dayKey =
-        '${evaluation.sessionDate.year}-${evaluation.sessionDate.month.toString().padLeft(2, '0')}-${evaluation.sessionDate.day.toString().padLeft(2, '0')}';
+        '${finalEval.sessionDate.year}-${finalEval.sessionDate.month.toString().padLeft(2, '0')}-${finalEval.sessionDate.day.toString().padLeft(2, '0')}';
 
     // If step changed, remove report from old step
-    if (oldStepId != null && oldStepId != evaluation.stepId) {
+    if (oldStepId != null && oldStepId != finalEval.stepId) {
       final oldStepIdx = _topicPlans.indexWhere((p) => p.id == oldStepId);
       if (oldStepIdx != -1) {
         final Map<String, PlanDayReport> updatedReports = Map.from(
@@ -2567,16 +2605,16 @@ class AppState extends ChangeNotifier {
     }
 
     // Add or update report in new step
-    if (evaluation.stepId != null) {
-      final stepIdx = _topicPlans.indexWhere((p) => p.id == evaluation.stepId);
+    if (finalEval.stepId != null) {
+      final stepIdx = _topicPlans.indexWhere((p) => p.id == finalEval.stepId);
       if (stepIdx != -1) {
         final Map<String, PlanDayReport> updatedReports = Map.from(
           _topicPlans[stepIdx].dayReports,
         );
         updatedReports[dayKey] = PlanDayReport(
-          offset: evaluation.isSkipped ? 1 : 0,
-          note: evaluation.note ?? '',
-          performancePercent: evaluation.performancePercent ?? evaluation.score,
+          offset: finalEval.isSkipped ? 1 : 0,
+          note: finalEval.note ?? '',
+          performancePercent: finalEval.performancePercent ?? finalEval.score,
         );
         final updatedPlan = _topicPlans[stepIdx].copyWith(
           dayReports: updatedReports,
@@ -2589,7 +2627,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     _saveEvaluations();
     _saveTopicPlans();
-    _firestoreSaveEvaluation(evaluation);
+    _firestoreSaveEvaluation(finalEval);
   }
 
   void addOrUpdateDayNote(
@@ -4755,9 +4793,12 @@ class AppState extends ChangeNotifier {
             performancePercent: report.performancePercent,
             trackingValues: old.trackingValues,
             stepId: null,
+            checkedSteps: old.checkedSteps,
+            checkStepsSnapshot: old.checkStepsSnapshot,
           );
           _firestoreSaveEvaluation(_evaluations[existingIdx]);
         } else {
+          final proj = _projects.where((p) => p.id == projectId).firstOrNull;
           final newEval = ProjectEvaluation(
             id: IdGenerator.generate('degerlendirme_$projectId'),
             projectId: projectId!,
@@ -4770,6 +4811,7 @@ class AppState extends ChangeNotifier {
             performancePercent: report.performancePercent,
             trackingValues: const [],
             stepId: null,
+            checkStepsSnapshot: proj?.checkSteps,
           );
           _evaluations.add(newEval);
           _firestoreSaveEvaluation(newEval);

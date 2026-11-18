@@ -369,8 +369,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val != null)
+                                  if (val != null) {
                                     setDialogState(() => tempHour = val);
+                                  }
                                 },
                               ),
                               const Text(
@@ -398,8 +399,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val != null)
+                                  if (val != null) {
                                     setDialogState(() => tempMinute = val);
+                                  }
                                 },
                               ),
                               const SizedBox(width: 8),
@@ -936,8 +938,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                               _tagController.text = t;
                               _subTag = null;
                               final defaultColor = appState.getTaskTagColor(t);
-                              if (defaultColor != null)
+                              if (defaultColor != null) {
                                 _colorValue = defaultColor;
+                              }
                             });
                           },
                   ),

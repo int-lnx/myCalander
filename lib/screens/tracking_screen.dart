@@ -542,6 +542,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
       durationHours: mergedHours,
       note: mergedNote,
       performancePercent: finalPerformancePercent,
+      checkedSteps: originalEval?.checkedSteps ?? const [],
+      checkStepsSnapshot: originalEval?.checkStepsSnapshot,
     );
   }
 

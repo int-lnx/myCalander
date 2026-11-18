@@ -1,3 +1,4 @@
+import 'project.dart';
 import 'tracking_value.dart';
 
 class ProjectEvaluation {
@@ -13,6 +14,7 @@ class ProjectEvaluation {
   final bool isTimeless;
   final List<TrackingValue> trackingValues;
   final List<String> checkedSteps;
+  final List<ProjectStep>? checkStepsSnapshot;
 
   const ProjectEvaluation({
     required this.id,
@@ -27,7 +29,24 @@ class ProjectEvaluation {
     this.isTimeless = false,
     this.trackingValues = const [],
     this.checkedSteps = const [],
+    this.checkStepsSnapshot,
   });
+
+  /// Bu değerlendirmeye ait geçerli kontrol adımlarını döner.
+  /// Eğer değerlendirme kaydedilirken checkStepsSnapshot alınmışsa onu döner.
+  /// Aksi halde (legacy kayıtlar için) mevcut adımları ve geçmişte işaretlenmiş adımları birleştirir.
+  List<ProjectStep> getEffectiveSteps(List<ProjectStep> currentProjectSteps) {
+    if (checkStepsSnapshot != null && checkStepsSnapshot!.isNotEmpty) {
+      return checkStepsSnapshot!;
+    }
+    final result = List<ProjectStep>.from(currentProjectSteps);
+    for (final checked in checkedSteps) {
+      if (!result.any((s) => s.title == checked)) {
+        result.add(ProjectStep(title: checked));
+      }
+    }
+    return result;
+  }
 
   ProjectEvaluation copyWith({
     String? id,
@@ -42,9 +61,11 @@ class ProjectEvaluation {
     bool? isTimeless,
     List<TrackingValue>? trackingValues,
     List<String>? checkedSteps,
+    List<ProjectStep>? checkStepsSnapshot,
     bool clearNote = false,
     bool clearStepId = false,
     bool clearPerformancePercent = false,
+    bool clearCheckStepsSnapshot = false,
   }) {
     return ProjectEvaluation(
       id: id ?? this.id,
@@ -59,6 +80,7 @@ class ProjectEvaluation {
       isTimeless: isTimeless ?? this.isTimeless,
       trackingValues: trackingValues ?? this.trackingValues,
       checkedSteps: checkedSteps ?? this.checkedSteps,
+      checkStepsSnapshot: clearCheckStepsSnapshot ? null : (checkStepsSnapshot ?? this.checkStepsSnapshot),
     );
   }
 
@@ -76,6 +98,8 @@ class ProjectEvaluation {
       'isTimeless': isTimeless,
       'trackingValues': trackingValues.map((v) => v.toJson()).toList(),
       'checkedSteps': checkedSteps,
+      if (checkStepsSnapshot != null)
+        'checkStepsSnapshot': checkStepsSnapshot!.map((v) => v.toJson()).toList(),
     };
   }
 
@@ -93,6 +117,17 @@ class ProjectEvaluation {
       cSteps = List<String>.from(json['checkedSteps']);
     }
 
+    List<ProjectStep>? snapshotSteps;
+    if (json['checkStepsSnapshot'] is List) {
+      snapshotSteps = (json['checkStepsSnapshot'] as List)
+          .map((v) => ProjectStep.fromJson(v as Map<String, dynamic>))
+          .toList();
+    } else if (json['checkSteps'] is List) {
+      snapshotSteps = (json['checkSteps'] as List)
+          .map((v) => ProjectStep.fromJson(v as Map<String, dynamic>))
+          .toList();
+    }
+
     return ProjectEvaluation(
       id: json['id'] as String? ?? '',
       projectId: json['projectId'] as String? ?? '',
@@ -106,6 +141,7 @@ class ProjectEvaluation {
       isTimeless: json['isTimeless'] as bool? ?? false,
       trackingValues: tValues,
       checkedSteps: cSteps,
+      checkStepsSnapshot: snapshotSteps,
     );
   }
 }

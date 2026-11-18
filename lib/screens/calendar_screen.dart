@@ -4264,8 +4264,9 @@ class _CalendarScreenState extends State<CalendarScreen>
                                       textCardWidth -= 2.0;
                                     }
                                     if (cardWidth < 10.0) cardWidth = 10.0;
-                                    if (textCardWidth < 10.0)
+                                    if (textCardWidth < 10.0) {
                                       textCardWidth = 10.0;
+                                    }
                                     final double extraRightPad =
                                         (cardWidth - textCardWidth).clamp(
                                           0.0,
@@ -5289,8 +5290,9 @@ class _CalendarScreenState extends State<CalendarScreen>
                                                 if (aIsAllDay && !bIsAllDay) {
                                                   return -1;
                                                 }
-                                                if (!aIsAllDay && bIsAllDay)
+                                                if (!aIsAllDay && bIsAllDay) {
                                                   return 1;
+                                                }
 
                                                 if (!aIsAllDay && !bIsAllDay) {
                                                   DateTime aFrom = a is Event
@@ -8689,8 +8691,9 @@ class EventDataSource extends CalendarDataSource {
         final project = appState!.projects.firstWhere(
           (p) => p.id == item.projectId,
         );
-        if (item.isSkipped)
+        if (item.isSkipped) {
           return '📊 ${project.title}: Pas ${appState!.getPasCount(project.id, item.sessionDate)}';
+        }
         if (project.evaluationType == 'PERCENTAGE') {
           if (item.performancePercent != null) {
             return '📊 ${project.title}: %${item.performancePercent!.toStringAsFixed(0)}';

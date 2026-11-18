@@ -1587,7 +1587,7 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
                               Icon(Icons.check_box_outlined, size: 12, color: Colors.grey.shade600),
                               const SizedBox(width: 4),
                               Text(
-                                '${eval.checkedSteps.length}/${project.checkSteps.length} Adım',
+                                '${eval.checkedSteps.length}/${eval.getEffectiveSteps(project.checkSteps).length} Adım',
                                 style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                               ),
                               const SizedBox(width: 10),

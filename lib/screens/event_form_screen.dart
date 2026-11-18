@@ -640,8 +640,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val != null)
+                                  if (val != null) {
                                     setDialogState(() => tempHour = val);
+                                  }
                                 },
                               ),
                               const Text(
@@ -669,8 +670,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val != null)
+                                  if (val != null) {
                                     setDialogState(() => tempMinute = val);
+                                  }
                                 },
                               ),
                               const SizedBox(width: 8),
@@ -1445,8 +1447,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
     if (offset % 10080 == 0) return '${offset ~/ 10080} hafta önce';
     if (offset % 1440 == 0) return '${offset ~/ 1440} gün önce';
     if (offset % 60 == 0) return '${offset ~/ 60} saat önce';
-    if (offset >= 1440)
+    if (offset >= 1440) {
       return '${offset ~/ 1440} gün ${offset % 1440 ~/ 60} saat önce';
+    }
     if (offset >= 60) return '${offset ~/ 60} saat ${offset % 60} dk önce';
     return '$offset dk önce';
   }

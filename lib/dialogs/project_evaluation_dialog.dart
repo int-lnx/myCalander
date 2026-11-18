@@ -5,6 +5,14 @@ import '../models/project_evaluation.dart';
 import '../providers/app_state.dart';
 import '../utils/id_generator.dart';
 
+bool _areStepsIdentical(List<ProjectStep> a, List<ProjectStep> b) {
+  if (a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    if (a[i].title != b[i].title || a[i].weight != b[i].weight) return false;
+  }
+  return true;
+}
+
 void showProjectEvaluationDialog({
   required BuildContext context,
   required Project project,
@@ -56,6 +64,9 @@ void showProjectEvaluationDialog({
   final noteCtrl = TextEditingController(text: existingEval.note ?? '');
   bool isSkipped = existingEval.id.isNotEmpty ? existingEval.isSkipped : false;
   final List<String> checkedSteps = List<String>.from(existingEval.checkedSteps);
+  List<ProjectStep> currentSteps = existingEval.id.isNotEmpty
+      ? List<ProjectStep>.from(existingEval.getEffectiveSteps(project.checkSteps))
+      : List<ProjectStep>.from(project.checkSteps);
 
   showDialog(
     context: context,
@@ -111,31 +122,74 @@ void showProjectEvaluationDialog({
                     },
                   ),
                   if (!isSkipped) ...[
-                    if (project.checkSteps.isNotEmpty) ...[
+                    if (currentSteps.isNotEmpty) ...[
                       const Divider(),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Kontrol Adımları (Checklist)',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Kontrol Adımları (Checklist)',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          if (existingEval.id.isNotEmpty &&
+                              project.checkSteps.isNotEmpty &&
+                              !_areStepsIdentical(currentSteps, project.checkSteps))
+                            TextButton.icon(
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  currentSteps = List<ProjectStep>.from(project.checkSteps);
+                                  // Recalculate percentCtrl automatically
+                                  double totalPct = 0.0;
+                                  final explicitSum = currentSteps
+                                      .where((s) => s.weight != null)
+                                      .map((s) => s.weight!)
+                                      .fold(0.0, (a, b) => a + b);
+                                  final implicitCount = currentSteps.where((s) => s.weight == null).length;
+                                  for (var s in currentSteps) {
+                                    if (checkedSteps.contains(s.title)) {
+                                      double w = 0.0;
+                                      if (s.weight != null) {
+                                        w = s.weight!;
+                                      } else if (implicitCount > 0) {
+                                        final rem = 100.0 - explicitSum;
+                                        w = rem > 0 ? rem / implicitCount : 100.0 / currentSteps.length;
+                                      } else {
+                                        w = 100.0 / currentSteps.length;
+                                      }
+                                      totalPct += w;
+                                    }
+                                  }
+                                  percentCtrl.text = totalPct.toStringAsFixed(0);
+                                });
+                              },
+                              icon: const Icon(Icons.sync, size: 14),
+                              label: const Text('Güncel Şablona Eşitle', style: TextStyle(fontSize: 11)),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 8),
-                      ...project.checkSteps.map((step) {
+                      ...currentSteps.map((step) {
                         final isChecked = checkedSteps.contains(step.title);
                         
-                        // Calculate weight dynamically
-                        final explicitSum = project.checkSteps
+                        // Calculate weight dynamically based on currentSteps
+                        final explicitSum = currentSteps
                             .where((s) => s.weight != null)
                             .map((s) => s.weight!)
                             .fold(0.0, (a, b) => a + b);
-                        final implicitCount = project.checkSteps.where((s) => s.weight == null).length;
+                        final implicitCount = currentSteps.where((s) => s.weight == null).length;
                         double weight = 0.0;
                         if (step.weight != null) {
                           weight = step.weight!;
                         } else if (implicitCount > 0) {
                           final remaining = 100.0 - explicitSum;
-                          weight = remaining > 0 ? remaining / implicitCount : 100.0 / project.checkSteps.length;
+                          weight = remaining > 0 ? remaining / implicitCount : 100.0 / currentSteps.length;
                         } else {
-                          weight = 100.0 / project.checkSteps.length;
+                          weight = 100.0 / currentSteps.length;
                         }
 
                         return CheckboxListTile(
@@ -151,18 +205,18 @@ void showProjectEvaluationDialog({
                                 checkedSteps.remove(step.title);
                               }
                               
-                              // Recalculate percentCtrl automatically
+                              // Recalculate percentCtrl automatically based on currentSteps
                               double totalPct = 0.0;
-                              for (var s in project.checkSteps) {
+                              for (var s in currentSteps) {
                                 if (checkedSteps.contains(s.title)) {
                                   double w = 0.0;
                                   if (s.weight != null) {
                                     w = s.weight!;
                                   } else if (implicitCount > 0) {
                                     final rem = 100.0 - explicitSum;
-                                    w = rem > 0 ? rem / implicitCount : 100.0 / project.checkSteps.length;
+                                    w = rem > 0 ? rem / implicitCount : 100.0 / currentSteps.length;
                                   } else {
-                                    w = 100.0 / project.checkSteps.length;
+                                    w = 100.0 / currentSteps.length;
                                   }
                                   totalPct += w;
                                 }
@@ -340,6 +394,7 @@ void showProjectEvaluationDialog({
                     note: (project.trackNote && noteCtrl.text.trim().isNotEmpty) ? noteCtrl.text.trim() : null,
                     performancePercent: pctVal,
                     checkedSteps: checkedSteps,
+                    checkStepsSnapshot: currentSteps,
                   );
                   
                   appState.addOrUpdateEvaluation(eval);
