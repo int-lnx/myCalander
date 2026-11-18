@@ -12,6 +12,7 @@ class _NoteItemController {
   final String id;
   final TextEditingController textController;
   final FocusNode focusNode;
+  final ScrollController scrollController;
   final List<String> tags;
   bool isAddingTag;
   final TextEditingController tagController;
@@ -21,8 +22,10 @@ class _NoteItemController {
     required this.id,
     required this.textController,
     required this.focusNode,
+    ScrollController? scrollController,
     List<String>? tags,
-  })  : tags = tags ?? [],
+  })  : scrollController = scrollController ?? ScrollController(),
+        tags = tags ?? [],
         isAddingTag = false,
         tagController = TextEditingController(),
         tagFocusNode = FocusNode();
@@ -30,6 +33,7 @@ class _NoteItemController {
   void dispose() {
     textController.dispose();
     focusNode.dispose();
+    scrollController.dispose();
     tagController.dispose();
     tagFocusNode.dispose();
   }
@@ -1119,54 +1123,64 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               }),
 
               // Ek Yazı Yazma Barı (Yeni Not Ekleme Barı)
-              Container(
-                margin: const EdgeInsets.only(top: 4, bottom: 8),
-                decoration: BoxDecoration(
-                  color: widget.appState.isDarkMode
-                      ? const Color(0xFF1E1E1E)
-                      : Colors.amber.shade50.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.amber.withValues(alpha: 0.6),
-                    width: 1.2,
-                  ),
-                ),
-                child: TextField(
-                  controller: _newNoteInputController,
-                  focusNode: _newNoteInputFocusNode,
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.add_circle, color: Colors.amber, size: 20),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_forward_rounded, color: Colors.amber, size: 20),
-                      tooltip: 'Not Ekle',
-                      onPressed: () {
-                        if (_newNoteInputController.text.isNotEmpty) {
-                          _onNewNoteInputChanged(_newNoteInputController.text);
-                        } else {
-                          _addNewEmptyNote();
-                        }
-                      },
+              Listener(
+                onPointerSignal: (pointerSignal) {
+                  if (pointerSignal is PointerScrollEvent) {
+                    GestureBinding.instance.pointerSignalResolver.register(
+                      pointerSignal,
+                      (event) {},
+                    );
+                  }
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(top: 4, bottom: 8),
+                  decoration: BoxDecoration(
+                    color: widget.appState.isDarkMode
+                        ? const Color(0xFF1E1E1E)
+                        : Colors.amber.shade50.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.amber.withValues(alpha: 0.6),
+                      width: 1.2,
                     ),
-                    hintText: 'Başka bir not eklemek için buraya yazın...',
-                    hintStyle: TextStyle(
-                      fontSize: 13,
-                      color: widget.appState.isDarkMode ? Colors.white38 : Colors.grey.shade500,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 12, vertical: isMobile ? 10 : 12),
                   ),
-                  onChanged: (val) {
-                    if (val.isNotEmpty) {
-                      _onNewNoteInputChanged(val);
-                    }
-                  },
-                  onSubmitted: (val) {
-                    if (val.isNotEmpty) {
-                      _onNewNoteInputChanged(val);
-                    } else {
-                      _addNewEmptyNote();
-                    }
-                  },
+                  child: TextField(
+                    controller: _newNoteInputController,
+                    focusNode: _newNoteInputFocusNode,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.add_circle, color: Colors.amber, size: 20),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.arrow_forward_rounded, color: Colors.amber, size: 20),
+                        tooltip: 'Not Ekle',
+                        onPressed: () {
+                          if (_newNoteInputController.text.isNotEmpty) {
+                            _onNewNoteInputChanged(_newNoteInputController.text);
+                          } else {
+                            _addNewEmptyNote();
+                          }
+                        },
+                      ),
+                      hintText: 'Başka bir not eklemek için buraya yazın...',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: widget.appState.isDarkMode ? Colors.white38 : Colors.grey.shade500,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 12, vertical: isMobile ? 10 : 12),
+                    ),
+                    onChanged: (val) {
+                      if (val.isNotEmpty) {
+                        _onNewNoteInputChanged(val);
+                      }
+                    },
+                    onSubmitted: (val) {
+                      if (val.isNotEmpty) {
+                        _onNewNoteInputChanged(val);
+                      } else {
+                        _addNewEmptyNote();
+                      }
+                    },
+                  ),
                 ),
               ),
 
@@ -1279,91 +1293,115 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
   }
 
   Widget _buildNoteItemWidget(int index, _NoteItemController item, bool isDark, bool isMobile) {
-    return Container(
-      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
-      padding: EdgeInsets.all(isMobile ? 8 : 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isDark ? Colors.white12 : Colors.grey.shade300,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.edit_note,
-                    size: 18,
-                    color: Colors.amber.shade700,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _noteItems.length > 1 ? 'Not ${index + 1}' : 'Not',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.amber.shade300 : Colors.amber.shade900,
-                    ),
-                  ),
-                ],
-              ),
-              if (_noteItems.length > 1)
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  color: Colors.red.shade400,
-                  tooltip: 'Bu notu sil',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () {
-                    setState(() {
-                      item.dispose();
-                      _noteItems.removeAt(index);
-                    });
-                  },
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: item.textController,
-            focusNode: item.focusNode,
-            minLines: 3,
-            maxLines: 10,
-            style: const TextStyle(fontSize: 14),
-            decoration: InputDecoration(
-              hintText: index == 0
-                  ? 'Bugün için notlarınızı buraya yazın...'
-                  : 'Ek notunuzu buraya yazın...',
-              hintStyle: TextStyle(
-                fontSize: 13,
-                color: isDark ? Colors.white38 : Colors.grey.shade400,
-              ),
-              isDense: true,
-              contentPadding: EdgeInsets.all(isMobile ? 8 : 10),
-              filled: true,
-              fillColor: isDark ? const Color(0xFF282828) : Colors.grey.shade50,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: isDark ? Colors.white10 : Colors.grey.shade300,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Colors.amber, width: 1.5),
-              ),
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) => true,
+      child: Listener(
+        onPointerSignal: (pointerSignal) {
+          if (pointerSignal is PointerScrollEvent) {
+            GestureBinding.instance.pointerSignalResolver.register(
+              pointerSignal,
+              (event) {
+                if (item.scrollController.hasClients &&
+                    item.scrollController.position.maxScrollExtent > 0) {
+                  final double target = (item.scrollController.offset +
+                          pointerSignal.scrollDelta.dy)
+                      .clamp(0.0, item.scrollController.position.maxScrollExtent);
+                  if (target != item.scrollController.offset) {
+                    item.scrollController.jumpTo(target);
+                  }
+                }
+              },
+            );
+          }
+        },
+        child: Container(
+          margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
+          padding: EdgeInsets.all(isMobile ? 8 : 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isDark ? Colors.white12 : Colors.grey.shade300,
+              width: 1,
             ),
           ),
-          const SizedBox(height: 10),
-          _buildTagAreaForItem(item, isDark),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.edit_note,
+                        size: 18,
+                        color: Colors.amber.shade700,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _noteItems.length > 1 ? 'Not ${index + 1}' : 'Not',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.amber.shade300 : Colors.amber.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_noteItems.length > 1)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      color: Colors.red.shade400,
+                      tooltip: 'Bu notu sil',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () {
+                        setState(() {
+                          item.dispose();
+                          _noteItems.removeAt(index);
+                        });
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: item.textController,
+                focusNode: item.focusNode,
+                scrollController: item.scrollController,
+                minLines: 3,
+                maxLines: 10,
+                style: const TextStyle(fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: index == 0
+                      ? 'Bugün için notlarınızı buraya yazın...'
+                      : 'Ek notunuzu buraya yazın...',
+                  hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white38 : Colors.grey.shade400,
+                  ),
+                  isDense: true,
+                  contentPadding: EdgeInsets.all(isMobile ? 8 : 10),
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF282828) : Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.white10 : Colors.grey.shade300,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.amber, width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _buildTagAreaForItem(item, isDark),
+            ],
+          ),
+        ),
       ),
     );
   }
