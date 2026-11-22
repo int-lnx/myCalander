@@ -509,5 +509,79 @@ class FirestoreService {
         .get();
     return doc.data();
   }
+
+  // --- IDEAL WEEK MATRIX & KEYWORDS (HAFTALIK-2) ---
+  Future<void> saveIdealWeekMatrix(
+    String userId,
+    Map<String, String> matrix,
+  ) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('ideal_week_matrix')
+        .set({
+          'matrix': matrix,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+  }
+
+  Future<Map<String, dynamic>?> getIdealWeekMatrix(String userId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('ideal_week_matrix')
+        .get();
+    return doc.data();
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getIdealWeekMatrixStream(
+    String userId,
+  ) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('ideal_week_matrix')
+        .snapshots();
+  }
+
+  Future<void> saveIdealWeekKeywords(
+    String userId,
+    List<Map<String, dynamic>> keywordsJson,
+  ) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('ideal_week_keywords')
+        .set({
+          'keywords': keywordsJson,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+  }
+
+  Future<Map<String, dynamic>?> getIdealWeekKeywords(String userId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('ideal_week_keywords')
+        .get();
+    return doc.data();
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getIdealWeekKeywordsStream(
+    String userId,
+  ) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('ideal_week_keywords')
+        .snapshots();
+  }
 }
+
 

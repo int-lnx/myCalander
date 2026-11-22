@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import 'settings_screen.dart';
+import 'weekly_matrix_screen.dart';
 import '../models/note.dart';
 import '../utils/id_generator.dart';
 
@@ -211,6 +212,186 @@ class _AppDrawerState extends State<AppDrawer> {
                     _buildNavItem(2, 'Projeler', Icons.rocket_launch),
                     _buildNavItem(3, 'Analiz', Icons.bar_chart),
                     _buildNavItem(4, 'Notlar', Icons.note_alt),
+                    const Divider(),
+                  ],
+
+                  // HAFTALIK-2 (İDEAL HAFTA) ANAHTAR KELİME MODÜLÜ
+                  // Sadece Haftalık-2 sekmesi seçili iken sol pencerede açılır
+                  if (appState.showWeekly2View) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 6.0,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.palette_outlined,
+                            size: 18,
+                            color: Colors.purple,
+                          ),
+                          const SizedBox(width: 6),
+                          const Expanded(
+                            child: Text(
+                              'Haftalık-2 Kelimeleri',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.purple,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              backgroundColor: Colors.purple.withValues(alpha: 0.1),
+                            ),
+                            onPressed: () {
+                              showWeeklyKeywordRuleDialog(context, appState);
+                            },
+                            icon: const Icon(Icons.add, size: 15, color: Colors.purple),
+                            label: const Text(
+                              'Ekle',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.purple,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (appState.weeklyKeywordRules.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 6.0,
+                        ),
+                        child: Text(
+                          'Henüz anahtar kelime tanımlanmadı. Örneğin "Canik: Mor", "Havuz: Yeşil" eklemek için Ekle butonuna basın.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.white54 : Colors.black54,
+                          ),
+                        ),
+                      )
+                    else
+                      ...appState.weeklyKeywordRules.map((rule) {
+                        final colVal = appState.resolveKeywordRuleColor(rule);
+                        final baseCol = Color(colVal);
+                        String? linkSubtitle;
+                        if (rule.linkedProjectId != null &&
+                            rule.linkedProjectId!.isNotEmpty) {
+                          final proj = appState.projects
+                              .where((p) => p.id == rule.linkedProjectId)
+                              .firstOrNull;
+                          if (proj != null) {
+                            linkSubtitle = 'Proje: ${proj.title}';
+                          }
+                        } else if (rule.linkedTag != null &&
+                            rule.linkedTag!.isNotEmpty) {
+                          linkSubtitle = 'Etiket: ${rule.linkedTag}';
+                        }
+
+                        return InkWell(
+                          onTap: () {
+                            showWeeklyKeywordRuleDialog(
+                              context,
+                              appState,
+                              existingRule: rule,
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 3.0,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10.0,
+                              vertical: 7.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: baseCol.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(8.0),
+                              border: Border.all(
+                                color: baseCol,
+                                width: 1.3,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: baseCol,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        rule.keyword,
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (linkSubtitle != null)
+                                        Text(
+                                          linkSubtitle,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: isDark
+                                                ? Colors.white70
+                                                : Colors.black54,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, size: 15),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Düzenle',
+                                  onPressed: () {
+                                    showWeeklyKeywordRuleDialog(
+                                      context,
+                                      appState,
+                                      existingRule: rule,
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 6),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 15,
+                                    color: Colors.redAccent,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Sil',
+                                  onPressed: () {
+                                    appState.deleteWeeklyKeywordRule(rule.id);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
                     const Divider(),
                   ],
 

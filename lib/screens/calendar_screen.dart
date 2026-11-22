@@ -26,6 +26,7 @@ import 'project_form_screen.dart';
 import 'all_timeline_screen.dart';
 import 'recent_items_screen.dart';
 import 'daily_notes_screen.dart';
+import 'weekly_matrix_screen.dart';
 import 'package:my_plan/screens/plan_screen.dart' show PlanScreen;
 import '../dialogs/project_evaluation_dialog.dart';
 import '../dialogs/follow_up_log_dialog.dart';
@@ -1013,7 +1014,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     if (appState.showPlanView ||
         appState.showSeritView ||
         appState.showRecentView ||
-        appState.showDailyNotesView) {
+        appState.showDailyNotesView ||
+        appState.showWeekly2View) {
       return false;
     }
     return appState.calendarView == CalendarView.day ||
@@ -2658,7 +2660,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     if (appState.showPlanView ||
         appState.showSeritView ||
         appState.showRecentView ||
-        appState.showDailyNotesView) {
+        appState.showDailyNotesView ||
+        appState.showWeekly2View) {
       if (_copiedItem != null || _manipulatedCardId != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -2679,6 +2682,9 @@ class _CalendarScreenState extends State<CalendarScreen>
       }
       if (appState.showRecentView) {
         return const RecentItemsScreen();
+      }
+      if (appState.showWeekly2View) {
+        return const WeeklyMatrixScreen();
       }
       return const DailyNotesScreen();
     }
@@ -8982,17 +8988,12 @@ class _CalendarInteractionGestureRecognizer
 class _MarchingAntsBorderPainter extends CustomPainter {
   final Animation<double> animation;
   final double borderRadius;
-  final double strokeWidth;
-  final double dashWidth;
-  final double dashSpace;
+  final double strokeWidth = 2.5;
+  final double dashWidth = 6.0;
+  final double dashSpace = 4.0;
 
-  _MarchingAntsBorderPainter({
-    required this.animation,
-    this.borderRadius = 6.0,
-    this.strokeWidth = 2.5,
-    this.dashWidth = 6.0,
-    this.dashSpace = 4.0,
-  }) : super(repaint: animation);
+  _MarchingAntsBorderPainter({required this.animation, this.borderRadius = 6.0})
+    : super(repaint: animation);
 
   @override
   void paint(Canvas canvas, Size size) {

@@ -20,6 +20,7 @@ import '../models/topic.dart';
 import '../models/topic_plan.dart';
 import '../models/note.dart';
 import '../models/day_note.dart';
+import '../models/weekly_matrix_model.dart';
 import '../services/notification_service.dart';
 
 String? _sanitizeRRule(String? rule, DateTime startDate) {
@@ -45,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.04';
+  static const String appVersion = '3.05';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -204,6 +205,18 @@ class AppState extends ChangeNotifier {
   bool _showDailyNotesView = false;
   bool get showDailyNotesView => _showDailyNotesView;
 
+  bool _showWeekly2View = false;
+  bool get showWeekly2View => _showWeekly2View;
+
+  Map<String, String> _idealWeekMatrix = {};
+  Map<String, String> get idealWeekMatrix => _idealWeekMatrix;
+
+  List<WeeklyKeywordRule> _weeklyKeywordRules = [];
+  List<WeeklyKeywordRule> get weeklyKeywordRules => _weeklyKeywordRules;
+
+  bool _weekly2HideEmptyHours = false;
+  bool get weekly2HideEmptyHours => _weekly2HideEmptyHours;
+
   List<Topic> _topics = [];
   List<Topic> get topics => _topics;
 
@@ -263,6 +276,8 @@ class AppState extends ChangeNotifier {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _keepNotesSubscription;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _quickNoteSubscription;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _filterPresetsSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _idealWeekMatrixSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _idealWeekKeywordsSubscription;
 
   List<SavedFilterPreset> _savedFilterPresets = [];
   List<SavedFilterPreset> get savedFilterPresets => _savedFilterPresets;
@@ -838,6 +853,55 @@ class AppState extends ChangeNotifier {
         notifyListeners();
       }
     });
+
+    _idealWeekMatrixSubscription = _firestoreService.getIdealWeekMatrixStream(userId).listen((snapshot) async {
+      try {
+        if (snapshot.exists && snapshot.data() != null) {
+          final data = snapshot.data()!;
+          if (data['matrix'] is Map) {
+            final Map<String, String> remoteMatrix = Map<String, String>.from(
+              (data['matrix'] as Map).map(
+                (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+              ),
+            );
+            final oldJson = json.encode(_idealWeekMatrix);
+            final newJson = json.encode(remoteMatrix);
+            if (oldJson != newJson) {
+              _idealWeekMatrix = remoteMatrix;
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('ideal_week_matrix', newJson);
+              notifyListeners();
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error in idealWeekMatrix listener: $e');
+      }
+    });
+
+    _idealWeekKeywordsSubscription = _firestoreService.getIdealWeekKeywordsStream(userId).listen((snapshot) async {
+      try {
+        if (snapshot.exists && snapshot.data() != null) {
+          final data = snapshot.data()!;
+          if (data['keywords'] is List) {
+            final List<dynamic> remoteList = data['keywords'] as List<dynamic>;
+            final List<WeeklyKeywordRule> parsedRules = remoteList
+                .map((k) => WeeklyKeywordRule.fromJson(Map<String, dynamic>.from(k as Map)))
+                .toList();
+            final oldJson = json.encode(_weeklyKeywordRules.map((k) => k.toJson()).toList());
+            final newJson = json.encode(parsedRules.map((k) => k.toJson()).toList());
+            if (oldJson != newJson) {
+              _weeklyKeywordRules = parsedRules;
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('ideal_week_keywords', newJson);
+              notifyListeners();
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error in idealWeekKeywords listener: $e');
+      }
+    });
   }
 
   void _cancelFirestoreListeners() {
@@ -852,6 +916,8 @@ class AppState extends ChangeNotifier {
     _keepNotesSubscription?.cancel();
     _quickNoteSubscription?.cancel();
     _filterPresetsSubscription?.cancel();
+    _idealWeekMatrixSubscription?.cancel();
+    _idealWeekKeywordsSubscription?.cancel();
   }
 
   Future<void> _loadData() async {
@@ -1127,6 +1193,32 @@ class AppState extends ChangeNotifier {
         _savedFilterPresets.add(SavedFilterPreset.fromJson(json.decode(p)));
       } catch (err) {
         debugPrint('Error loading filter preset: $err');
+      }
+    }
+
+    // Haftalık-2 (İdeal Hafta Rutini & Anahtar Kelimeler)
+    _weekly2HideEmptyHours = prefs.getBool('weekly2_hide_empty_hours') ?? false;
+    final matrixJsonStr = prefs.getString('ideal_week_matrix');
+    if (matrixJsonStr != null && matrixJsonStr.isNotEmpty) {
+      try {
+        final Map<String, dynamic> decoded = json.decode(matrixJsonStr);
+        _idealWeekMatrix = decoded.map(
+          (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+        );
+      } catch (e) {
+        debugPrint('Error loading ideal_week_matrix: $e');
+      }
+    }
+
+    final keywordsJsonStr = prefs.getString('ideal_week_keywords');
+    if (keywordsJsonStr != null && keywordsJsonStr.isNotEmpty) {
+      try {
+        final List<dynamic> decodedList = json.decode(keywordsJsonStr);
+        _weeklyKeywordRules = decodedList
+            .map((k) => WeeklyKeywordRule.fromJson(Map<String, dynamic>.from(k as Map)))
+            .toList();
+      } catch (e) {
+        debugPrint('Error loading ideal_week_keywords: $e');
       }
     }
 
@@ -3684,6 +3776,83 @@ class AppState extends ChangeNotifier {
         debugPrint('Sync filter presets error: $e');
       }
 
+      // Sync Ideal Week Matrix (Haftalık-2)
+      try {
+        final remoteMatrixData = await _firestoreService.getIdealWeekMatrix(userId);
+        if (remoteMatrixData != null && remoteMatrixData['matrix'] is Map) {
+          final Map<String, String> remoteMatrix = Map<String, String>.from(
+            (remoteMatrixData['matrix'] as Map).map(
+              (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+            ),
+          );
+          if (remoteMatrix.isNotEmpty && _idealWeekMatrix.isEmpty) {
+            _idealWeekMatrix = remoteMatrix;
+            await _saveIdealWeekMatrixLocal();
+          } else if (_idealWeekMatrix.isNotEmpty && remoteMatrix.isEmpty) {
+            await _firestoreService.saveIdealWeekMatrix(userId, _idealWeekMatrix);
+          } else if (_idealWeekMatrix.isNotEmpty && remoteMatrix.isNotEmpty) {
+            // Merge non-empty entries, remote or local
+            bool changed = false;
+            remoteMatrix.forEach((key, val) {
+              if (val.trim().isNotEmpty && (_idealWeekMatrix[key] ?? '').trim().isEmpty) {
+                _idealWeekMatrix[key] = val;
+                changed = true;
+              }
+            });
+            if (changed) {
+              await _saveIdealWeekMatrixLocal();
+            }
+            await _firestoreService.saveIdealWeekMatrix(userId, _idealWeekMatrix);
+          }
+        } else if (_idealWeekMatrix.isNotEmpty) {
+          await _firestoreService.saveIdealWeekMatrix(userId, _idealWeekMatrix);
+        }
+      } catch (e) {
+        debugPrint('Sync ideal_week_matrix error: $e');
+      }
+
+      // Sync Ideal Week Keywords (Haftalık-2)
+      try {
+        final remoteKeywordsData = await _firestoreService.getIdealWeekKeywords(userId);
+        if (remoteKeywordsData != null && remoteKeywordsData['keywords'] is List) {
+          final List<dynamic> remoteList = remoteKeywordsData['keywords'] as List<dynamic>;
+          final List<WeeklyKeywordRule> remoteRules = remoteList
+              .map((k) => WeeklyKeywordRule.fromJson(Map<String, dynamic>.from(k as Map)))
+              .toList();
+          if (remoteRules.isNotEmpty && _weeklyKeywordRules.isEmpty) {
+            _weeklyKeywordRules = remoteRules;
+            await _saveIdealWeekKeywordsLocal();
+          } else if (_weeklyKeywordRules.isNotEmpty && remoteRules.isEmpty) {
+            await _firestoreService.saveIdealWeekKeywords(
+              userId,
+              _weeklyKeywordRules.map((k) => k.toJson()).toList(),
+            );
+          } else if (_weeklyKeywordRules.isNotEmpty && remoteRules.isNotEmpty) {
+            bool changed = false;
+            for (final rr in remoteRules) {
+              if (!_weeklyKeywordRules.any((lr) => lr.keyword.toLowerCase() == rr.keyword.toLowerCase())) {
+                _weeklyKeywordRules.add(rr);
+                changed = true;
+              }
+            }
+            if (changed) {
+              await _saveIdealWeekKeywordsLocal();
+            }
+            await _firestoreService.saveIdealWeekKeywords(
+              userId,
+              _weeklyKeywordRules.map((k) => k.toJson()).toList(),
+            );
+          }
+        } else if (_weeklyKeywordRules.isNotEmpty) {
+          await _firestoreService.saveIdealWeekKeywords(
+            userId,
+            _weeklyKeywordRules.map((k) => k.toJson()).toList(),
+          );
+        }
+      } catch (e) {
+        debugPrint('Sync ideal_week_keywords error: $e');
+      }
+
       _cleanDuplicateTasks();
       _syncTaskTagsAndSubTags();
       _cleanDuplicateEvents();
@@ -4338,6 +4507,7 @@ class AppState extends ChangeNotifier {
     _showPlanView = false;
     _showRecentView = false;
     _showDailyNotesView = false;
+    _showWeekly2View = false;
     _calendarView = view;
     notifyListeners();
   }
@@ -4348,6 +4518,7 @@ class AppState extends ChangeNotifier {
       _showPlanView = false;
       _showRecentView = false;
       _showDailyNotesView = false;
+      _showWeekly2View = false;
     }
     notifyListeners();
   }
@@ -4358,6 +4529,7 @@ class AppState extends ChangeNotifier {
       _showSeritView = false;
       _showRecentView = false;
       _showDailyNotesView = false;
+      _showWeekly2View = false;
     }
     notifyListeners();
   }
@@ -4368,6 +4540,7 @@ class AppState extends ChangeNotifier {
       _showPlanView = false;
       _showSeritView = false;
       _showDailyNotesView = false;
+      _showWeekly2View = false;
     }
     notifyListeners();
   }
@@ -4378,8 +4551,217 @@ class AppState extends ChangeNotifier {
       _showPlanView = false;
       _showSeritView = false;
       _showRecentView = false;
+      _showWeekly2View = false;
     }
     notifyListeners();
+  }
+
+  void setShowWeekly2View(bool value) {
+    _showWeekly2View = value;
+    if (value) {
+      _showPlanView = false;
+      _showSeritView = false;
+      _showRecentView = false;
+      _showDailyNotesView = false;
+    }
+    notifyListeners();
+  }
+
+  // --- HAFTALIK-2 (İDEAL HAFTA RUTİNİ & ANAHTAR KELİMELER) METOTLARI ---
+  String getIdealWeekCell(int dayIndex, int hour) {
+    return _idealWeekMatrix['${dayIndex}_$hour'] ?? '';
+  }
+
+  Future<void> _saveIdealWeekMatrixLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ideal_week_matrix', json.encode(_idealWeekMatrix));
+  }
+
+  Future<void> _syncIdealWeekMatrixRemote() async {
+    if (_autoSync && _user != null) {
+      try {
+        await _firestoreService.saveIdealWeekMatrix(_user!.uid, _idealWeekMatrix);
+      } catch (e) {
+        debugPrint('Firestore save ideal_week_matrix error: $e');
+      }
+    }
+  }
+
+  Future<void> _saveIdealWeekKeywordsLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'ideal_week_keywords',
+      json.encode(_weeklyKeywordRules.map((k) => k.toJson()).toList()),
+    );
+  }
+
+  Future<void> _syncIdealWeekKeywordsRemote() async {
+    if (_autoSync && _user != null) {
+      try {
+        await _firestoreService.saveIdealWeekKeywords(
+          _user!.uid,
+          _weeklyKeywordRules.map((k) => k.toJson()).toList(),
+        );
+      } catch (e) {
+        debugPrint('Firestore save ideal_week_keywords error: $e');
+      }
+    }
+  }
+
+  void setIdealWeekCell(int dayIndex, int hour, String value) {
+    final key = '${dayIndex}_$hour';
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      _idealWeekMatrix.remove(key);
+    } else {
+      _idealWeekMatrix[key] = trimmed;
+    }
+    notifyListeners();
+    _saveIdealWeekMatrixLocal();
+    _syncIdealWeekMatrixRemote();
+  }
+
+  void setIdealWeekCellsBatch(Map<String, String> updates) {
+    updates.forEach((key, value) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) {
+        _idealWeekMatrix.remove(key);
+      } else {
+        _idealWeekMatrix[key] = trimmed;
+      }
+    });
+    notifyListeners();
+    _saveIdealWeekMatrixLocal();
+    _syncIdealWeekMatrixRemote();
+  }
+
+  void replaceIdealWeekMatrix(Map<String, String> newMatrix) {
+    _idealWeekMatrix = Map<String, String>.from(newMatrix);
+    notifyListeners();
+    _saveIdealWeekMatrixLocal();
+    _syncIdealWeekMatrixRemote();
+  }
+
+  void toggleWeekly2HideEmptyHours() async {
+    _weekly2HideEmptyHours = !_weekly2HideEmptyHours;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('weekly2_hide_empty_hours', _weekly2HideEmptyHours);
+  }
+
+  void addWeeklyKeywordRule(WeeklyKeywordRule rule) {
+    final existingIdx = _weeklyKeywordRules.indexWhere(
+      (r) => r.id == rule.id || r.keyword.toLowerCase() == rule.keyword.toLowerCase(),
+    );
+    if (existingIdx != -1) {
+      _weeklyKeywordRules[existingIdx] = rule;
+    } else {
+      _weeklyKeywordRules.add(rule);
+    }
+    notifyListeners();
+    _saveIdealWeekKeywordsLocal();
+    _syncIdealWeekKeywordsRemote();
+  }
+
+  void updateWeeklyKeywordRule(WeeklyKeywordRule rule) {
+    final idx = _weeklyKeywordRules.indexWhere((r) => r.id == rule.id);
+    if (idx != -1) {
+      _weeklyKeywordRules[idx] = rule;
+      notifyListeners();
+      _saveIdealWeekKeywordsLocal();
+      _syncIdealWeekKeywordsRemote();
+    }
+  }
+
+  void deleteWeeklyKeywordRule(String id) {
+    _weeklyKeywordRules.removeWhere((r) => r.id == id);
+    notifyListeners();
+    _saveIdealWeekKeywordsLocal();
+    _syncIdealWeekKeywordsRemote();
+  }
+
+  int resolveKeywordRuleColor(WeeklyKeywordRule rule) {
+    if (rule.linkedProjectId != null && rule.linkedProjectId!.isNotEmpty) {
+      final proj = _projects.where((p) => p.id == rule.linkedProjectId).firstOrNull;
+      if (proj != null) {
+        return getEventTagColor(proj.tag) ??
+            getTaskTagColor(proj.tag) ??
+            proj.colorValue;
+      }
+    }
+    if (rule.linkedTag != null && rule.linkedTag!.isNotEmpty) {
+      return getEventTagColor(rule.linkedTag!) ??
+          getTaskTagColor(rule.linkedTag!) ??
+          rule.colorValue;
+    }
+    return rule.colorValue;
+  }
+
+  Color resolveWeeklySegmentColor(String segmentTitle, int segmentIndex) {
+    final lower = segmentTitle.trim().toLowerCase();
+    if (lower.isEmpty) return Colors.transparent;
+
+    // 1. Önce kullanıcının tanımladığı Anahtar Kelime Kurallarına bak (uzun kelimeler öncelikli)
+    final sortedRules = List<WeeklyKeywordRule>.from(_weeklyKeywordRules)
+      ..sort((a, b) => b.keyword.length.compareTo(a.keyword.length));
+
+    for (final rule in sortedRules) {
+      final kw = rule.keyword.trim().toLowerCase();
+      if (kw.isNotEmpty && (lower == kw || lower.contains(kw))) {
+        return Color(resolveKeywordRuleColor(rule));
+      }
+    }
+
+    // 2. Mevcut Projelere bak
+    for (final proj in _projects) {
+      final pTitle = proj.title.trim().toLowerCase();
+      if (pTitle.isNotEmpty && (lower == pTitle || lower.contains(pTitle))) {
+        final col = getEventTagColor(proj.tag) ??
+            getTaskTagColor(proj.tag) ??
+            proj.colorValue;
+        return Color(col);
+      }
+    }
+
+    // 3. Mevcut Etkinlik / Görev Kategorilerine (Tag) ve Alt Etiketlere bak
+    for (final tag in _eventTags) {
+      final tLower = tag.trim().toLowerCase();
+      if (tLower.isNotEmpty && (lower == tLower || lower.contains(tLower))) {
+        final col = getEventTagColor(tag);
+        if (col != null) return Color(col);
+      }
+      final subs = _eventSubTags[tag] ?? const [];
+      for (final sub in subs) {
+        final sLower = sub.trim().toLowerCase();
+        if (sLower.isNotEmpty && (lower == sLower || lower.contains(sLower))) {
+          final col = getEventTagColor(tag);
+          if (col != null) return Color(col);
+        }
+      }
+    }
+
+    for (final tag in _taskTags) {
+      final tLower = tag.trim().toLowerCase();
+      if (tLower.isNotEmpty && (lower == tLower || lower.contains(tLower))) {
+        final col = getTaskTagColor(tag);
+        if (col != null) return Color(col);
+      }
+    }
+
+    // 4. Hiçbir kural veya kategori eşleşmediyse, dilimleri birbirinden ayırt edebilmek için
+    // kelime/indeks bazlı yumuşak ama belirgin renk paletinden seç
+    const fallbackPalette = [
+      Color(0xFF42A5F5), // Mavi
+      Color(0xFF66BB6A), // Yeşil
+      Color(0xFFFFA726), // Turuncu
+      Color(0xFFAB47BC), // Mor
+      Color(0xFF26A69A), // Turkuaz
+      Color(0xFFEC407A), // Pembe
+      Color(0xFF7E57C2), // İndigo
+      Color(0xFFFFCA28), // Amber
+    ];
+    final hash = lower.codeUnits.fold<int>(0, (a, b) => a + b) + (segmentIndex * 3);
+    return fallbackPalette[hash % fallbackPalette.length];
   }
 
   void startSeritDraft({Serit? existing, DateTime? initialDate}) {

@@ -257,6 +257,11 @@ class _MainScreenState extends State<MainScreen> {
         'icon': Icons.calendar_view_week,
       },
       {
+        'view': 'weekly_2',
+        'label': 'Haftalık-2',
+        'icon': Icons.table_chart_outlined,
+      },
+      {
         'view': CalendarView.day,
         'label': 'Gün',
         'icon': Icons.calendar_view_day,
@@ -302,11 +307,14 @@ class _MainScreenState extends State<MainScreen> {
                             ? appState.showRecentView
                             : (view == 'daily_notes'
                                 ? appState.showDailyNotesView
-                                : (!appState.showSeritView &&
-                                      !appState.showPlanView &&
-                                      !appState.showRecentView &&
-                                      !appState.showDailyNotesView &&
-                                      currentView == view))));
+                                : (view == 'weekly_2'
+                                    ? appState.showWeekly2View
+                                    : (!appState.showSeritView &&
+                                          !appState.showPlanView &&
+                                          !appState.showRecentView &&
+                                          !appState.showDailyNotesView &&
+                                          !appState.showWeekly2View &&
+                                          currentView == view)))));
 
               return GestureDetector(
                 onTap: () {
@@ -318,11 +326,14 @@ class _MainScreenState extends State<MainScreen> {
                     appState.setShowRecentView(true);
                   } else if (view == 'daily_notes') {
                     appState.setShowDailyNotesView(true);
+                  } else if (view == 'weekly_2') {
+                    appState.setShowWeekly2View(true);
                   } else {
                     appState.setShowPlanView(false);
                     appState.setShowSeritView(false);
                     appState.setShowRecentView(false);
                     appState.setShowDailyNotesView(false);
+                    appState.setShowWeekly2View(false);
                     appState.setCalendarView(view as CalendarView);
                   }
                 },
