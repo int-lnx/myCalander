@@ -454,23 +454,123 @@ class _MainScreenState extends State<MainScreen> {
     ];
     final fullMonthStr = fullMonths[dateToShow.month - 1];
 
+    final bool isDesktop = MediaQuery.of(context).size.width >= 700;
+    final bool isNavigableCalendarView = !appState.showPlanView &&
+        !appState.showSeritView &&
+        !appState.showRecentView &&
+        !appState.showDailyNotesView &&
+        (appState.showWeekly2View ||
+            appState.calendarView == CalendarView.month ||
+            appState.calendarView == CalendarView.week ||
+            appState.calendarView == CalendarView.day);
+
+    String dateTitle = '$fullMonthStr ${dateToShow.year}';
+    String prevTooltip = 'Önceki';
+    String nextTooltip = 'Sonraki';
+
+    if (appState.showWeekly2View ||
+        (!appState.showDailyNotesView &&
+            appState.calendarView == CalendarView.week)) {
+      final mon = appState.currentWeekMonday;
+      final sun = mon.add(const Duration(days: 6));
+      final m1 = shortMonths[mon.month - 1];
+      final m2 = shortMonths[sun.month - 1];
+      dateTitle = mon.month == sun.month
+          ? '${mon.day} - ${sun.day} $fullMonthStr ${sun.year}'
+          : '${mon.day} $m1 - ${sun.day} $m2 ${sun.year}';
+      prevTooltip = 'Önceki Hafta';
+      nextTooltip = 'Sonraki Hafta';
+    } else if (!appState.showDailyNotesView &&
+        appState.calendarView == CalendarView.day) {
+      dateTitle = '${dateToShow.day} $fullMonthStr ${dateToShow.year}';
+      prevTooltip = 'Önceki Gün';
+      nextTooltip = 'Sonraki Gün';
+    } else if (!appState.showDailyNotesView &&
+        appState.calendarView == CalendarView.month) {
+      prevTooltip = 'Önceki Ay';
+      nextTooltip = 'Sonraki Ay';
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         todayBox,
         if (_currentIndex == 0) ...[
-          const SizedBox(width: 8),
+          if (isDesktop && isNavigableCalendarView) ...[
+            const SizedBox(width: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: appState.isDarkMode
+                    ? Colors.white10
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: appState.isDarkMode
+                      ? Colors.white24
+                      : Colors.grey.shade300,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left, size: 20),
+                    tooltip: prevTooltip,
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => appState.navigateCalendarBackward(),
+                  ),
+                  InkWell(
+                    onTap: () => appState.jumpToToday(),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        'Bugün',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right, size: 20),
+                    tooltip: nextTooltip,
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => appState.navigateCalendarForward(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(width: 10),
           Flexible(
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Text(
-                '$fullMonthStr ${dateToShow.year}',
+                dateTitle,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade800,
+                  color: appState.isDarkMode
+                      ? Colors.white
+                      : Colors.grey.shade800,
                 ),
               ),
             ),

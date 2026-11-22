@@ -696,6 +696,36 @@ class _DayNoteDialogState extends State<DayNoteDialog> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (!isMobile) ...[
+            IconButton(
+              icon: const Icon(Icons.chevron_left, size: 20),
+              tooltip: 'Önceki Gün',
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                final prevDate = _normalizedDate.subtract(const Duration(days: 1));
+                Navigator.pop(context);
+                DayNoteDialog.show(
+                  context,
+                  widget.appState,
+                  prevDate,
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right, size: 20),
+              tooltip: 'Sonraki Gün',
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                final nextDate = _normalizedDate.add(const Duration(days: 1));
+                Navigator.pop(context);
+                DayNoteDialog.show(
+                  context,
+                  widget.appState,
+                  nextDate,
+                );
+              },
+            ),
+          ],
         ],
       ),
       content: SizedBox(

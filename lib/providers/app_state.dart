@@ -46,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.05';
+  static const String appVersion = '3.06';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -4568,8 +4568,52 @@ class AppState extends ChangeNotifier {
   }
 
   // --- HAFTALIK-2 (İDEAL HAFTA RUTİNİ & ANAHTAR KELİMELER) METOTLARI ---
+  DateTime get currentWeekMonday {
+    final d = DateTime(_displayDate.year, _displayDate.month, _displayDate.day);
+    return d.subtract(Duration(days: d.weekday - 1));
+  }
+
+  String get currentWeekKey {
+    final m = currentWeekMonday;
+    return '${m.year}-${m.month.toString().padLeft(2, '0')}-${m.day.toString().padLeft(2, '0')}';
+  }
+
+  String _weekKeyForMonday(DateTime monday) {
+    return '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
+  }
+
   String getIdealWeekCell(int dayIndex, int hour) {
-    return _idealWeekMatrix['${dayIndex}_$hour'] ?? '';
+    final wkKey = '${currentWeekKey}_${dayIndex}_$hour';
+    if (_idealWeekMatrix.containsKey(wkKey)) {
+      return _idealWeekMatrix[wkKey] ?? '';
+    }
+    // Geriye dönük uyumluluk: Eğer bu hafta için henüz hafta bazlı kayıt yoksa ve
+    // eski şablon anahtarı ('day_hour') varsa onu göster
+    final hasAnyEntryForThisWeek = _idealWeekMatrix.keys.any(
+      (k) => k.startsWith('${currentWeekKey}_'),
+    );
+    if (!hasAnyEntryForThisWeek) {
+      return _idealWeekMatrix['${dayIndex}_$hour'] ?? '';
+    }
+    return '';
+  }
+
+  void _migrateLegacyWeekCellsToCurrentWeekIfNeeded() {
+    final wkPrefix = '${currentWeekKey}_';
+    final hasAnyEntryForThisWeek = _idealWeekMatrix.keys.any(
+      (k) => k.startsWith(wkPrefix),
+    );
+    if (!hasAnyEntryForThisWeek) {
+      final Map<String, String> migrated = {};
+      _idealWeekMatrix.forEach((k, v) {
+        if (!k.contains('-') && v.trim().isNotEmpty) {
+          migrated['$wkPrefix$k'] = v;
+        }
+      });
+      if (migrated.isNotEmpty) {
+        _idealWeekMatrix.addAll(migrated);
+      }
+    }
   }
 
   Future<void> _saveIdealWeekMatrixLocal() async {
@@ -4609,7 +4653,8 @@ class AppState extends ChangeNotifier {
   }
 
   void setIdealWeekCell(int dayIndex, int hour, String value) {
-    final key = '${dayIndex}_$hour';
+    _migrateLegacyWeekCellsToCurrentWeekIfNeeded();
+    final key = '${currentWeekKey}_${dayIndex}_$hour';
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       _idealWeekMatrix.remove(key);
@@ -4622,7 +4667,9 @@ class AppState extends ChangeNotifier {
   }
 
   void setIdealWeekCellsBatch(Map<String, String> updates) {
-    updates.forEach((key, value) {
+    _migrateLegacyWeekCellsToCurrentWeekIfNeeded();
+    updates.forEach((rawKey, value) {
+      final key = rawKey.contains('-') ? rawKey : '${currentWeekKey}_$rawKey';
       final trimmed = value.trim();
       if (trimmed.isEmpty) {
         _idealWeekMatrix.remove(key);
@@ -4633,6 +4680,30 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     _saveIdealWeekMatrixLocal();
     _syncIdealWeekMatrixRemote();
+  }
+
+  void copyPreviousWeekToCurrentWeek() {
+    final prevMonday = currentWeekMonday.subtract(const Duration(days: 7));
+    final prevWeekKey = _weekKeyForMonday(prevMonday);
+    final curWeekKey = currentWeekKey;
+
+    bool copiedAny = false;
+    for (int d = 0; d < 7; d++) {
+      for (int h = 0; h < 24; h++) {
+        final prevVal = _idealWeekMatrix['${prevWeekKey}_${d}_$h'] ??
+            _idealWeekMatrix['${d}_$h'] ??
+            '';
+        if (prevVal.trim().isNotEmpty) {
+          _idealWeekMatrix['${curWeekKey}_${d}_$h'] = prevVal.trim();
+          copiedAny = true;
+        }
+      }
+    }
+    if (copiedAny) {
+      notifyListeners();
+      _saveIdealWeekMatrixLocal();
+      _syncIdealWeekMatrixRemote();
+    }
   }
 
   void replaceIdealWeekMatrix(Map<String, String> newMatrix) {
@@ -4788,6 +4859,80 @@ class AppState extends ChangeNotifier {
   void jumpToDate(DateTime date) {
     calendarController.displayDate = date;
     _displayDate = date;
+    notifyListeners();
+  }
+
+  void navigateCalendarBackward() {
+    if (_showWeekly2View) {
+      _displayDate = _displayDate.subtract(const Duration(days: 7));
+      calendarController.displayDate = _displayDate;
+      notifyListeners();
+      return;
+    }
+    if (_calendarView == CalendarView.month) {
+      if (calendarController.backward != null) {
+        calendarController.backward!();
+      } else {
+        _displayDate = DateTime(_displayDate.year, _displayDate.month - 1, 1);
+        calendarController.displayDate = _displayDate;
+      }
+    } else if (_calendarView == CalendarView.week) {
+      if (calendarController.backward != null) {
+        calendarController.backward!();
+      } else {
+        _displayDate = _displayDate.subtract(const Duration(days: 7));
+        calendarController.displayDate = _displayDate;
+      }
+    } else if (_calendarView == CalendarView.day ||
+        _calendarView == CalendarView.schedule) {
+      if (calendarController.backward != null) {
+        calendarController.backward!();
+      } else {
+        _displayDate = DateTime(
+          _displayDate.year,
+          _displayDate.month,
+          _displayDate.day - 1,
+        );
+        calendarController.displayDate = _displayDate;
+      }
+    }
+    notifyListeners();
+  }
+
+  void navigateCalendarForward() {
+    if (_showWeekly2View) {
+      _displayDate = _displayDate.add(const Duration(days: 7));
+      calendarController.displayDate = _displayDate;
+      notifyListeners();
+      return;
+    }
+    if (_calendarView == CalendarView.month) {
+      if (calendarController.forward != null) {
+        calendarController.forward!();
+      } else {
+        _displayDate = DateTime(_displayDate.year, _displayDate.month + 1, 1);
+        calendarController.displayDate = _displayDate;
+      }
+    } else if (_calendarView == CalendarView.week) {
+      if (calendarController.forward != null) {
+        calendarController.forward!();
+      } else {
+        _displayDate = _displayDate.add(const Duration(days: 7));
+        calendarController.displayDate = _displayDate;
+      }
+    } else if (_calendarView == CalendarView.day ||
+        _calendarView == CalendarView.schedule) {
+      if (calendarController.forward != null) {
+        calendarController.forward!();
+      } else {
+        _displayDate = DateTime(
+          _displayDate.year,
+          _displayDate.month,
+          _displayDate.day + 1,
+        );
+        calendarController.displayDate = _displayDate;
+      }
+    }
     notifyListeners();
   }
 

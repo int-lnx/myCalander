@@ -1132,7 +1132,7 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
                       child: Column(
                         children: [
                           // Sabit Gün Başlıkları Satırı
-                          _buildDayHeaderRow(isDark, dayColWidth),
+                          _buildDayHeaderRow(appState, isDark, dayColWidth),
 
                           // Saat Satırları (Dikey Kaydırılabilir)
                           Expanded(
@@ -1232,14 +1232,102 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
             const Icon(Icons.grid_on_rounded, size: 18, color: Colors.blue),
             const SizedBox(width: 6),
             Text(
-              'İdeal Hafta Rutini',
+              'Haftalık-2 Planlayıcı',
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.bold,
                 color: isDark ? Colors.white : Colors.blueGrey.shade900,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
+
+            // Desktop Özel Hafta Geçiş Butonları (< Hafta >)
+            if (!isMobile) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white10 : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isDark ? Colors.white24 : Colors.grey.shade300,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left, size: 18),
+                      tooltip: 'Önceki Hafta',
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        if (_isEditingCell) _commitCellEdit();
+                        appState.navigateCalendarBackward();
+                        _syncFormulaBarWithSelection();
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Builder(
+                        builder: (context) {
+                          final mon = appState.currentWeekMonday;
+                          final sun = mon.add(const Duration(days: 6));
+                          final str =
+                              '${mon.day.toString().padLeft(2, '0')}.${mon.month.toString().padLeft(2, '0')} - ${sun.day.toString().padLeft(2, '0')}.${sun.month.toString().padLeft(2, '0')}.${sun.year}';
+                          return Text(
+                            str,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? Colors.blue.shade200
+                                  : Colors.blue.shade800,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right, size: 18),
+                      tooltip: 'Sonraki Hafta',
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        if (_isEditingCell) _commitCellEdit();
+                        appState.navigateCalendarForward();
+                        _syncFormulaBarWithSelection();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+
+            // Önceki Haftadan Kopyala Butonu
+            ActionChip(
+              avatar: const Icon(Icons.copy_all_outlined, size: 15, color: Colors.teal),
+              label: const Text(
+                'Önceki Haftadan Kopyala',
+                style: TextStyle(fontSize: 11.5),
+              ),
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                if (_isEditingCell) _commitCellEdit();
+                _pushUndoSnapshot(appState);
+                appState.copyPreviousWeekToCurrentWeek();
+                _syncFormulaBarWithSelection();
+              },
+            ),
+            const SizedBox(width: 8),
 
             // Boş Saatleri Gizle Toggle
             FilterChip(
@@ -1454,9 +1542,16 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
     );
   }
 
-  Widget _buildDayHeaderRow(bool isDark, double dayColWidth) {
+  Widget _buildDayHeaderRow(
+    AppState appState,
+    bool isDark,
+    double dayColWidth,
+  ) {
+    final monday = appState.currentWeekMonday;
+    final now = DateTime.now();
+
     return Container(
-      height: 36,
+      height: 40,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF222222) : Colors.grey.shade100,
         border: Border(
@@ -1488,31 +1583,57 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
             ),
           ),
           ...List.generate(7, (dayIndex) {
+            final colDate = monday.add(Duration(days: dayIndex));
+            final isToday = colDate.year == now.year &&
+                colDate.month == now.month &&
+                colDate.day == now.day;
             final isColSelected =
                 dayIndex >= _minSelDay && dayIndex <= _maxSelDay;
+            final dateBadge =
+                '${colDate.day.toString().padLeft(2, '0')}.${colDate.month.toString().padLeft(2, '0')}';
+
             return Container(
               width: dayColWidth,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isColSelected
-                    ? Colors.blue.withValues(alpha: isDark ? 0.18 : 0.1)
-                    : null,
+                color: isToday
+                    ? Colors.blue.withValues(alpha: isDark ? 0.25 : 0.15)
+                    : (isColSelected
+                        ? Colors.blue.withValues(alpha: isDark ? 0.14 : 0.08)
+                        : null),
                 border: Border(
                   right: BorderSide(
                     color: isDark ? Colors.white12 : Colors.grey.shade300,
                   ),
                 ),
               ),
-              child: Text(
-                _dayNames[dayIndex],
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isColSelected ? FontWeight.bold : FontWeight.w600,
-                  color: isColSelected
-                      ? Colors.blue
-                      : (isDark ? Colors.white : Colors.black87),
-                ),
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _dayNames[dayIndex],
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: (isColSelected || isToday)
+                          ? FontWeight.bold
+                          : FontWeight.w600,
+                      color: (isColSelected || isToday)
+                          ? Colors.blue
+                          : (isDark ? Colors.white : Colors.black87),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    dateBadge,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                      color: isToday
+                          ? Colors.blue
+                          : (isDark ? Colors.white60 : Colors.grey.shade600),
+                    ),
+                  ),
+                ],
               ),
             );
           }),
