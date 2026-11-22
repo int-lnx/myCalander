@@ -46,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.06';
+  static const String appVersion = '3.07';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -868,8 +868,15 @@ class AppState extends ChangeNotifier {
             final newJson = json.encode(remoteMatrix);
             if (oldJson != newJson) {
               _idealWeekMatrix = remoteMatrix;
+              final migrated = _cleanUpAndMigrateUnprefixedWeekMatrixKeys();
               final prefs = await SharedPreferences.getInstance();
-              await prefs.setString('ideal_week_matrix', newJson);
+              await prefs.setString(
+                'ideal_week_matrix',
+                json.encode(_idealWeekMatrix),
+              );
+              if (migrated) {
+                _syncIdealWeekMatrixRemote();
+              }
               notifyListeners();
             }
           }
@@ -1196,7 +1203,7 @@ class AppState extends ChangeNotifier {
       }
     }
 
-    // Haftalık-2 (İdeal Hafta Rutini & Anahtar Kelimeler)
+    // Haftalık-2 (Hafta Bazlı Matris & Anahtar Kelimeler)
     _weekly2HideEmptyHours = prefs.getBool('weekly2_hide_empty_hours') ?? false;
     final matrixJsonStr = prefs.getString('ideal_week_matrix');
     if (matrixJsonStr != null && matrixJsonStr.isNotEmpty) {
@@ -1205,6 +1212,10 @@ class AppState extends ChangeNotifier {
         _idealWeekMatrix = decoded.map(
           (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
         );
+        if (_cleanUpAndMigrateUnprefixedWeekMatrixKeys()) {
+          _saveIdealWeekMatrixLocal();
+          _syncIdealWeekMatrixRemote();
+        }
       } catch (e) {
         debugPrint('Error loading ideal_week_matrix: $e');
       }
@@ -4567,7 +4578,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- HAFTALIK-2 (İDEAL HAFTA RUTİNİ & ANAHTAR KELİMELER) METOTLARI ---
+  // --- HAFTALIK-2 (HAFTA BAZLI MATRİS & ANAHTAR KELİMELER) METOTLARI ---
   DateTime get currentWeekMonday {
     final d = DateTime(_displayDate.year, _displayDate.month, _displayDate.day);
     return d.subtract(Duration(days: d.weekday - 1));
@@ -4582,38 +4593,33 @@ class AppState extends ChangeNotifier {
     return '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
   }
 
-  String getIdealWeekCell(int dayIndex, int hour) {
-    final wkKey = '${currentWeekKey}_${dayIndex}_$hour';
-    if (_idealWeekMatrix.containsKey(wkKey)) {
-      return _idealWeekMatrix[wkKey] ?? '';
+  /// Eski tarihsiz ('0_8' gibi) anahtarları yalnızca bugünün haftasına taşır ve
+  /// tarihsiz anahtarları tamamen siler; böylece diğer haftalara kopyalanması engellenir.
+  bool _cleanUpAndMigrateUnprefixedWeekMatrixKeys() {
+    final legacyKeys = _idealWeekMatrix.keys
+        .where((k) => !k.contains('-'))
+        .toList();
+    if (legacyKeys.isEmpty) return false;
+
+    final now = DateTime.now();
+    final todayMon = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    final todayWkKey = _weekKeyForMonday(todayMon);
+
+    for (final k in legacyKeys) {
+      final val = (_idealWeekMatrix[k] ?? '').trim();
+      final targetKey = '${todayWkKey}_$k';
+      if (val.isNotEmpty && !_idealWeekMatrix.containsKey(targetKey)) {
+        _idealWeekMatrix[targetKey] = val;
+      }
+      _idealWeekMatrix.remove(k);
     }
-    // Geriye dönük uyumluluk: Eğer bu hafta için henüz hafta bazlı kayıt yoksa ve
-    // eski şablon anahtarı ('day_hour') varsa onu göster
-    final hasAnyEntryForThisWeek = _idealWeekMatrix.keys.any(
-      (k) => k.startsWith('${currentWeekKey}_'),
-    );
-    if (!hasAnyEntryForThisWeek) {
-      return _idealWeekMatrix['${dayIndex}_$hour'] ?? '';
-    }
-    return '';
+    return true;
   }
 
-  void _migrateLegacyWeekCellsToCurrentWeekIfNeeded() {
-    final wkPrefix = '${currentWeekKey}_';
-    final hasAnyEntryForThisWeek = _idealWeekMatrix.keys.any(
-      (k) => k.startsWith(wkPrefix),
-    );
-    if (!hasAnyEntryForThisWeek) {
-      final Map<String, String> migrated = {};
-      _idealWeekMatrix.forEach((k, v) {
-        if (!k.contains('-') && v.trim().isNotEmpty) {
-          migrated['$wkPrefix$k'] = v;
-        }
-      });
-      if (migrated.isNotEmpty) {
-        _idealWeekMatrix.addAll(migrated);
-      }
-    }
+  String getIdealWeekCell(int dayIndex, int hour) {
+    final wkKey = '${currentWeekKey}_${dayIndex}_$hour';
+    return _idealWeekMatrix[wkKey] ?? '';
   }
 
   Future<void> _saveIdealWeekMatrixLocal() async {
@@ -4653,7 +4659,6 @@ class AppState extends ChangeNotifier {
   }
 
   void setIdealWeekCell(int dayIndex, int hour, String value) {
-    _migrateLegacyWeekCellsToCurrentWeekIfNeeded();
     final key = '${currentWeekKey}_${dayIndex}_$hour';
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
@@ -4667,7 +4672,6 @@ class AppState extends ChangeNotifier {
   }
 
   void setIdealWeekCellsBatch(Map<String, String> updates) {
-    _migrateLegacyWeekCellsToCurrentWeekIfNeeded();
     updates.forEach((rawKey, value) {
       final key = rawKey.contains('-') ? rawKey : '${currentWeekKey}_$rawKey';
       final trimmed = value.trim();
@@ -4690,9 +4694,7 @@ class AppState extends ChangeNotifier {
     bool copiedAny = false;
     for (int d = 0; d < 7; d++) {
       for (int h = 0; h < 24; h++) {
-        final prevVal = _idealWeekMatrix['${prevWeekKey}_${d}_$h'] ??
-            _idealWeekMatrix['${d}_$h'] ??
-            '';
+        final prevVal = _idealWeekMatrix['${prevWeekKey}_${d}_$h'] ?? '';
         if (prevVal.trim().isNotEmpty) {
           _idealWeekMatrix['${curWeekKey}_${d}_$h'] = prevVal.trim();
           copiedAny = true;

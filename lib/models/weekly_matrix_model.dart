@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 class WeeklyKeywordRule {
   final String id;
   final String keyword;
@@ -108,9 +106,7 @@ class WeeklyFormulaParser {
   static final RegExp _rangeOpenEndRegex = RegExp(
     r'^(\d{1,2})\s*-\s*(.+?)\s*:?\s*$',
   );
-  static final RegExp _durationRegex = RegExp(
-    r'^(.+?)\s*::\s*(\d{1,3})\s*$',
-  );
+  static final RegExp _durationRegex = RegExp(r'^(.+?)\s*::\s*(\d{1,3})\s*$');
 
   static List<WeeklyCellSegment> parse(String rawText) {
     final trimmed = rawText.trim();
@@ -156,11 +152,7 @@ class WeeklyFormulaParser {
         final rawTitle = durationMatch.group(1)!.trim();
         final dur = int.tryParse(durationMatch.group(2)!)?.clamp(1, 600) ?? 15;
         parsedParts.add(
-          _RawParsedPart(
-            title: rawTitle,
-            durationMin: dur,
-            isRange: false,
-          ),
+          _RawParsedPart(title: rawTitle, durationMin: dur, isRange: false),
         );
         hasAnyDuration = true;
         continue;
@@ -178,7 +170,8 @@ class WeeklyFormulaParser {
             _RawParsedPart(
               title: rawTitle,
               startMin: start,
-              endMin: null, // Sonradan bir sonraki başlangıca veya 60'a tamamlanır
+              endMin:
+                  null, // Sonradan bir sonraki başlangıca veya 60'a tamamlanır
               isRange: true,
             ),
           );
@@ -327,8 +320,9 @@ class WeeklyFormulaParser {
       final knownSum = parsedParts
           .where((p) => p.durationMin != null)
           .fold<int>(0, (s, p) => s + p.durationMin!);
-      final unknownCount =
-          parsedParts.where((p) => p.durationMin == null).length;
+      final unknownCount = parsedParts
+          .where((p) => p.durationMin == null)
+          .length;
       final remaining = (60 - knownSum).clamp(0, 60);
       final defaultUnknownDur = unknownCount > 0
           ? (remaining > 0 ? (remaining / unknownCount).round() : 15)
@@ -391,4 +385,3 @@ class WeeklyFormulaParser {
     return segments.map((s) => s.cleanLabel).join(' • ');
   }
 }
-

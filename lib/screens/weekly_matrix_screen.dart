@@ -11,7 +11,8 @@ Future<void> showWeeklyKeywordRuleDialog(
   WeeklyKeywordRule? existingRule,
 }) async {
   final keywordCtrl = TextEditingController(text: existingRule?.keyword ?? '');
-  int selectedColorValue = existingRule?.colorValue ?? 0xFF8E24AA; // Varsayılan Mor
+  int selectedColorValue =
+      existingRule?.colorValue ?? 0xFF8E24AA; // Varsayılan Mor
   String? selectedProjectId = existingRule?.linkedProjectId;
   String? selectedTag = existingRule?.linkedTag;
 
@@ -60,12 +61,14 @@ Future<void> showWeeklyKeywordRuleDialog(
                 .where((p) => p.id == selectedProjectId)
                 .firstOrNull;
             if (proj != null) {
-              previewColorValue = appState.getEventTagColor(proj.tag) ??
+              previewColorValue =
+                  appState.getEventTagColor(proj.tag) ??
                   appState.getTaskTagColor(proj.tag) ??
                   proj.colorValue;
             }
           } else if (linkMode == 2 && selectedTag != null) {
-            previewColorValue = appState.getEventTagColor(selectedTag!) ??
+            previewColorValue =
+                appState.getEventTagColor(selectedTag!) ??
                 appState.getTaskTagColor(selectedTag!) ??
                 selectedColorValue;
           }
@@ -86,7 +89,11 @@ Future<void> showWeeklyKeywordRuleDialog(
                     color: previewColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.palette_outlined, color: previewColor, size: 20),
+                  child: Icon(
+                    Icons.palette_outlined,
+                    color: previewColor,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -94,7 +101,10 @@ Future<void> showWeeklyKeywordRuleDialog(
                     existingRule == null
                         ? 'Anahtar Kelime Kuralı Ekle'
                         : 'Anahtar Kelimeyi Düzenle',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -123,7 +133,10 @@ Future<void> showWeeklyKeywordRuleDialog(
                     const SizedBox(height: 14),
                     const Text(
                       'Renk ve Bağlantı Kaynağı:',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Row(
@@ -133,7 +146,10 @@ Future<void> showWeeklyKeywordRuleDialog(
                             showCheckmark: false,
                             visualDensity: VisualDensity.compact,
                             label: const Center(
-                              child: Text('Özel Renk', style: TextStyle(fontSize: 11.5)),
+                              child: Text(
+                                'Özel Renk',
+                                style: TextStyle(fontSize: 11.5),
+                              ),
                             ),
                             selected: linkMode == 0,
                             onSelected: (sel) {
@@ -153,7 +169,10 @@ Future<void> showWeeklyKeywordRuleDialog(
                             showCheckmark: false,
                             visualDensity: VisualDensity.compact,
                             label: const Center(
-                              child: Text('Proje Bağla', style: TextStyle(fontSize: 11.5)),
+                              child: Text(
+                                'Proje Bağla',
+                                style: TextStyle(fontSize: 11.5),
+                              ),
                             ),
                             selected: linkMode == 1,
                             onSelected: (sel) {
@@ -163,7 +182,8 @@ Future<void> showWeeklyKeywordRuleDialog(
                                   selectedTag = null;
                                   if (selectedProjectId == null &&
                                       appState.projects.isNotEmpty) {
-                                    selectedProjectId = appState.projects.first.id;
+                                    selectedProjectId =
+                                        appState.projects.first.id;
                                   }
                                 });
                               }
@@ -176,7 +196,10 @@ Future<void> showWeeklyKeywordRuleDialog(
                             showCheckmark: false,
                             visualDensity: VisualDensity.compact,
                             label: const Center(
-                              child: Text('Etiket Bağla', style: TextStyle(fontSize: 11.5)),
+                              child: Text(
+                                'Etiket Bağla',
+                                style: TextStyle(fontSize: 11.5),
+                              ),
                             ),
                             selected: linkMode == 2,
                             onSelected: (sel) {
@@ -184,7 +207,8 @@ Future<void> showWeeklyKeywordRuleDialog(
                                 setDialogState(() {
                                   linkMode = 2;
                                   selectedProjectId = null;
-                                  if (selectedTag == null && allTags.isNotEmpty) {
+                                  if (selectedTag == null &&
+                                      allTags.isNotEmpty) {
                                     selectedTag = allTags.first;
                                   }
                                 });
@@ -199,7 +223,10 @@ Future<void> showWeeklyKeywordRuleDialog(
                     if (linkMode == 0) ...[
                       const Text(
                         'Renk Seçin:',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
@@ -228,13 +255,19 @@ Future<void> showWeeklyKeywordRuleDialog(
                                 boxShadow: [
                                   if (isSelected)
                                     BoxShadow(
-                                      color: Color(colVal).withValues(alpha: 0.5),
+                                      color: Color(
+                                        colVal,
+                                      ).withValues(alpha: 0.5),
                                       blurRadius: 6,
                                     ),
                                 ],
                               ),
                               child: isSelected
-                                  ? const Icon(Icons.check, size: 18, color: Colors.white)
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 18,
+                                      color: Colors.white,
+                                    )
                                   : null,
                             ),
                           );
@@ -248,7 +281,10 @@ Future<void> showWeeklyKeywordRuleDialog(
                         )
                       else
                         DropdownButtonFormField<String>(
-                          value: appState.projects.any((p) => p.id == selectedProjectId)
+                          initialValue:
+                              appState.projects.any(
+                                (p) => p.id == selectedProjectId,
+                              )
                               ? selectedProjectId
                               : appState.projects.first.id,
                           isExpanded: true,
@@ -303,7 +339,7 @@ Future<void> showWeeklyKeywordRuleDialog(
                         )
                       else
                         DropdownButtonFormField<String>(
-                          value: allTags.contains(selectedTag)
+                          initialValue: allTags.contains(selectedTag)
                               ? selectedTag
                               : allTags.first,
                           isExpanded: true,
@@ -364,7 +400,9 @@ Future<void> showWeeklyKeywordRuleDialog(
                       width: double.infinity,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: previewColor.withValues(alpha: isDark ? 0.45 : 0.35),
+                        color: previewColor.withValues(
+                          alpha: isDark ? 0.45 : 0.35,
+                        ),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: previewColor, width: 1.5),
                       ),
@@ -747,14 +785,18 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
   void _applyFillHandleDrag(AppState appState) {
     if (_fillTargetDay == null || _fillTargetHour == null) return;
 
-    final int targetMinDay =
-        _fillTargetDay! < _minSelDay ? _fillTargetDay! : _minSelDay;
-    final int targetMaxDay =
-        _fillTargetDay! > _maxSelDay ? _fillTargetDay! : _maxSelDay;
-    final int targetMinHour =
-        _fillTargetHour! < _minSelHour ? _fillTargetHour! : _minSelHour;
-    final int targetMaxHour =
-        _fillTargetHour! > _maxSelHour ? _fillTargetHour! : _maxSelHour;
+    final int targetMinDay = _fillTargetDay! < _minSelDay
+        ? _fillTargetDay!
+        : _minSelDay;
+    final int targetMaxDay = _fillTargetDay! > _maxSelDay
+        ? _fillTargetDay!
+        : _maxSelDay;
+    final int targetMinHour = _fillTargetHour! < _minSelHour
+        ? _fillTargetHour!
+        : _minSelHour;
+    final int targetMaxHour = _fillTargetHour! > _maxSelHour
+        ? _fillTargetHour!
+        : _maxSelHour;
 
     if (targetMinDay == _minSelDay &&
         targetMaxDay == _maxSelDay &&
@@ -832,9 +874,14 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
     final double dayColWidth = (totalGridWidth - _timeColWidth) / 7.0;
     if (dayColWidth <= 0) return null;
 
-    final int col = ((local.dx - _timeColWidth) / dayColWidth).floor().clamp(0, 6);
-    final int rowIdx =
-        (local.dy / _rowHeight).floor().clamp(0, visibleHours.length - 1);
+    final int col = ((local.dx - _timeColWidth) / dayColWidth).floor().clamp(
+      0,
+      6,
+    );
+    final int rowIdx = (local.dy / _rowHeight).floor().clamp(
+      0,
+      visibleHours.length - 1,
+    );
     return (col, visibleHours[rowIdx]);
   }
 
@@ -845,7 +892,8 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
     }
 
     final appState = Provider.of<AppState>(context, listen: false);
-    final isCtrl = HardwareKeyboard.instance.isControlPressed ||
+    final isCtrl =
+        HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
     final isShift = HardwareKeyboard.instance.isShiftPressed;
 
@@ -1025,7 +1073,9 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white10 : Colors.blue.shade50.withValues(alpha: 0.5),
+        color: isDark
+            ? Colors.white10
+            : Colors.blue.shade50.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isDark ? Colors.white24 : Colors.blue.shade200,
@@ -1082,12 +1132,18 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
         _fillTargetHour == null) {
       return false;
     }
-    final int minD = _fillTargetDay! < _minSelDay ? _fillTargetDay! : _minSelDay;
-    final int maxD = _fillTargetDay! > _maxSelDay ? _fillTargetDay! : _maxSelDay;
-    final int minH =
-        _fillTargetHour! < _minSelHour ? _fillTargetHour! : _minSelHour;
-    final int maxH =
-        _fillTargetHour! > _maxSelHour ? _fillTargetHour! : _maxSelHour;
+    final int minD = _fillTargetDay! < _minSelDay
+        ? _fillTargetDay!
+        : _minSelDay;
+    final int maxD = _fillTargetDay! > _maxSelDay
+        ? _fillTargetDay!
+        : _maxSelDay;
+    final int minH = _fillTargetHour! < _minSelHour
+        ? _fillTargetHour!
+        : _minSelHour;
+    final int maxH = _fillTargetHour! > _maxSelHour
+        ? _fillTargetHour!
+        : _maxSelHour;
     return day >= minD && day <= maxD && hour >= minH && hour <= maxH;
   }
 
@@ -1116,69 +1172,93 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  // Mobilde yatay kaydırma, masaüstünde tam genişlik
-                  final double minGridWidth = isMobile ? 780.0 : constraints.maxWidth;
-                  final double gridWidth =
-                      constraints.maxWidth > minGridWidth
-                          ? constraints.maxWidth
-                          : minGridWidth;
+                  final double gridWidth = constraints.maxWidth;
                   final double dayColWidth =
                       (gridWidth - _timeColWidth) / 7.0;
 
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: gridWidth,
-                      child: Column(
-                        children: [
-                          // Sabit Gün Başlıkları Satırı
-                          _buildDayHeaderRow(appState, isDark, dayColWidth),
+                  return SizedBox(
+                    width: gridWidth,
+                    child: Column(
+                      children: [
+                        // Sabit Gün Başlıkları Satırı
+                        _buildDayHeaderRow(
+                          appState,
+                          isDark,
+                          isMobile,
+                          dayColWidth,
+                        ),
 
-                          // Saat Satırları (Dikey Kaydırılabilir)
-                          Expanded(
+                        // Saat Satırları (Dikey Kaydırılabilir)
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onHorizontalDragEnd: isMobile
+                                ? (details) {
+                                    final vel = details.primaryVelocity ?? 0.0;
+                                    if (vel < -200) {
+                                      // Sola kaydırma -> Sonraki Hafta
+                                      if (_isEditingCell) _commitCellEdit();
+                                      appState.navigateCalendarForward();
+                                      _syncFormulaBarWithSelection();
+                                    } else if (vel > 200) {
+                                      // Sağa kaydırma -> Önceki Hafta
+                                      if (_isEditingCell) _commitCellEdit();
+                                      appState.navigateCalendarBackward();
+                                      _syncFormulaBarWithSelection();
+                                    }
+                                  }
+                                : null,
                             child: SingleChildScrollView(
                               child: GestureDetector(
                                 behavior: HitTestBehavior.translucent,
-                                onPanStart: (details) {
-                                  if (_isEditingCell) _commitCellEdit();
-                                  final hit = _hitTestCellFromGlobalOffset(
-                                    details.globalPosition,
-                                    visibleHours,
-                                    gridWidth,
-                                  );
-                                  if (hit != null) {
-                                    setState(() {
-                                      _isDraggingSelection = true;
-                                      _anchorDay = hit.$1;
-                                      _anchorHour = hit.$2;
-                                      _focusDay = hit.$1;
-                                      _focusHour = hit.$2;
-                                    });
-                                    _syncFormulaBarWithSelection();
-                                    _gridFocusNode.requestFocus();
-                                  }
-                                },
-                                onPanUpdate: (details) {
-                                  if (!_isDraggingSelection) return;
-                                  final hit = _hitTestCellFromGlobalOffset(
-                                    details.globalPosition,
-                                    visibleHours,
-                                    gridWidth,
-                                  );
-                                  if (hit != null &&
-                                      (hit.$1 != _focusDay ||
-                                          hit.$2 != _focusHour)) {
-                                    setState(() {
-                                      _focusDay = hit.$1;
-                                      _focusHour = hit.$2;
-                                    });
-                                  }
-                                },
-                                onPanEnd: (_) {
-                                  setState(() {
-                                    _isDraggingSelection = false;
-                                  });
-                                },
+                                onPanStart: !isMobile
+                                    ? (details) {
+                                        if (_isEditingCell) _commitCellEdit();
+                                        final hit =
+                                            _hitTestCellFromGlobalOffset(
+                                              details.globalPosition,
+                                              visibleHours,
+                                              gridWidth,
+                                            );
+                                        if (hit != null) {
+                                          setState(() {
+                                            _isDraggingSelection = true;
+                                            _anchorDay = hit.$1;
+                                            _anchorHour = hit.$2;
+                                            _focusDay = hit.$1;
+                                            _focusHour = hit.$2;
+                                          });
+                                          _syncFormulaBarWithSelection();
+                                          _gridFocusNode.requestFocus();
+                                        }
+                                      }
+                                    : null,
+                                onPanUpdate: !isMobile
+                                    ? (details) {
+                                        if (!_isDraggingSelection) return;
+                                        final hit =
+                                            _hitTestCellFromGlobalOffset(
+                                              details.globalPosition,
+                                              visibleHours,
+                                              gridWidth,
+                                            );
+                                        if (hit != null &&
+                                            (hit.$1 != _focusDay ||
+                                                hit.$2 != _focusHour)) {
+                                          setState(() {
+                                            _focusDay = hit.$1;
+                                            _focusHour = hit.$2;
+                                          });
+                                        }
+                                      }
+                                    : null,
+                                onPanEnd: !isMobile
+                                    ? (_) {
+                                        setState(() {
+                                          _isDraggingSelection = false;
+                                        });
+                                      }
+                                    : null,
                                 child: Column(
                                   key: _gridBodyKey,
                                   children: visibleHours.map((hour) {
@@ -1196,8 +1276,8 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -1314,7 +1394,11 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
 
             // Önceki Haftadan Kopyala Butonu
             ActionChip(
-              avatar: const Icon(Icons.copy_all_outlined, size: 15, color: Colors.teal),
+              avatar: const Icon(
+                Icons.copy_all_outlined,
+                size: 15,
+                color: Colors.teal,
+              ),
               label: const Text(
                 'Önceki Haftadan Kopyala',
                 style: TextStyle(fontSize: 11.5),
@@ -1343,7 +1427,11 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
 
             // Anahtar Kelime Kuralı Ekle Kısayolu
             ActionChip(
-              avatar: const Icon(Icons.palette_outlined, size: 15, color: Colors.purple),
+              avatar: const Icon(
+                Icons.palette_outlined,
+                size: 15,
+                color: Colors.purple,
+              ),
               label: Text(
                 'Kelime Renkleri (${appState.weeklyKeywordRules.length})',
                 style: const TextStyle(fontSize: 11.5),
@@ -1386,7 +1474,11 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
               onPressed: () => _pasteSelection(appState),
             ),
             IconButton(
-              icon: const Icon(Icons.backspace_outlined, size: 17, color: Colors.redAccent),
+              icon: const Icon(
+                Icons.backspace_outlined,
+                size: 17,
+                color: Colors.redAccent,
+              ),
               tooltip: 'Seçili Hücreleri Temizle (Delete)',
               visualDensity: VisualDensity.compact,
               onPressed: () => _deleteSelection(appState),
@@ -1401,7 +1493,10 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
               ),
               onPressed: () => _showFormulaGuideDialog(context, isDark),
               icon: const Icon(Icons.help_outline, size: 16),
-              label: const Text('Formül Rehberi', style: TextStyle(fontSize: 11.5)),
+              label: const Text(
+                'Formül Rehberi',
+                style: TextStyle(fontSize: 11.5),
+              ),
             ),
           ],
         ),
@@ -1545,6 +1640,7 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
   Widget _buildDayHeaderRow(
     AppState appState,
     bool isDark,
+    bool isMobile,
     double dayColWidth,
   ) {
     final monday = appState.currentWeekMonday;
@@ -1584,7 +1680,8 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
           ),
           ...List.generate(7, (dayIndex) {
             final colDate = monday.add(Duration(days: dayIndex));
-            final isToday = colDate.year == now.year &&
+            final isToday =
+                colDate.year == now.year &&
                 colDate.month == now.month &&
                 colDate.day == now.day;
             final isColSelected =
@@ -1599,8 +1696,8 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
                 color: isToday
                     ? Colors.blue.withValues(alpha: isDark ? 0.25 : 0.15)
                     : (isColSelected
-                        ? Colors.blue.withValues(alpha: isDark ? 0.14 : 0.08)
-                        : null),
+                          ? Colors.blue.withValues(alpha: isDark ? 0.14 : 0.08)
+                          : null),
                 border: Border(
                   right: BorderSide(
                     color: isDark ? Colors.white12 : Colors.grey.shade300,
@@ -1611,9 +1708,9 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    _dayNames[dayIndex],
+                    isMobile ? _shortDayNames[dayIndex] : _dayNames[dayIndex],
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: isMobile ? 11 : 11.5,
                       fontWeight: (isColSelected || isToday)
                           ? FontWeight.bold
                           : FontWeight.w600,
@@ -1717,7 +1814,8 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
     bool isDark,
   ) {
     final rawValue = appState.getIdealWeekCell(dayIndex, hour);
-    final isSelected = dayIndex >= _minSelDay &&
+    final isSelected =
+        dayIndex >= _minSelDay &&
         dayIndex <= _maxSelDay &&
         hour >= _minSelHour &&
         hour <= _maxSelHour;
@@ -1959,4 +2057,3 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
     );
   }
 }
-
