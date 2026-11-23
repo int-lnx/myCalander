@@ -46,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.08';
+  static const String appVersion = '3.09';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -4908,6 +4908,46 @@ class AppState extends ChangeNotifier {
       _events.add(e);
       _firestoreSaveEvent(e);
       NotificationService.scheduleEventNotifications(e);
+    }
+    _saveDeletedIds();
+    notifyListeners();
+    _saveEvents();
+  }
+
+  void batchDeleteEventsByIds(List<String> ids) {
+    if (ids.isEmpty) return;
+    final idSet = ids.toSet();
+    for (final id in ids) {
+      if (!_deletedEventIds.contains(id)) {
+        _deletedEventIds.add(id);
+      }
+      _releaseFollowUpsOf(id);
+      final ev = getEventById(id);
+      if (ev != null) {
+        NotificationService.cancelEventNotifications(ev);
+      }
+      _firestoreDeleteEvent(id);
+    }
+    _events.removeWhere((e) => idSet.contains(e.id));
+    _saveDeletedIds();
+    notifyListeners();
+    _saveEvents();
+  }
+
+  void batchRestoreEvents(List<Event> previousEvents) {
+    if (previousEvents.isEmpty) return;
+    for (final prev in previousEvents) {
+      final index = _events.indexWhere((e) => e.id == prev.id);
+      if (index != -1) {
+        _events[index] = prev;
+        _firestoreSaveEvent(prev);
+        NotificationService.scheduleEventNotifications(prev);
+      } else {
+        _deletedEventIds.remove(prev.id);
+        _events.add(prev);
+        _firestoreSaveEvent(prev);
+        NotificationService.scheduleEventNotifications(prev);
+      }
     }
     _saveDeletedIds();
     notifyListeners();

@@ -569,8 +569,9 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
 
                       // Dinamik kural var mı kontrol et
                       final existingRule = appState.findWeeklyKeywordRule(targetOld);
+                      int? choice;
                       if (existingRule != null) {
-                        final choice = await _showDynamicRulePrompt(
+                        choice = await _showDynamicRulePrompt(
                           context,
                           oldTitle: targetOld,
                           newTitle: targetNew,
@@ -588,6 +589,8 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                         // choice == 3: Dinamik kayıt oluşturmadan devam et
                       }
 
+                      final previousEvents = matchingEvents.map((e) => e.copyWith()).toList();
+
                       // Etkinlikleri güncelle
                       final updated = appState.batchUpdateEvents(
                         oldTitle: targetOld,
@@ -603,7 +606,31 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                             content: Text(
                               '${updated.length} adet kayıt "$targetNew" olarak güncellendi.',
                             ),
+                            duration: const Duration(seconds: 8),
                             behavior: SnackBarBehavior.floating,
+                            action: SnackBarAction(
+                              label: 'Geri Al',
+                              textColor: Colors.amber,
+                              onPressed: () {
+                                appState.batchRestoreEvents(previousEvents);
+                                if (choice == 1) {
+                                  final newRule = appState.findWeeklyKeywordRule(targetNew);
+                                  if (newRule != null) {
+                                    appState.deleteWeeklyKeywordRule(newRule.id);
+                                  }
+                                } else if (choice == 2) {
+                                  appState.renameWeeklyKeywordRule(targetNew, targetOld);
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '${previousEvents.length} adet kayıt eski haline getirildi ("$targetOld").',
+                                    ),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         );
                       }
@@ -1063,12 +1090,29 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                       appState.batchAddEvents(newEvents);
 
                       Navigator.pop(context);
+                      final addedIds = newEvents.map((e) => e.id).toList();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
                             '${newEvents.length} adet bağımsız "$title" kaydı takvime eklendi.',
                           ),
+                          duration: const Duration(seconds: 8),
                           behavior: SnackBarBehavior.floating,
+                          action: SnackBarAction(
+                            label: 'Geri Al',
+                            textColor: Colors.amber,
+                            onPressed: () {
+                              appState.batchDeleteEventsByIds(addedIds);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '${newEvents.length} adet "$title" kaydı geri alındı ve silindi.',
+                                  ),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       );
                     },
@@ -1302,7 +1346,26 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                             content: Text(
                               '${deleted.length} adet "$title" kaydı silindi.',
                             ),
+                            duration: const Duration(seconds: 8),
                             behavior: SnackBarBehavior.floating,
+                            action: SnackBarAction(
+                              label: 'Geri Al',
+                              textColor: Colors.amber,
+                              onPressed: () {
+                                appState.batchAddEvents(deleted);
+                                if (_deleteDynamicRuleAlso && dynRule != null) {
+                                  appState.addWeeklyKeywordRule(dynRule);
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '${deleted.length} adet "$title" kaydı geri yüklendi.',
+                                    ),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         );
                       }
