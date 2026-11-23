@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import '../models/weekly_matrix_model.dart';
 import '../providers/app_state.dart';
@@ -628,6 +629,9 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
   bool _isDraggingFillHandle = false;
   int? _fillTargetDay;
   int? _fillTargetHour;
+
+  // Mac Touchpad / İki parmak kaydırma zaman damgası
+  DateTime? _lastTrackpadSwipeTime;
 
   // Kopyala - Yapıştır Panosu (2D Matris)
   List<List<String>>? _copiedMatrix;
@@ -1297,25 +1301,46 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
 
                         // Saat Satırları (Dikey Kaydırılabilir)
                         Expanded(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onHorizontalDragEnd: isMobile
-                                ? (details) {
-                                    final vel = details.primaryVelocity ?? 0.0;
-                                    if (vel < -200) {
-                                      // Sola kaydırma -> Sonraki Hafta
-                                      if (_isEditingCell) _commitCellEdit();
+                          child: Listener(
+                            onPointerSignal: (pointerSignal) {
+                              if (pointerSignal is PointerScrollEvent) {
+                                final dx = pointerSignal.scrollDelta.dx;
+                                final dy = pointerSignal.scrollDelta.dy;
+                                if (dx.abs() > dy.abs() && dx.abs() > 15) {
+                                  final now = DateTime.now();
+                                  if (_lastTrackpadSwipeTime == null ||
+                                      now.difference(_lastTrackpadSwipeTime!).inMilliseconds > 600) {
+                                    _lastTrackpadSwipeTime = now;
+                                    if (_isEditingCell) _commitCellEdit();
+                                    if (dx > 0) {
+                                      // Sola kaydırma (Mac touchpad iki parmak sola) -> Sonraki Hafta
                                       appState.navigateCalendarForward();
-                                      _syncFormulaBarWithSelection();
-                                    } else if (vel > 200) {
+                                    } else {
                                       // Sağa kaydırma -> Önceki Hafta
-                                      if (_isEditingCell) _commitCellEdit();
                                       appState.navigateCalendarBackward();
-                                      _syncFormulaBarWithSelection();
                                     }
+                                    _syncFormulaBarWithSelection();
                                   }
-                                : null,
-                            child: SingleChildScrollView(
+                                }
+                              }
+                            },
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onHorizontalDragEnd: (details) {
+                                final vel = details.primaryVelocity ?? 0.0;
+                                if (vel < -200) {
+                                  // Sola kaydırma -> Sonraki Hafta
+                                  if (_isEditingCell) _commitCellEdit();
+                                  appState.navigateCalendarForward();
+                                  _syncFormulaBarWithSelection();
+                                } else if (vel > 200) {
+                                  // Sağa kaydırma -> Önceki Hafta
+                                  if (_isEditingCell) _commitCellEdit();
+                                  appState.navigateCalendarBackward();
+                                  _syncFormulaBarWithSelection();
+                                }
+                              },
+                              child: SingleChildScrollView(
                               child: GestureDetector(
                                 behavior: HitTestBehavior.translucent,
                                 onPanStart: !isMobile
@@ -1384,7 +1409,8 @@ class _WeeklyMatrixScreenState extends State<WeeklyMatrixScreen> {
                             ),
                           ),
                         ),
-                      ],
+                      ),
+                    ],
                     ),
                   );
                 },

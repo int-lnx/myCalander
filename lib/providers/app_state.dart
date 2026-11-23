@@ -46,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.10';
+  static const String appVersion = '3.11';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -4591,6 +4591,12 @@ class AppState extends ChangeNotifier {
 
   String _weekKeyForMonday(DateTime monday) {
     return '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
+  }
+
+  String getWeekKeyForDate(DateTime date) {
+    final monday = DateTime(date.year, date.month, date.day)
+        .subtract(Duration(days: date.weekday - 1));
+    return _weekKeyForMonday(monday);
   }
 
   /// Eski tarihsiz ('0_8' gibi) anahtarları yalnızca bugünün haftasına taşır ve

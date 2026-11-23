@@ -65,6 +65,8 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
   Set<int> _customDays = {1, 2, 3, 4, 5}; // 1 = Pazartesi ... 7 = Pazar
   DateTime _repeatStartDate = DateTime.now();
   DateTime _repeatEndDate = DateTime.now().add(const Duration(days: 30));
+  bool _repeatAddToCalendar = true;
+  bool _repeatAddToWeeklyMatrix = true;
 
   // ── Sil Tab Değişkenleri ──
   final TextEditingController _deleteTitleCtrl = TextEditingController();
@@ -619,13 +621,20 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
 
                       if (context.mounted) {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        final messenger = ScaffoldMessenger.of(context);
+                        messenger.hideCurrentSnackBar();
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text(
                               '$grandTotal adet kayıt "$targetNew" olarak güncellendi.',
                             ),
-                            duration: const Duration(seconds: 8),
+                            duration: const Duration(seconds: 4),
                             behavior: SnackBarBehavior.floating,
+                            showCloseIcon: true,
+                            closeIconColor: Colors.white70,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                             action: SnackBarAction(
                               label: 'Geri Al',
                               textColor: Colors.amber,
@@ -640,12 +649,19 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                                 } else if (choice == 2) {
                                   appState.renameWeeklyKeywordRule(targetNew, targetOld);
                                 }
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                messenger.hideCurrentSnackBar();
+                                messenger.showSnackBar(
                                   SnackBar(
                                     content: Text(
                                       '$grandTotal adet kayıt eski haline getirildi ("$targetOld").',
                                     ),
+                                    duration: const Duration(seconds: 4),
                                     behavior: SnackBarBehavior.floating,
+                                    showCloseIcon: true,
+                                    closeIconColor: Colors.white70,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
                                   ),
                                 );
                               },
@@ -734,6 +750,27 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
             initialValue: TextEditingValue(text: _repeatTitleCtrl.text),
             onSelected: (String selection) {
               _repeatTitleCtrl.text = selection;
+              final existing = appState.events
+                  .where((e) => AppState.isTitleMatch(e.title, selection))
+                  .firstOrNull;
+              if (existing != null) {
+                _repeatStartTime = TimeOfDay.fromDateTime(existing.from);
+                _repeatEndTime = TimeOfDay.fromDateTime(existing.to);
+              } else {
+                final matchingKeys =
+                    appState.findMatchingMatrixCells(title: selection).keys;
+                if (matchingKeys.isNotEmpty) {
+                  final parts = matchingKeys.first.split('_');
+                  if (parts.length >= 3) {
+                    final hour = int.tryParse(parts[2]);
+                    if (hour != null) {
+                      _repeatStartTime = TimeOfDay(hour: hour, minute: 0);
+                      _repeatEndTime =
+                          TimeOfDay(hour: (hour + 1) % 24, minute: 0);
+                    }
+                  }
+                }
+              }
               setState(() {});
             },
             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
@@ -1021,7 +1058,50 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
+
+          // Eklenecek Yerler (Hedef Seçimi)
+          const Text(
+            'Eklenecek Yerler:',
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: CheckboxListTile(
+                  value: _repeatAddToCalendar,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: Colors.blue,
+                  title: const Text(
+                    'Takvim (Aylık/Haftalık/Günlük)',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                  ),
+                  onChanged: (val) {
+                    setState(() => _repeatAddToCalendar = val ?? true);
+                  },
+                ),
+              ),
+              Expanded(
+                child: CheckboxListTile(
+                  value: _repeatAddToWeeklyMatrix,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: Colors.purple,
+                  title: const Text(
+                    'Haftalık-2 Tablosu',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                  ),
+                  onChanged: (val) {
+                    setState(() => _repeatAddToWeeklyMatrix = val ?? true);
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
 
           // Çoğalt Butonu
           SizedBox(
@@ -1033,10 +1113,13 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: title.isEmpty || targetDayCount == 0
+              onPressed: title.isEmpty ||
+                      targetDayCount == 0 ||
+                      (!_repeatAddToCalendar && !_repeatAddToWeeklyMatrix)
                   ? null
                   : () {
                       final newEvents = <Event>[];
+                      final matrixUpdates = <String, String>{};
                       var cur = DateTime(
                         _repeatStartDate.year,
                         _repeatStartDate.month,
@@ -1100,45 +1183,88 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                             eventEnd = eventEnd.add(const Duration(days: 1));
                           }
 
-                          newEvents.add(
-                            Event(
-                              id: IdGenerator.generate(title, date: eventStart),
-                              title: title,
-                              from: eventStart,
-                              to: eventEnd,
-                              colorValue: colorVal,
-                              tag: tag,
-                              projectId: projId,
-                              notificationOffsets: notifOffset,
-                            ),
-                          );
+                          if (_repeatAddToCalendar) {
+                            newEvents.add(
+                              Event(
+                                id: IdGenerator.generate(title, date: eventStart),
+                                title: title,
+                                from: eventStart,
+                                to: eventEnd,
+                                colorValue: colorVal,
+                                tag: tag,
+                                projectId: projId,
+                                notificationOffsets: notifOffset,
+                              ),
+                            );
+                          }
+
+                          if (_repeatAddToWeeklyMatrix) {
+                            final weekKey = appState.getWeekKeyForDate(cur);
+                            final dayIndex = cur.weekday - 1; // 0 = Pazartesi ... 6 = Pazar
+                            int startH = _repeatStartTime.hour;
+                            int endH = _repeatEndTime.hour;
+                            if (endH <= startH) endH = 24;
+                            for (int h = startH; h < endH; h++) {
+                              matrixUpdates['${weekKey}_${dayIndex}_$h'] = title;
+                            }
+                          }
                         }
 
                         cur = cur.add(const Duration(days: 1));
                       }
 
-                      appState.batchAddEvents(newEvents);
+                      if (newEvents.isNotEmpty) {
+                        appState.batchAddEvents(newEvents);
+                      }
+                      if (matrixUpdates.isNotEmpty) {
+                        appState.setIdealWeekCellsBatch(matrixUpdates);
+                      }
 
                       Navigator.pop(context);
                       final addedIds = newEvents.map((e) => e.id).toList();
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      final addedMatrixKeys = List<String>.from(matrixUpdates.keys);
+
+                      final messenger = ScaffoldMessenger.of(context);
+                      messenger.hideCurrentSnackBar();
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(
-                            '${newEvents.length} adet bağımsız "$title" kaydı takvime eklendi.',
+                            '$targetDayCount gün için "$title" kayıtları başarıyla eklendi.',
                           ),
-                          duration: const Duration(seconds: 8),
+                          duration: const Duration(seconds: 4),
                           behavior: SnackBarBehavior.floating,
+                          showCloseIcon: true,
+                          closeIconColor: Colors.white70,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           action: SnackBarAction(
                             label: 'Geri Al',
                             textColor: Colors.amber,
                             onPressed: () {
-                              appState.batchDeleteEventsByIds(addedIds);
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              if (addedIds.isNotEmpty) {
+                                appState.batchDeleteEventsByIds(addedIds);
+                              }
+                              if (addedMatrixKeys.isNotEmpty) {
+                                final clearMap = <String, String>{};
+                                for (final k in addedMatrixKeys) {
+                                  clearMap[k] = '';
+                                }
+                                appState.setIdealWeekCellsBatch(clearMap);
+                              }
+                              messenger.hideCurrentSnackBar();
+                              messenger.showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    '${newEvents.length} adet "$title" kaydı geri alındı ve silindi.',
+                                    '$targetDayCount gün için eklenen "$title" kayıtları geri alındı.',
                                   ),
+                                  duration: const Duration(seconds: 4),
                                   behavior: SnackBarBehavior.floating,
+                                  showCloseIcon: true,
+                                  closeIconColor: Colors.white70,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             },
@@ -1148,7 +1274,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                     },
               icon: const Icon(Icons.add_task, size: 18),
               label: Text(
-                'Takvime $targetDayCount Kayıt Ekle',
+                'Takvime $targetDayCount Gün Kayıt Ekle',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
@@ -1394,13 +1520,20 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
 
                       if (context.mounted) {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        final messenger = ScaffoldMessenger.of(context);
+                        messenger.hideCurrentSnackBar();
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text(
                               '$grandTotal adet "$title" kaydı silindi.',
                             ),
-                            duration: const Duration(seconds: 8),
+                            duration: const Duration(seconds: 4),
                             behavior: SnackBarBehavior.floating,
+                            showCloseIcon: true,
+                            closeIconColor: Colors.white70,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                             action: SnackBarAction(
                               label: 'Geri Al',
                               textColor: Colors.amber,
@@ -1410,12 +1543,19 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                                 if (_deleteDynamicRuleAlso && dynRule != null) {
                                   appState.addWeeklyKeywordRule(dynRule);
                                 }
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                messenger.hideCurrentSnackBar();
+                                messenger.showSnackBar(
                                   SnackBar(
                                     content: Text(
                                       '$grandTotal adet "$title" kaydı geri yüklendi.',
                                     ),
+                                    duration: const Duration(seconds: 4),
                                     behavior: SnackBarBehavior.floating,
+                                    showCloseIcon: true,
+                                    closeIconColor: Colors.white70,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
                                   ),
                                 );
                               },
