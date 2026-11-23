@@ -46,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.09';
+  static const String appVersion = '3.10';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -4790,16 +4790,43 @@ class AppState extends ChangeNotifier {
   }
 
   // ── Toplu Kayıt Yöneticisi Operasyonları ─────────────────────────
+  static String cleanTitle(String text) {
+    return text
+        .trim()
+        .replaceAll(RegExp(r'[:\-\._\s]+$'), '')
+        .replaceAll(RegExp(r'^[:\-\._\s]+'), '')
+        .trim();
+  }
+
+  static bool isTitleMatch(String source, String searchTarget) {
+    final s1 = cleanTitle(source).toLowerCase();
+    final s2 = cleanTitle(searchTarget).toLowerCase();
+    if (s1.isEmpty || s2.isEmpty) return false;
+    if (s1 == s2) return true;
+    if (s1.startsWith('$s2 ') ||
+        s1.startsWith('$s2:') ||
+        s1.startsWith('$s2-') ||
+        s1.startsWith('$s2/')) {
+      return true;
+    }
+    final tokens = s1
+        .split(RegExp(r'[\s:/\-\(\)]+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
+    if (tokens.contains(s2)) return true;
+    return false;
+  }
+
   List<Event> findMatchingEvents({
     required String title,
     DateTime? fromDate,
     DateTime? toDate,
   }) {
-    final target = title.trim().toLowerCase();
+    final target = title.trim();
     if (target.isEmpty) return [];
 
     return _events.where((e) {
-      if (e.title.trim().toLowerCase() != target) return false;
+      if (!isTitleMatch(e.title, target)) return false;
       if (fromDate != null) {
         final startOfDay = DateTime(fromDate.year, fromDate.month, fromDate.day);
         if (e.from.isBefore(startOfDay)) return false;
@@ -4819,15 +4846,107 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
+  Map<String, String> findMatchingMatrixCells({
+    required String title,
+  }) {
+    final target = title.trim();
+    if (target.isEmpty) return {};
+
+    final matching = <String, String>{};
+    _idealWeekMatrix.forEach((key, val) {
+      final segments = WeeklyFormulaParser.parse(val);
+      bool match = false;
+      if (segments.isNotEmpty) {
+        match = segments.any((s) => isTitleMatch(s.title, target));
+      } else {
+        match = isTitleMatch(val, target);
+      }
+      if (match) {
+        matching[key] = val;
+      }
+    });
+    return matching;
+  }
+
   List<String> getUniqueEventTitles() {
     final titles = <String>{};
+    // 1. Takvim Etkinlikleri
     for (final e in _events) {
-      final t = e.title.trim();
+      final t = cleanTitle(e.title);
+      if (t.isNotEmpty) titles.add(t);
+    }
+    // 2. Haftalık-2 Hücreleri
+    for (final val in _idealWeekMatrix.values) {
+      final segments = WeeklyFormulaParser.parse(val);
+      if (segments.isNotEmpty) {
+        for (final s in segments) {
+          final st = cleanTitle(s.title);
+          if (st.isNotEmpty) titles.add(st);
+        }
+      } else {
+        final t = cleanTitle(val);
+        if (t.isNotEmpty) titles.add(t);
+      }
+    }
+    // 3. Dinamik Kelime Kuralları (Sol Çekmece)
+    for (final rule in _weeklyKeywordRules) {
+      final t = cleanTitle(rule.keyword);
       if (t.isNotEmpty) titles.add(t);
     }
     final sorted = titles.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return sorted;
+  }
+
+  Map<String, String> batchUpdateMatrixCells({
+    required String oldTitle,
+    required String newTitle,
+  }) {
+    final matching = findMatchingMatrixCells(title: oldTitle);
+    if (matching.isEmpty) return {};
+
+    final previousCells = Map<String, String>.from(matching);
+    final targetOldClean = cleanTitle(oldTitle);
+    final targetNewClean = cleanTitle(newTitle);
+
+    matching.forEach((key, val) {
+      final pattern = RegExp('\\b${RegExp.escape(targetOldClean)}\\b', caseSensitive: false);
+      var newVal = val.replaceAll(pattern, targetNewClean);
+      if (newVal == val) {
+        newVal = val.replaceAll(targetOldClean, targetNewClean);
+      }
+      _idealWeekMatrix[key] = newVal;
+    });
+
+    notifyListeners();
+    _saveIdealWeekMatrixLocal();
+    _syncIdealWeekMatrixRemote();
+    return previousCells;
+  }
+
+  Map<String, String> batchDeleteMatrixCells({required String title}) {
+    final matching = findMatchingMatrixCells(title: title);
+    if (matching.isEmpty) return {};
+
+    final previousCells = Map<String, String>.from(matching);
+    matching.forEach((key, _) {
+      _idealWeekMatrix.remove(key);
+    });
+
+    notifyListeners();
+    _saveIdealWeekMatrixLocal();
+    _syncIdealWeekMatrixRemote();
+    return previousCells;
+  }
+
+  void batchRestoreMatrixCells(Map<String, String> cells) {
+    if (cells.isEmpty) return;
+    cells.forEach((key, val) {
+      _idealWeekMatrix[key] = val;
+    });
+    notifyListeners();
+    _saveIdealWeekMatrixLocal();
+    _syncIdealWeekMatrixRemote();
   }
 
   List<Event> batchUpdateEvents({

@@ -394,6 +394,11 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
             toDate: effectiveTo,
           );
 
+    final matchingCells = oldTitle.isEmpty
+        ? <String, String>{}
+        : appState.findMatchingMatrixCells(title: oldTitle);
+
+    final totalCount = matchingEvents.length + matchingCells.length;
     final dynRule = oldTitle.isEmpty ? null : appState.findWeeklyKeywordRule(oldTitle);
 
     return SingleChildScrollView(
@@ -409,22 +414,20 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
           const SizedBox(height: 6),
           Autocomplete<String>(
             optionsBuilder: (TextEditingValue textEditingValue) {
-              if (textEditingValue.text.isEmpty) {
+              final q = textEditingValue.text.trim();
+              if (q.isEmpty) {
                 return uniqueTitles;
               }
               return uniqueTitles.where((t) =>
-                  t.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                  t.toLowerCase().contains(q.toLowerCase()) ||
+                  AppState.isTitleMatch(t, q));
             },
             initialValue: TextEditingValue(text: _editOldTitleCtrl.text),
             onSelected: (String selection) {
-              setState(() {
-                _editOldTitleCtrl.text = selection;
-              });
+              _editOldTitleCtrl.text = selection;
+              setState(() {});
             },
             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-              if (controller.text != _editOldTitleCtrl.text) {
-                controller.text = _editOldTitleCtrl.text;
-              }
               return TextField(
                 controller: controller,
                 focusNode: focusNode,
@@ -437,7 +440,8 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                           icon: const Icon(Icons.clear, size: 16),
                           onPressed: () {
                             controller.clear();
-                            setState(() => _editOldTitleCtrl.clear());
+                            _editOldTitleCtrl.clear();
+                            setState(() {});
                           },
                         )
                       : null,
@@ -446,7 +450,8 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onChanged: (val) {
-                  setState(() => _editOldTitleCtrl.text = val);
+                  _editOldTitleCtrl.text = val;
+                  setState(() {});
                 },
               );
             },
@@ -454,31 +459,36 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
 
           if (oldTitle.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Row(
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: matchingEvents.isNotEmpty
+                    color: totalCount > 0
                         ? Colors.blue.withValues(alpha: 0.15)
                         : Colors.orange.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    matchingEvents.isNotEmpty
-                        ? 'Takvimde ${matchingEvents.length} kayıt eşleşti'
+                    totalCount > 0
+                        ? (matchingEvents.isNotEmpty && matchingCells.isNotEmpty
+                            ? '$totalCount kayıt eşleşti (${matchingEvents.length} Takvim, ${matchingCells.length} Haftalık-2)'
+                            : (matchingEvents.isNotEmpty
+                                ? '${matchingEvents.length} Takvim kaydı eşleşti'
+                                : '${matchingCells.length} Haftalık-2 hücresi eşleşti'))
                         : 'Bu başlıkla kayıt bulunamadı',
                     style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.bold,
-                      color: matchingEvents.isNotEmpty ? Colors.blue : Colors.orange,
+                      color: totalCount > 0 ? Colors.blue : Colors.orange,
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
                 if (dynRule != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Color(dynRule.colorValue).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(6),
@@ -554,7 +564,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: matchingEvents.isEmpty || _editNewTitleCtrl.text.trim().isEmpty
+              onPressed: totalCount == 0 || _editNewTitleCtrl.text.trim().isEmpty
                   ? null
                   : () async {
                       final targetOld = _editOldTitleCtrl.text.trim();
@@ -591,7 +601,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
 
                       final previousEvents = matchingEvents.map((e) => e.copyWith()).toList();
 
-                      // Etkinlikleri güncelle
+                      // Takvim Etkinliklerini güncelle
                       final updated = appState.batchUpdateEvents(
                         oldTitle: targetOld,
                         newTitle: targetNew,
@@ -599,12 +609,20 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                         toDate: effectiveTo,
                       );
 
+                      // Haftalık-2 Hücrelerini güncelle
+                      final previousCells = appState.batchUpdateMatrixCells(
+                        oldTitle: targetOld,
+                        newTitle: targetNew,
+                      );
+
+                      final grandTotal = updated.length + previousCells.length;
+
                       if (context.mounted) {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              '${updated.length} adet kayıt "$targetNew" olarak güncellendi.',
+                              '$grandTotal adet kayıt "$targetNew" olarak güncellendi.',
                             ),
                             duration: const Duration(seconds: 8),
                             behavior: SnackBarBehavior.floating,
@@ -613,6 +631,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                               textColor: Colors.amber,
                               onPressed: () {
                                 appState.batchRestoreEvents(previousEvents);
+                                appState.batchRestoreMatrixCells(previousCells);
                                 if (choice == 1) {
                                   final newRule = appState.findWeeklyKeywordRule(targetNew);
                                   if (newRule != null) {
@@ -624,7 +643,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      '${previousEvents.length} adet kayıt eski haline getirildi ("$targetOld").',
+                                      '$grandTotal adet kayıt eski haline getirildi ("$targetOld").',
                                     ),
                                     behavior: SnackBarBehavior.floating,
                                   ),
@@ -637,7 +656,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                     },
               icon: const Icon(Icons.check, size: 18),
               label: Text(
-                '${matchingEvents.length} Kaydı Güncelle',
+                '$totalCount Kaydı Güncelle',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
@@ -704,20 +723,20 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
           const SizedBox(height: 6),
           Autocomplete<String>(
             optionsBuilder: (TextEditingValue textEditingValue) {
-              if (textEditingValue.text.isEmpty) {
+              final q = textEditingValue.text.trim();
+              if (q.isEmpty) {
                 return uniqueTitles;
               }
               return uniqueTitles.where((t) =>
-                  t.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                  t.toLowerCase().contains(q.toLowerCase()) ||
+                  AppState.isTitleMatch(t, q));
             },
             initialValue: TextEditingValue(text: _repeatTitleCtrl.text),
             onSelected: (String selection) {
-              setState(() => _repeatTitleCtrl.text = selection);
+              _repeatTitleCtrl.text = selection;
+              setState(() {});
             },
             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-              if (controller.text != _repeatTitleCtrl.text) {
-                controller.text = _repeatTitleCtrl.text;
-              }
               return TextField(
                 controller: controller,
                 focusNode: focusNode,
@@ -725,12 +744,23 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                 decoration: InputDecoration(
                   hintText: 'Örn: Sleep',
                   prefixIcon: const Icon(Icons.title, size: 18),
+                  suffixIcon: controller.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            controller.clear();
+                            _repeatTitleCtrl.clear();
+                            setState(() {});
+                          },
+                        )
+                      : null,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onChanged: (val) {
-                  setState(() => _repeatTitleCtrl.text = val);
+                  _repeatTitleCtrl.text = val;
+                  setState(() {});
                 },
               );
             },
@@ -1172,6 +1202,11 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
             toDate: effectiveTo,
           );
 
+    final matchingCells = title.isEmpty
+        ? <String, String>{}
+        : appState.findMatchingMatrixCells(title: title);
+
+    final totalDeleteCount = matchingEvents.length + matchingCells.length;
     final dynRule = title.isEmpty ? null : appState.findWeeklyKeywordRule(title);
 
     return SingleChildScrollView(
@@ -1187,20 +1222,20 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
           const SizedBox(height: 6),
           Autocomplete<String>(
             optionsBuilder: (TextEditingValue textEditingValue) {
-              if (textEditingValue.text.isEmpty) {
+              final q = textEditingValue.text.trim();
+              if (q.isEmpty) {
                 return uniqueTitles;
               }
               return uniqueTitles.where((t) =>
-                  t.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                  t.toLowerCase().contains(q.toLowerCase()) ||
+                  AppState.isTitleMatch(t, q));
             },
             initialValue: TextEditingValue(text: _deleteTitleCtrl.text),
             onSelected: (String selection) {
-              setState(() => _deleteTitleCtrl.text = selection);
+              _deleteTitleCtrl.text = selection;
+              setState(() {});
             },
             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-              if (controller.text != _deleteTitleCtrl.text) {
-                controller.text = _deleteTitleCtrl.text;
-              }
               return TextField(
                 controller: controller,
                 focusNode: focusNode,
@@ -1208,12 +1243,23 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                 decoration: InputDecoration(
                   hintText: 'Örn: Sleep',
                   prefixIcon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                  suffixIcon: controller.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            controller.clear();
+                            _deleteTitleCtrl.clear();
+                            setState(() {});
+                          },
+                        )
+                      : null,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onChanged: (val) {
-                  setState(() => _deleteTitleCtrl.text = val);
+                  _deleteTitleCtrl.text = val;
+                  setState(() {});
                 },
               );
             },
@@ -1224,19 +1270,23 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: matchingEvents.isNotEmpty
+                color: totalDeleteCount > 0
                     ? Colors.red.withValues(alpha: 0.15)
                     : Colors.grey.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                matchingEvents.isNotEmpty
-                    ? 'Silinecek ${matchingEvents.length} kayıt eşleşti'
+                totalDeleteCount > 0
+                    ? (matchingEvents.isNotEmpty && matchingCells.isNotEmpty
+                        ? 'Silinecek $totalDeleteCount kayıt eşleşti (${matchingEvents.length} Takvim, ${matchingCells.length} Haftalık-2)'
+                        : (matchingEvents.isNotEmpty
+                            ? 'Silinecek ${matchingEvents.length} Takvim kaydı eşleşti'
+                            : 'Silinecek ${matchingCells.length} Haftalık-2 hücresi eşleşti'))
                     : 'Bu başlıkla kayıt bulunamadı',
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.bold,
-                  color: matchingEvents.isNotEmpty ? Colors.red : Colors.grey,
+                  color: totalDeleteCount > 0 ? Colors.red : Colors.grey,
                 ),
               ),
             ),
@@ -1300,7 +1350,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: matchingEvents.isEmpty
+              onPressed: totalDeleteCount == 0
                   ? null
                   : () async {
                       final confirm = await showDialog<bool>(
@@ -1308,7 +1358,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                         builder: (ctx) => AlertDialog(
                           title: const Text('Toplu Silme Onayı'),
                           content: Text(
-                            'Takvimdeki ${matchingEvents.length} adet "$title" kaydı silinecek.\nBu işlem geri alınamaz. Devam etmek istiyor musunuz?',
+                            '$totalDeleteCount adet "$title" kaydı silinecek.\nBu işlem geri alınabilir. Devam etmek istiyor musunuz?',
                           ),
                           actions: [
                             TextButton(
@@ -1333,18 +1383,21 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                         appState.deleteWeeklyKeywordRule(dynRule.id);
                       }
 
-                      final deleted = appState.batchDeleteEvents(
+                      final deletedEvents = appState.batchDeleteEvents(
                         title: title,
                         fromDate: effectiveFrom,
                         toDate: effectiveTo,
                       );
+
+                      final deletedCells = appState.batchDeleteMatrixCells(title: title);
+                      final grandTotal = deletedEvents.length + deletedCells.length;
 
                       if (context.mounted) {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              '${deleted.length} adet "$title" kaydı silindi.',
+                              '$grandTotal adet "$title" kaydı silindi.',
                             ),
                             duration: const Duration(seconds: 8),
                             behavior: SnackBarBehavior.floating,
@@ -1352,14 +1405,15 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                               label: 'Geri Al',
                               textColor: Colors.amber,
                               onPressed: () {
-                                appState.batchAddEvents(deleted);
+                                appState.batchAddEvents(deletedEvents);
+                                appState.batchRestoreMatrixCells(deletedCells);
                                 if (_deleteDynamicRuleAlso && dynRule != null) {
                                   appState.addWeeklyKeywordRule(dynRule);
                                 }
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      '${deleted.length} adet "$title" kaydı geri yüklendi.',
+                                      '$grandTotal adet "$title" kaydı geri yüklendi.',
                                     ),
                                     behavior: SnackBarBehavior.floating,
                                   ),
@@ -1372,7 +1426,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                     },
               icon: const Icon(Icons.delete_forever, size: 18),
               label: Text(
-                '${matchingEvents.length} Kaydı Sil',
+                '$totalDeleteCount Kaydı Sil',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
