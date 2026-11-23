@@ -20,6 +20,7 @@ import 'screens/task_form_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/day_note_dialog.dart';
 import 'screens/app_drawer.dart';
+import 'dialogs/record_manager_dialog.dart';
 
 
 void main() async {
@@ -727,7 +728,12 @@ class _MainScreenState extends State<MainScreen> {
                         actions: _isSearching
                             ? _buildSearchActions(appState)
                             : [
-                                if (_currentIndex == 0)
+                                if (_currentIndex == 0) ...[
+                                  IconButton(
+                                    icon: const Icon(Icons.tune),
+                                    tooltip: 'Kayıt Yöneticisi (Toplu İşlemler)',
+                                    onPressed: () => RecordManagerDialog.show(context),
+                                  ),
                                   IconButton(
                                     icon: Icon(
                                       appState.fitToScreen
@@ -740,6 +746,7 @@ class _MainScreenState extends State<MainScreen> {
                                     tooltip: 'Dikey Ekrana Sığdır',
                                     onPressed: () => appState.toggleFitToScreen(),
                                   ),
+                                ],
                                 IconButton(
                                   icon: const Icon(Icons.search),
                                   tooltip: 'Ara',
@@ -784,7 +791,12 @@ class _MainScreenState extends State<MainScreen> {
           actions: _isSearching
               ? _buildSearchActions(appState)
               : [
-                  if (_currentIndex == 0)
+                  if (_currentIndex == 0) ...[
+                    IconButton(
+                      icon: const Icon(Icons.tune),
+                      tooltip: 'Kayıt Yöneticisi (Toplu İşlemler)',
+                      onPressed: () => RecordManagerDialog.show(context),
+                    ),
                     IconButton(
                       icon: Icon(
                         appState.fitToScreen
@@ -795,6 +807,7 @@ class _MainScreenState extends State<MainScreen> {
                       tooltip: 'Dikey Ekrana Sığdır',
                       onPressed: () => appState.toggleFitToScreen(),
                     ),
+                  ],
                   if (_currentIndex == 0 || _currentIndex == 1)
                     IconButton(
                       icon: const Icon(Icons.search),

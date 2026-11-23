@@ -6,6 +6,7 @@ import 'settings_screen.dart';
 import 'weekly_matrix_screen.dart';
 import '../models/note.dart';
 import '../utils/id_generator.dart';
+import '../dialogs/record_manager_dialog.dart';
 
 class AppDrawer extends StatefulWidget {
   final bool isSidebar;
@@ -215,6 +216,36 @@ class _AppDrawerState extends State<AppDrawer> {
                     const Divider(),
                   ],
 
+                  // Kayıt Yöneticisi (Toplu İşlemler)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    child: ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.tune, color: Colors.blue, size: 18),
+                      ),
+                      title: const Text(
+                        'Kayıt Yöneticisi',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: const Text(
+                        'Toplu düzelt, tekrarla, sil',
+                        style: TextStyle(fontSize: 10.5, color: Colors.grey),
+                      ),
+                      dense: true,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      onTap: () {
+                        if (!widget.isSidebar) Navigator.pop(context);
+                        RecordManagerDialog.show(context);
+                      },
+                    ),
+                  ),
+                  const Divider(),
+
                   // HAFTALIK-2 (İDEAL HAFTA) ANAHTAR KELİME MODÜLÜ
                   // Sadece Haftalık-2 sekmesi seçili iken sol pencerede açılır
                   if (appState.showWeekly2View) ...[
@@ -357,9 +388,48 @@ class _AppDrawerState extends State<AppDrawer> {
                                           ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
+                                      if (rule.notificationLabel != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 1.5),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.notifications_active,
+                                                size: 10.5,
+                                                color: Colors.blue.shade400,
+                                              ),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                rule.notificationLabel!,
+                                                style: TextStyle(
+                                                  fontSize: 9.5,
+                                                  color: isDark
+                                                      ? Colors.blue.shade300
+                                                      : Colors.blue.shade700,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
+                                IconButton(
+                                  icon: const Icon(Icons.tune, size: 15, color: Colors.blue),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Toplu Yönet (Düzelt / Tekrarla / Sil)',
+                                  onPressed: () {
+                                    if (!widget.isSidebar) Navigator.pop(context);
+                                    RecordManagerDialog.show(
+                                      context,
+                                      initialKeyword: rule.keyword,
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 6),
                                 IconButton(
                                   icon: const Icon(Icons.edit_outlined, size: 15),
                                   padding: EdgeInsets.zero,

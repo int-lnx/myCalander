@@ -46,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.07';
+  static const String appVersion = '3.08';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -4751,6 +4751,167 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     _saveIdealWeekKeywordsLocal();
     _syncIdealWeekKeywordsRemote();
+  }
+
+  WeeklyKeywordRule? findWeeklyKeywordRule(String keyword) {
+    final lower = keyword.trim().toLowerCase();
+    if (lower.isEmpty) return null;
+    return _weeklyKeywordRules
+        .where((r) => r.keyword.trim().toLowerCase() == lower)
+        .firstOrNull;
+  }
+
+  void renameWeeklyKeywordRule(String oldKeyword, String newKeyword) {
+    final idx = _weeklyKeywordRules.indexWhere(
+      (r) => r.keyword.trim().toLowerCase() == oldKeyword.trim().toLowerCase(),
+    );
+    if (idx != -1) {
+      _weeklyKeywordRules[idx] =
+          _weeklyKeywordRules[idx].copyWith(keyword: newKeyword.trim());
+      notifyListeners();
+      _saveIdealWeekKeywordsLocal();
+      _syncIdealWeekKeywordsRemote();
+    }
+  }
+
+  void duplicateWeeklyKeywordRule(String sourceKeyword, String newKeyword) {
+    final src = findWeeklyKeywordRule(sourceKeyword);
+    if (src != null) {
+      final newRule = WeeklyKeywordRule(
+        id: IdGenerator.generate('kw_${newKeyword.trim()}'),
+        keyword: newKeyword.trim(),
+        colorValue: src.colorValue,
+        linkedProjectId: src.linkedProjectId,
+        linkedTag: src.linkedTag,
+        notificationMinutesBefore: src.notificationMinutesBefore,
+      );
+      addWeeklyKeywordRule(newRule);
+    }
+  }
+
+  // ── Toplu Kayıt Yöneticisi Operasyonları ─────────────────────────
+  List<Event> findMatchingEvents({
+    required String title,
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) {
+    final target = title.trim().toLowerCase();
+    if (target.isEmpty) return [];
+
+    return _events.where((e) {
+      if (e.title.trim().toLowerCase() != target) return false;
+      if (fromDate != null) {
+        final startOfDay = DateTime(fromDate.year, fromDate.month, fromDate.day);
+        if (e.from.isBefore(startOfDay)) return false;
+      }
+      if (toDate != null) {
+        final endOfDay = DateTime(
+          toDate.year,
+          toDate.month,
+          toDate.day,
+          23,
+          59,
+          59,
+        );
+        if (e.from.isAfter(endOfDay)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<String> getUniqueEventTitles() {
+    final titles = <String>{};
+    for (final e in _events) {
+      final t = e.title.trim();
+      if (t.isNotEmpty) titles.add(t);
+    }
+    final sorted = titles.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return sorted;
+  }
+
+  List<Event> batchUpdateEvents({
+    required String oldTitle,
+    required String newTitle,
+    DateTime? fromDate,
+    DateTime? toDate,
+    int? newColorValue,
+    String? newTag,
+    String? newProjectId,
+    List<int>? newNotificationOffsets,
+  }) {
+    final matching = findMatchingEvents(
+      title: oldTitle,
+      fromDate: fromDate,
+      toDate: toDate,
+    );
+    if (matching.isEmpty) return [];
+
+    final updatedEvents = <Event>[];
+    for (final oldEvent in matching) {
+      final index = _events.indexWhere((e) => e.id == oldEvent.id);
+      if (index != -1) {
+        final updated = oldEvent.copyWith(
+          title: newTitle.trim(),
+          colorValue: newColorValue ?? oldEvent.colorValue,
+          tag: newTag ?? oldEvent.tag,
+          projectId: newProjectId ?? oldEvent.projectId,
+          notificationOffsets:
+              newNotificationOffsets ?? oldEvent.notificationOffsets,
+        );
+        _events[index] = updated;
+        updatedEvents.add(updated);
+        _firestoreSaveEvent(updated);
+        NotificationService.scheduleEventNotifications(updated);
+      }
+    }
+
+    if (updatedEvents.isNotEmpty) {
+      notifyListeners();
+      _saveEvents();
+    }
+    return updatedEvents;
+  }
+
+  List<Event> batchDeleteEvents({
+    required String title,
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) {
+    final matching = findMatchingEvents(
+      title: title,
+      fromDate: fromDate,
+      toDate: toDate,
+    );
+    if (matching.isEmpty) return [];
+
+    for (final event in matching) {
+      if (!_deletedEventIds.contains(event.id)) {
+        _deletedEventIds.add(event.id);
+      }
+      _releaseFollowUpsOf(event.id);
+      NotificationService.cancelEventNotifications(event);
+      _events.removeWhere((e) => e.id == event.id);
+      _firestoreDeleteEvent(event.id);
+    }
+
+    _saveDeletedIds();
+    notifyListeners();
+    _saveEvents();
+    return matching;
+  }
+
+  void batchAddEvents(List<Event> events) {
+    if (events.isEmpty) return;
+    for (final e in events) {
+      _deletedEventIds.remove(e.id);
+      _events.add(e);
+      _firestoreSaveEvent(e);
+      NotificationService.scheduleEventNotifications(e);
+    }
+    _saveDeletedIds();
+    notifyListeners();
+    _saveEvents();
   }
 
   int resolveKeywordRuleColor(WeeklyKeywordRule rule) {

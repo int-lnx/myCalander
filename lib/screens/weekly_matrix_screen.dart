@@ -15,6 +15,7 @@ Future<void> showWeeklyKeywordRuleDialog(
       existingRule?.colorValue ?? 0xFF8E24AA; // Varsayılan Mor
   String? selectedProjectId = existingRule?.linkedProjectId;
   String? selectedTag = existingRule?.linkedTag;
+  int? selectedNotificationMinutes = existingRule?.notificationMinutesBefore;
 
   // 0: Özel Renk, 1: Proje Bağla, 2: Kategori/Etiket Bağla
   int linkMode = 0;
@@ -388,6 +389,111 @@ Future<void> showWeeklyKeywordRuleDialog(
                         ),
                     ],
 
+                    const SizedBox(height: 14),
+                    // Otomatik Bildirim Ayarı
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.notifications_active_outlined,
+                          size: 16,
+                          color: Colors.blue,
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Otomatik Bildirim:',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (selectedNotificationMinutes != null)
+                          Text(
+                            WeeklyKeywordRule(
+                              id: '',
+                              keyword: '',
+                              colorValue: 0,
+                              notificationMinutesBefore: selectedNotificationMinutes,
+                            ).notificationLabel ?? '',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Kapalı', style: TextStyle(fontSize: 11)),
+                          selected: selectedNotificationMinutes == null,
+                          onSelected: (val) {
+                            if (val) {
+                              setDialogState(() => selectedNotificationMinutes = null);
+                            }
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('Tam vaktinde', style: TextStyle(fontSize: 11)),
+                          selected: selectedNotificationMinutes == 0,
+                          onSelected: (val) {
+                            if (val) {
+                              setDialogState(() => selectedNotificationMinutes = 0);
+                            }
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('15 dk önce', style: TextStyle(fontSize: 11)),
+                          selected: selectedNotificationMinutes == 15,
+                          onSelected: (val) {
+                            if (val) {
+                              setDialogState(() => selectedNotificationMinutes = 15);
+                            }
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('30 dk önce', style: TextStyle(fontSize: 11)),
+                          selected: selectedNotificationMinutes == 30,
+                          onSelected: (val) {
+                            if (val) {
+                              setDialogState(() => selectedNotificationMinutes = 30);
+                            }
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('1 saat önce', style: TextStyle(fontSize: 11)),
+                          selected: selectedNotificationMinutes == 60,
+                          onSelected: (val) {
+                            if (val) {
+                              setDialogState(() => selectedNotificationMinutes = 60);
+                            }
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('2 saat önce', style: TextStyle(fontSize: 11)),
+                          selected: selectedNotificationMinutes == 120,
+                          onSelected: (val) {
+                            if (val) {
+                              setDialogState(() => selectedNotificationMinutes = 120);
+                            }
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('1 gün önce', style: TextStyle(fontSize: 11)),
+                          selected: selectedNotificationMinutes == 1440,
+                          onSelected: (val) {
+                            if (val) {
+                              setDialogState(() => selectedNotificationMinutes = 1440);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+
                     const SizedBox(height: 16),
                     // Canlı Önizleme
                     const Text(
@@ -449,6 +555,7 @@ Future<void> showWeeklyKeywordRuleDialog(
                     colorValue: previewColorValue,
                     linkedProjectId: linkMode == 1 ? selectedProjectId : null,
                     linkedTag: linkMode == 2 ? selectedTag : null,
+                    notificationMinutesBefore: selectedNotificationMinutes,
                   );
 
                   if (existingRule == null) {

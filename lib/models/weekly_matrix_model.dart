@@ -4,6 +4,7 @@ class WeeklyKeywordRule {
   final int colorValue;
   final String? linkedProjectId;
   final String? linkedTag;
+  final int? notificationMinutesBefore;
 
   const WeeklyKeywordRule({
     required this.id,
@@ -11,6 +12,7 @@ class WeeklyKeywordRule {
     required this.colorValue,
     this.linkedProjectId,
     this.linkedTag,
+    this.notificationMinutesBefore,
   });
 
   WeeklyKeywordRule copyWith({
@@ -19,8 +21,10 @@ class WeeklyKeywordRule {
     int? colorValue,
     String? linkedProjectId,
     String? linkedTag,
+    int? notificationMinutesBefore,
     bool clearLinkedProject = false,
     bool clearLinkedTag = false,
+    bool clearNotification = false,
   }) {
     return WeeklyKeywordRule(
       id: id ?? this.id,
@@ -30,7 +34,23 @@ class WeeklyKeywordRule {
           ? null
           : (linkedProjectId ?? this.linkedProjectId),
       linkedTag: clearLinkedTag ? null : (linkedTag ?? this.linkedTag),
+      notificationMinutesBefore: clearNotification
+          ? null
+          : (notificationMinutesBefore ?? this.notificationMinutesBefore),
     );
+  }
+
+  String? get notificationLabel {
+    if (notificationMinutesBefore == null) return null;
+    final mins = notificationMinutesBefore!;
+    if (mins == 0) return 'Tam vaktinde';
+    if (mins < 60) return '$mins dk önce';
+    if (mins == 60) return '1 saat önce';
+    if (mins == 120) return '2 saat önce';
+    if (mins == 1440) return '1 gün önce';
+    if (mins % 1440 == 0) return '${mins ~/ 1440} gün önce';
+    if (mins % 60 == 0) return '${mins ~/ 60} saat önce';
+    return '$mins dk önce';
   }
 
   Map<String, dynamic> toJson() {
@@ -40,6 +60,7 @@ class WeeklyKeywordRule {
       'colorValue': colorValue,
       'linkedProjectId': linkedProjectId,
       'linkedTag': linkedTag,
+      'notificationMinutesBefore': notificationMinutesBefore,
     };
   }
 
@@ -50,6 +71,7 @@ class WeeklyKeywordRule {
       colorValue: (json['colorValue'] as num?)?.toInt() ?? 0xFF2196F3,
       linkedProjectId: json['linkedProjectId'] as String?,
       linkedTag: json['linkedTag'] as String?,
+      notificationMinutesBefore: (json['notificationMinutesBefore'] as num?)?.toInt(),
     );
   }
 }
