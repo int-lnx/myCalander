@@ -67,6 +67,8 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
   DateTime _repeatEndDate = DateTime.now().add(const Duration(days: 30));
   bool _repeatAddToCalendar = true;
   bool _repeatAddToWeeklyMatrix = true;
+  String? _repeatDetectedNote;
+  bool _hasAutoDetectedInit = false;
 
   // ── Sil Tab Değişkenleri ──
   final TextEditingController _deleteTitleCtrl = TextEditingController();
@@ -103,6 +105,88 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
 
   String _formatDate(DateTime dt) {
     return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+
+  void _autoDetectHoursForTitle(String rawTitle, AppState appState) {
+    final title = rawTitle.trim();
+    if (title.isEmpty) {
+      if (_repeatDetectedNote != null) {
+        setState(() => _repeatDetectedNote = null);
+      }
+      return;
+    }
+
+    // 1. Haftalık-2 hücrelerini tara (Aktif haftaya öncelik ver)
+    final currentWk = appState.currentWeekKey;
+    final allMatching = appState.findMatchingMatrixCells(title: title);
+
+    var keys = allMatching.keys.where((k) => k.startsWith(currentWk)).toList();
+    if (keys.isEmpty) {
+      keys = allMatching.keys.toList();
+    }
+
+    if (keys.isNotEmpty) {
+      final dayHours = <String, List<int>>{};
+      for (final k in keys) {
+        final parts = k.split('_');
+        if (parts.length >= 3) {
+          final wk = parts[0];
+          final d = parts[1];
+          final h = int.tryParse(parts[2]);
+          if (h != null) {
+            final groupKey = '${wk}_$d';
+            dayHours.putIfAbsent(groupKey, () => []).add(h);
+          }
+        }
+      }
+
+      if (dayHours.isNotEmpty) {
+        final bestGroup = dayHours.entries
+            .reduce((a, b) => a.value.length >= b.value.length ? a : b);
+        final hours = bestGroup.value.toSet().toList()..sort();
+        final minH = hours.first;
+        final maxH = hours.last + 1; // örn: [1,2,3,4,5,6] -> minH: 1, maxH: 7 (01:00 - 07:00)
+
+        final startH = minH % 24;
+        final endH = maxH >= 24 ? 0 : maxH;
+        final hourCount = hours.length;
+
+        setState(() {
+          _repeatStartTime = TimeOfDay(hour: startH, minute: 0);
+          _repeatEndTime = TimeOfDay(hour: endH, minute: 0);
+          final startFmt = '${startH.toString().padLeft(2, '0')}:00';
+          final endFmt = '${(maxH >= 24 ? 24 : maxH).toString().padLeft(2, '0')}:00';
+          _repeatDetectedNote = 'Haftalık-2 tablosundan algılandı: $startFmt - $endFmt ($hourCount saat)';
+        });
+        return;
+      }
+    }
+
+    // 2. Takvim etkinliklerini tara
+    final matchingEvents = appState.events
+        .where((e) => AppState.isTitleMatch(e.title, title))
+        .toList();
+    if (matchingEvents.isNotEmpty) {
+      matchingEvents.sort((a, b) => b.from.compareTo(a.from));
+      final ev = matchingEvents.first;
+      final dur = ev.to.difference(ev.from);
+      final durStr = dur.inHours > 0 ? '${dur.inHours} saat' : '${dur.inMinutes} dk';
+      final sH = ev.from.hour.toString().padLeft(2, '0');
+      final sM = ev.from.minute.toString().padLeft(2, '0');
+      final eH = ev.to.hour.toString().padLeft(2, '0');
+      final eM = ev.to.minute.toString().padLeft(2, '0');
+
+      setState(() {
+        _repeatStartTime = TimeOfDay.fromDateTime(ev.from);
+        _repeatEndTime = TimeOfDay.fromDateTime(ev.to);
+        _repeatDetectedNote = 'Takvim kaydından algılandı: $sH:$sM - $eH:$eM ($durStr)';
+      });
+      return;
+    }
+
+    if (_repeatDetectedNote != null) {
+      setState(() => _repeatDetectedNote = null);
+    }
   }
 
   // ── Dynamic Rule Uyarı Modalı (3 Seçenekli) ──
@@ -282,6 +366,17 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
     final appState = Provider.of<AppState>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    if (!_hasAutoDetectedInit) {
+      _hasAutoDetectedInit = true;
+      if (_repeatTitleCtrl.text.trim().isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _autoDetectHoursForTitle(_repeatTitleCtrl.text, appState);
+          }
+        });
+      }
+    }
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
@@ -303,19 +398,39 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                     child: const Icon(Icons.tune, color: Colors.blue, size: 22),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Kayıt Yöneticisi',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          children: [
+                            const Text(
+                              'Kayıt Yöneticisi',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: const BoxDecoration(
+                                color: Colors.blue,
+                                borderRadius: BorderRadius.all(Radius.circular(6)),
+                              ),
+                              child: const Text(
+                                'v3.12',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         Text(
-                          'Takvim kayıtlarını toplu yönetin ve dinamik özelliklerle eşleştirin',
+                          'Takvim ve Haftalık-2 kayıtlarını yönetin',
                           style: TextStyle(fontSize: 11, color: Colors.grey),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -750,27 +865,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
             initialValue: TextEditingValue(text: _repeatTitleCtrl.text),
             onSelected: (String selection) {
               _repeatTitleCtrl.text = selection;
-              final existing = appState.events
-                  .where((e) => AppState.isTitleMatch(e.title, selection))
-                  .firstOrNull;
-              if (existing != null) {
-                _repeatStartTime = TimeOfDay.fromDateTime(existing.from);
-                _repeatEndTime = TimeOfDay.fromDateTime(existing.to);
-              } else {
-                final matchingKeys =
-                    appState.findMatchingMatrixCells(title: selection).keys;
-                if (matchingKeys.isNotEmpty) {
-                  final parts = matchingKeys.first.split('_');
-                  if (parts.length >= 3) {
-                    final hour = int.tryParse(parts[2]);
-                    if (hour != null) {
-                      _repeatStartTime = TimeOfDay(hour: hour, minute: 0);
-                      _repeatEndTime =
-                          TimeOfDay(hour: (hour + 1) % 24, minute: 0);
-                    }
-                  }
-                }
-              }
+              _autoDetectHoursForTitle(selection, appState);
               setState(() {});
             },
             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
@@ -787,7 +882,9 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                           onPressed: () {
                             controller.clear();
                             _repeatTitleCtrl.clear();
-                            setState(() {});
+                            setState(() {
+                              _repeatDetectedNote = null;
+                            });
                           },
                         )
                       : null,
@@ -797,6 +894,13 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                 ),
                 onChanged: (val) {
                   _repeatTitleCtrl.text = val;
+                  if (val.trim().isNotEmpty) {
+                    _autoDetectHoursForTitle(val, appState);
+                  } else {
+                    setState(() {
+                      _repeatDetectedNote = null;
+                    });
+                  }
                   setState(() {});
                 },
               );
@@ -849,7 +953,10 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                       initialTime: _repeatStartTime,
                     );
                     if (picked != null) {
-                      setState(() => _repeatStartTime = picked);
+                      setState(() {
+                        _repeatStartTime = picked;
+                        _repeatDetectedNote = null;
+                      });
                     }
                   },
                   borderRadius: BorderRadius.circular(8),
@@ -881,7 +988,10 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                       initialTime: _repeatEndTime,
                     );
                     if (picked != null) {
-                      setState(() => _repeatEndTime = picked);
+                      setState(() {
+                        _repeatEndTime = picked;
+                        _repeatDetectedNote = null;
+                      });
                     }
                   },
                   borderRadius: BorderRadius.circular(8),
@@ -906,6 +1016,34 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
               ),
             ],
           ),
+
+          if (_repeatDetectedNote != null) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome, size: 14, color: Colors.blue),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _repeatDetectedNote!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           const SizedBox(height: 14),
 
@@ -1201,16 +1339,33 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                           if (_repeatAddToWeeklyMatrix) {
                             final weekKey = appState.getWeekKeyForDate(cur);
                             final dayIndex = cur.weekday - 1; // 0 = Pazartesi ... 6 = Pazar
-                            int startH = _repeatStartTime.hour;
-                            int endH = _repeatEndTime.hour;
-                            if (endH <= startH) endH = 24;
-                            for (int h = startH; h < endH; h++) {
-                              matrixUpdates['${weekKey}_${dayIndex}_$h'] = title;
+                            final startH = _repeatStartTime.hour;
+                            final endH = _repeatEndTime.hour;
+                            final effectiveEndH = (endH == 0 && startH > 0) ? 24 : endH;
+
+                            if (effectiveEndH > startH) {
+                              for (int h = startH; h < effectiveEndH; h++) {
+                                matrixUpdates['${weekKey}_${dayIndex}_$h'] = title;
+                              }
+                            } else if (effectiveEndH < startH) {
+                              // Geceyi aşan aralık (örn: 23:00 - 07:00)
+                              for (int h = startH; h < 24; h++) {
+                                matrixUpdates['${weekKey}_${dayIndex}_$h'] = title;
+                              }
+                              final nextDay = DateTime(cur.year, cur.month, cur.day + 1);
+                              final nextWkKey = appState.getWeekKeyForDate(nextDay);
+                              final nextDayIdx = nextDay.weekday - 1;
+                              for (int h = 0; h < effectiveEndH; h++) {
+                                matrixUpdates['${nextWkKey}_${nextDayIdx}_$h'] = title;
+                              }
+                            } else {
+                              // Tek saatlik blok (örn: 09:00 - 09:00)
+                              matrixUpdates['${weekKey}_${dayIndex}_$startH'] = title;
                             }
                           }
                         }
 
-                        cur = cur.add(const Duration(days: 1));
+                        cur = DateTime(cur.year, cur.month, cur.day + 1);
                       }
 
                       if (newEvents.isNotEmpty) {
@@ -1226,11 +1381,14 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
 
                       final messenger = ScaffoldMessenger.of(context);
                       messenger.hideCurrentSnackBar();
+                      final totalCells = matrixUpdates.length;
+                      final infoMsg = totalCells > 0
+                          ? '$targetDayCount gün için "$title" ($totalCells hücre) başarıyla eklendi.'
+                          : '$targetDayCount gün için "$title" başarıyla eklendi.';
+
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text(
-                            '$targetDayCount gün için "$title" kayıtları başarıyla eklendi.',
-                          ),
+                          content: Text(infoMsg),
                           duration: const Duration(seconds: 4),
                           behavior: SnackBarBehavior.floating,
                           showCloseIcon: true,
@@ -1272,9 +1430,13 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                         ),
                       );
                     },
-              icon: const Icon(Icons.add_task, size: 18),
+              icon: const Icon(Icons.repeat, size: 18),
               label: Text(
-                'Takvime $targetDayCount Gün Kayıt Ekle',
+                _repeatAddToCalendar && _repeatAddToWeeklyMatrix
+                    ? '$targetDayCount Güne Tekrarla (Takvim + Haftalık-2)'
+                    : (_repeatAddToWeeklyMatrix
+                        ? '$targetDayCount Güne Tekrarla (Haftalık-2 Tablosu)'
+                        : '$targetDayCount Güne Tekrarla (Takvim)'),
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
