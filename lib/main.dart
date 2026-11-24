@@ -556,8 +556,8 @@ class _MainScreenState extends State<MainScreen> {
             message: 'Bugüne Git',
             child: todayBox,
           ),
-          if (_currentIndex == 0) ...[
-            if (isDesktop && isNavigableCalendarView) ...[
+          if (_currentIndex == 0 && isDesktop) ...[
+            if (isNavigableCalendarView) ...[
               const SizedBox(width: 6),
               Container(
                 decoration: BoxDecoration(
