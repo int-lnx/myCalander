@@ -25,7 +25,9 @@ import 'all_timeline_screen.dart';
 import 'recent_items_screen.dart';
 import 'daily_notes_screen.dart';
 import 'weekly_matrix_screen.dart';
-import 'package:my_plan/screens/plan_screen.dart' show PlanScreen;
+import 'plan_screen.dart' show PlanScreen;
+import 'custom_recurrence_dialog.dart';
+import '../utils/rrule_translator.dart';
 import '../dialogs/project_evaluation_dialog.dart';
 import '../dialogs/follow_up_log_dialog.dart';
 
@@ -120,6 +122,48 @@ class _CalendarScreenState extends State<CalendarScreen>
   final Map<ScrollPosition, double> _lockedScrollOffsets = {};
   bool _isScrollLocked = false;
 
+  // ── İnteraktif Taslak (Draft) Etkinlik / Görev Oluşturma Durumu ──
+  static const String _draftItemId = '__draft_creation_item__';
+  bool _isDraftActive = false;
+  bool _draftIsTask = false; // false = Etkinlik, true = Görev
+  bool _draftSheetExpanded = false;
+  double _draftSheetHeight = 172.0;
+  final TextEditingController _draftTitleCtrl = TextEditingController();
+  final TextEditingController _draftDetailsCtrl = TextEditingController();
+  final FocusNode _draftTitleFocusNode = FocusNode();
+  DateTime _draftFrom = DateTime.now();
+  DateTime _draftTo = DateTime.now().add(const Duration(hours: 1));
+  bool _draftIsAllDay = false;
+  int _draftColorValue = 0xFF2196F3;
+  String _draftTag = 'Genel';
+  String? _draftSubTag;
+  int _draftImportance = 0;
+  String? _draftProjectId;
+  String? _draftProjectTag;
+  String? _draftSuperTaskId;
+  String? _draftRecurrenceRule;
+  List<int> _draftNotificationOffsets = [];
+  bool _draftIsTrackingEnabled = false;
+  bool _draftShowInMonthView = true;
+  int _lastHandledQuickAddTrigger = 0;
+
+  static const List<int> _draftColorPalette = [
+    0xFF2196F3, // Blue
+    0xFFF44336, // Red
+    0xFF4CAF50, // Green
+    0xFFFF9800, // Orange
+    0xFF9C27B0, // Purple
+    0xFF009688, // Teal
+    0xFFE91E63, // Pink
+    0xFFFFC107, // Amber
+    0xFF00BCD4, // Cyan
+    0xFF8BC34A, // Light Green
+    0xFFE040FB, // Orchid
+    0xFFFF5722, // Deep Orange
+    0xFF607D8B, // Blue Grey
+    0xFF795548, // Brown
+  ];
+
   void _handlePointerDown(PointerDownEvent event) {
     _lastPointerLocalPos = event.localPosition;
     _lastPointerGlobalPos = event.position;
@@ -175,12 +219,18 @@ class _CalendarScreenState extends State<CalendarScreen>
   void dispose() {
     _unlockCalendarScroll();
     _marchingAntsController.dispose();
+    _draftTitleCtrl.dispose();
+    _draftDetailsCtrl.dispose();
+    _draftTitleFocusNode.dispose();
     HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     WakelockPlus.disable();
     super.dispose();
   }
 
   bool _isCardManipulated(String itemId, DateTime occFrom) {
+    if (_isDraftActive && itemId == _draftItemId) {
+      return true;
+    }
     if (_manipulatedCardId == null || _manipulatedCardId != itemId) {
       return false;
     }
@@ -198,7 +248,17 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   void _clearCardManipulation() {
-    if (!mounted || _manipulatedCardId == null) return;
+    if (!mounted) return;
+    if (_isDraftActive) {
+      if (_manipulatedCardId != _draftItemId) {
+        setState(() {
+          _manipulatedCardId = _draftItemId;
+          _manipulatedCardFrom = _draftFrom;
+        });
+      }
+      return;
+    }
+    if (_manipulatedCardId == null) return;
     setState(() {
       _manipulatedCardId = null;
       _manipulatedCardFrom = null;
@@ -241,6 +301,10 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   void _handleCardTap(_CardHitResult hit) {
     if (!mounted) return;
+    if (hit.occurrence.id == _draftItemId) {
+      _draftTitleFocusNode.requestFocus();
+      return;
+    }
     final appState = Provider.of<AppState>(context, listen: false);
     if (appState.isBulkMode) {
       if (hit.occurrence.originalItem is Event) {
@@ -404,9 +468,11 @@ class _CalendarScreenState extends State<CalendarScreen>
           gridPos.dy >= cardTop &&
           gridPos.dy <= cardBottom) {
         final bool isCardManip = _isCardManipulated(occ.id, occ.fullFrom);
-        final double edgeMargin = isCardManip
-            ? (visualHeight * 0.28).clamp(5.0, 10.0)
-            : (visualHeight * 0.25).clamp(3.0, 7.0);
+        final double edgeMargin = occ.id == _draftItemId
+            ? (visualHeight * 0.30).clamp(6.0, 14.0)
+            : (isCardManip
+                  ? (visualHeight * 0.28).clamp(5.0, 10.0)
+                  : (visualHeight * 0.25).clamp(3.0, 7.0));
         _CardHitZone zone = _CardHitZone.body;
         if (gridPos.dy <= cardTop + edgeMargin &&
             !occ.fullFrom.isBefore(dayStart)) {
@@ -638,8 +704,8 @@ class _CalendarScreenState extends State<CalendarScreen>
       _activeHit = null;
       _previewFrom = null;
       _previewTo = null;
-      _manipulatedCardId = null;
-      _manipulatedCardFrom = null;
+      _manipulatedCardId = _isDraftActive ? _draftItemId : null;
+      _manipulatedCardFrom = _isDraftActive ? newFrom : null;
       _calendarMouseCursor = SystemMouseCursors.basic;
     });
 
@@ -666,8 +732,8 @@ class _CalendarScreenState extends State<CalendarScreen>
         _activeHit = null;
         _previewFrom = null;
         _previewTo = null;
-        _manipulatedCardId = null;
-        _manipulatedCardFrom = null;
+        _manipulatedCardId = _isDraftActive ? _draftItemId : null;
+        _manipulatedCardFrom = _isDraftActive ? _draftFrom : null;
         _calendarMouseCursor = SystemMouseCursors.basic;
       });
     }
@@ -681,6 +747,18 @@ class _CalendarScreenState extends State<CalendarScreen>
     required DateTime newTo,
     required bool isResize,
   }) {
+    final String movedId = item is Event
+        ? item.id
+        : (item is TaskItem ? item.id : '');
+    if (movedId == _draftItemId) {
+      setState(() {
+        _draftFrom = newFrom;
+        _draftTo = newTo;
+        _manipulatedCardId = _draftItemId;
+        _manipulatedCardFrom = newFrom;
+      });
+      return;
+    }
     if (item is Event) {
       final bool isRecurring =
           item.recurrenceRule != null && item.recurrenceRule!.isNotEmpty;
@@ -1023,6 +1101,12 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   bool _handleKeyEvent(KeyEvent event) {
     if (!mounted || event is! KeyDownEvent) return false;
+    if (_isDraftActive &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      _cancelInteractiveDraft();
+      return true;
+    }
     if (!_isCalendarGridActive()) return false;
 
     final bool isCtrlOrMeta =
@@ -1375,6 +1459,9 @@ class _CalendarScreenState extends State<CalendarScreen>
     }
 
     if (id != null) {
+      if (id == _draftItemId && _isDraftActive) {
+        return _buildDraftCalendarItem(appState);
+      }
       if (id.startsWith('daynote_')) {
         final realId = id.substring(8);
         try {
@@ -1700,6 +1787,13 @@ class _CalendarScreenState extends State<CalendarScreen>
   List<dynamic> _getAllDayItemsForDate(DateTime date, AppState appState) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final List<dynamic> result = [];
+
+    if (_isDraftActive && _draftIsAllDay) {
+      if (DateTime(_draftFrom.year, _draftFrom.month, _draftFrom.day) ==
+          normalizedDate) {
+        result.add(_buildDraftCalendarItem(appState));
+      }
+    }
 
     // Add all-day events on this day (non-recurring only;
     // recurring all-day events are handled natively in calendarItems)
@@ -2215,6 +2309,43 @@ class _CalendarScreenState extends State<CalendarScreen>
       }
     }
 
+    if (_isDraftActive && !_draftIsAllDay) {
+      final draftItem = _buildDraftCalendarItem(appState);
+      final dFromLocal = _draftFrom.toLocal();
+      final dToLocal = _draftTo.toLocal();
+      if (dFromLocal.isBefore(dayEnd) && dToLocal.isAfter(dayStart)) {
+        final rawFrom = DateTime(
+          dFromLocal.year,
+          dFromLocal.month,
+          dFromLocal.day,
+          dFromLocal.hour,
+          dFromLocal.minute,
+        );
+        final rawTo = DateTime(
+          dToLocal.year,
+          dToLocal.month,
+          dToLocal.day,
+          dToLocal.hour,
+          dToLocal.minute,
+        );
+        final clampedFrom = rawFrom.isBefore(dayStart) ? dayStart : rawFrom;
+        final clampedTo = rawTo.isAfter(dayEnd) ? dayEnd : rawTo;
+        if (clampedFrom.isBefore(clampedTo)) {
+          occurrences.add(
+            OccurrenceInfo(
+              originalItem: draftItem,
+              id: _draftItemId,
+              from: clampedFrom,
+              to: clampedTo,
+              fullFrom: rawFrom,
+              fullTo: rawTo,
+              createdAt: DateTime.now().add(const Duration(days: 3650)),
+            ),
+          );
+        }
+      }
+    }
+
     occurrences.sort(_compareOccurrences);
     return occurrences;
   }
@@ -2655,12 +2786,24 @@ class _CalendarScreenState extends State<CalendarScreen>
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
+    if (_lastHandledQuickAddTrigger != appState.quickAddDraftTrigger) {
+      _lastHandledQuickAddTrigger = appState.quickAddDraftTrigger;
+      final DateTime? requestedInit = appState.quickAddDraftInitialDate;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _startInteractiveDraft(
+            initialDate: requestedInit,
+            forceNewReset: true,
+          );
+        }
+      });
+    }
     if (appState.showPlanView ||
         appState.showSeritView ||
         appState.showRecentView ||
         appState.showDailyNotesView ||
         appState.showWeekly2View) {
-      if (_copiedItem != null || _manipulatedCardId != null) {
+      if (_copiedItem != null || _manipulatedCardId != null || _isDraftActive) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             setState(() {
@@ -2668,6 +2811,7 @@ class _CalendarScreenState extends State<CalendarScreen>
               _copiedOccurrenceFrom = null;
               _manipulatedCardId = null;
               _manipulatedCardFrom = null;
+              _isDraftActive = false;
             });
           }
         });
@@ -2845,6 +2989,9 @@ class _CalendarScreenState extends State<CalendarScreen>
     calendarItems.addAll(regularTimedTasks);
     calendarItems.addAll(eventReminders);
     calendarItems.addAll(taskReminders);
+    if (_isDraftActive && !_draftIsAllDay) {
+      calendarItems.add(_buildDraftCalendarItem(appState));
+    }
 
     // Add all-day recurring events/tasks directly so Syncfusion handles
     // their recurrence natively – same pipeline as timed recurring events.
@@ -3418,6 +3565,13 @@ class _CalendarScreenState extends State<CalendarScreen>
                                     rawAppointment,
                                     appState,
                                   );
+                                  if ((appointment is Event &&
+                                          appointment.id == _draftItemId) ||
+                                      (appointment is TaskItem &&
+                                          appointment.id == _draftItemId)) {
+                                    _draftTitleFocusNode.requestFocus();
+                                    return;
+                                  }
                                   if (appointment is DayNote) {
                                     DayNoteDialog.show(
                                       context,
@@ -5657,6 +5811,12 @@ class _CalendarScreenState extends State<CalendarScreen>
                       _buildWeekStripsPanel(context, appState, constraints),
                     _buildInteractionPreviewOverlay(appState),
                     if (_copiedItem != null) _buildCopyPasteBanner(appState),
+                    if (_isDraftActive)
+                      _buildInteractiveDraftBottomPanel(
+                        context,
+                        appState,
+                        constraints,
+                      ),
                   ],
                 ),
               ),
@@ -6410,56 +6570,1534 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   void _showAddSelection(BuildContext context, {DateTime? initialDate}) {
+    _startInteractiveDraft(initialDate: initialDate);
+  }
+
+  void _startInteractiveDraft({
+    DateTime? initialDate,
+    bool? isTask,
+    bool forceNewReset = false,
+  }) {
     final appState = Provider.of<AppState>(context, listen: false);
-    showModalBottomSheet(
-      context: context,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.event, color: Colors.blue),
-                title: const Text('Etkinlik Ekle'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _pushRouteWithSnapshotUndo(
-                    appState: appState,
-                    actionLabel: 'Yeni etkinlik eklendi',
-                    builder: (context) =>
-                        EventFormScreen(initialDate: initialDate),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.rocket_launch, color: Colors.purple),
-                title: const Text('Proje Ekle'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ProjectFormScreen(),
+    final now = DateTime.now();
+    DateTime baseStart;
+    if (initialDate != null) {
+      if (appState.calendarView == CalendarView.month &&
+          initialDate.hour == 0 &&
+          initialDate.minute == 0) {
+        baseStart = DateTime(
+          initialDate.year,
+          initialDate.month,
+          initialDate.day,
+          9,
+          0,
+        );
+      } else {
+        baseStart = initialDate;
+      }
+    } else if (_lastHoveredDateTime != null &&
+        (appState.calendarView == CalendarView.week ||
+            appState.calendarView == CalendarView.day)) {
+      baseStart = _lastHoveredDateTime!;
+    } else if (_lastFocusedOccurrenceFrom != null) {
+      baseStart = _lastFocusedOccurrenceFrom!;
+    } else {
+      final disp = appState.displayDate;
+      baseStart = DateTime(disp.year, disp.month, disp.day, now.hour, 0);
+    }
+
+    final bool shouldResetFields = !_isDraftActive || forceNewReset;
+    final bool nextIsTask = isTask ?? (shouldResetFields ? false : _draftIsTask);
+    final String defaultTag = nextIsTask
+        ? (appState.taskTags.contains('Yapılacaklar')
+              ? 'Yapılacaklar'
+              : (appState.taskTags.isNotEmpty
+                    ? appState.taskTags.first
+                    : 'Yapılacaklar'))
+        : (appState.eventTags.contains('Genel')
+              ? 'Genel'
+              : (appState.eventTags.isNotEmpty
+                    ? appState.eventTags.first
+                    : 'Genel'));
+    final int defaultColor = nextIsTask
+        ? (appState.getTaskTagColor(defaultTag) ?? 0xFF4CAF50)
+        : (appState.getEventTagColor(defaultTag) ?? 0xFF2196F3);
+
+    final Duration currentDur =
+        (_isDraftActive && !forceNewReset && _draftTo.isAfter(_draftFrom))
+        ? _draftTo.difference(_draftFrom)
+        : const Duration(hours: 1);
+
+    setState(() {
+      if (shouldResetFields) {
+        _draftTitleCtrl.clear();
+        _draftDetailsCtrl.clear();
+        _draftIsTask = nextIsTask;
+        _draftTag = defaultTag;
+        _draftSubTag = null;
+        _draftColorValue = defaultColor;
+        _draftImportance = 0;
+        _draftProjectId = null;
+        _draftProjectTag = null;
+        _draftSuperTaskId = null;
+        _draftRecurrenceRule = null;
+        _draftNotificationOffsets = [];
+        _draftIsTrackingEnabled = false;
+        _draftShowInMonthView = true;
+        _draftIsAllDay = false;
+        _draftSheetExpanded = false;
+        _draftSheetHeight = 172.0;
+      } else if (isTask != null && isTask != _draftIsTask) {
+        _draftIsTask = isTask;
+        _draftTag = defaultTag;
+        _draftSubTag = null;
+        _draftColorValue = defaultColor;
+      }
+      _isDraftActive = true;
+      _draftFrom = baseStart;
+      _draftTo = baseStart.add(currentDur);
+      _manipulatedCardId = _draftItemId;
+      _manipulatedCardFrom = _draftFrom;
+    });
+    HapticFeedback.selectionClick();
+  }
+
+  void _cancelInteractiveDraft() {
+    if (!_isDraftActive) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isDraftActive = false;
+      _draftSheetExpanded = false;
+      _draftSheetHeight = 172.0;
+      if (_manipulatedCardId == _draftItemId) {
+        _manipulatedCardId = null;
+        _manipulatedCardFrom = null;
+      }
+    });
+  }
+
+  void _saveInteractiveDraft(AppState appState) {
+    final String title = _draftTitleCtrl.text.trim();
+    if (title.isEmpty) {
+      // Başlık girilmeden kapatılır/kaydedilmeye çalışılırsa etkinlik oluşmaz
+      _cancelInteractiveDraft();
+      return;
+    }
+
+    final DateTime activeFrom =
+        (_activeHit?.occurrence.id == _draftItemId && _previewFrom != null)
+        ? _previewFrom!
+        : _draftFrom;
+    final DateTime activeTo =
+        (_activeHit?.occurrence.id == _draftItemId && _previewTo != null)
+        ? _previewTo!
+        : _draftTo;
+
+    // Dinamik Kelime Kuralı (WeeklyKeywordRule) kontrolü
+    final dynRule = appState.findWeeklyKeywordRule(title);
+    int finalColor = _draftColorValue;
+    String finalTag = _draftTag;
+    String? finalProjectId = _draftProjectId;
+    List<int> finalNotifs = List<int>.from(_draftNotificationOffsets);
+    if (dynRule != null) {
+      finalColor = appState.resolveKeywordRuleColor(dynRule);
+      if (dynRule.linkedTag != null && dynRule.linkedTag!.isNotEmpty) {
+        finalTag = dynRule.linkedTag!;
+      }
+      if (finalProjectId == null && dynRule.linkedProjectId != null) {
+        finalProjectId = dynRule.linkedProjectId;
+      }
+      if (finalNotifs.isEmpty && dynRule.notificationMinutesBefore != null) {
+        finalNotifs = [dynRule.notificationMinutesBefore!];
+      }
+    }
+
+    if (_draftIsTask) {
+      final newTask = TaskItem(
+        id: IdGenerator.generate(title, date: activeFrom),
+        title: title,
+        details: _draftDetailsCtrl.text.trim(),
+        isCompleted: false,
+        from: activeFrom,
+        to: activeTo,
+        isAllDay: _draftIsAllDay,
+        colorValue: finalColor,
+        tag: finalTag,
+        subTag: _draftSubTag,
+        importance: _draftImportance,
+        projectId: finalProjectId,
+        projectTag: _draftProjectTag,
+        superTaskId: _draftSuperTaskId,
+        recurrenceRule: _draftRecurrenceRule,
+        notificationOffsets: finalNotifs,
+        hasNotification: finalNotifs.isNotEmpty,
+        notificationMinutesBefore: finalNotifs.isNotEmpty
+            ? finalNotifs.first
+            : null,
+        showInMonthView: _draftShowInMonthView,
+      );
+      appState.addTask(newTask);
+      _cancelInteractiveDraft();
+      _showUndoSnackBar('"$title" görevi oluşturuldu', () {
+        appState.deleteTask(newTask.id);
+      });
+    } else {
+      final newEvent = Event(
+        id: IdGenerator.generate(title, date: activeFrom),
+        title: title,
+        description: _draftDetailsCtrl.text.trim(),
+        from: activeFrom,
+        to: activeTo,
+        isAllDay: _draftIsAllDay,
+        colorValue: finalColor,
+        tag: finalTag,
+        subTag: _draftSubTag,
+        importance: _draftImportance,
+        projectId: finalProjectId,
+        projectTag: _draftProjectTag,
+        isTrackingEnabled: _draftIsTrackingEnabled,
+        recurrenceRule: _draftRecurrenceRule,
+        notificationOffsets: finalNotifs,
+        showInMonthView: _draftShowInMonthView,
+      );
+      appState.addEvent(newEvent);
+      _cancelInteractiveDraft();
+      _showUndoSnackBar('"$title" etkinliği oluşturuldu', () {
+        appState.deleteEvent(newEvent.id);
+      });
+    }
+  }
+
+  dynamic _buildDraftCalendarItem(AppState appState) {
+    final String rawTitle = _draftTitleCtrl.text.trim();
+    final String displayTitle = rawTitle.isEmpty
+        ? (_draftIsTask ? '📝 Yeni Görev (Taslak)' : '✨ Yeni Etkinlik (Taslak)')
+        : rawTitle;
+    final DateTime topCreatedAt = DateTime.now().add(
+      const Duration(days: 3650),
+    );
+
+    if (_draftIsTask) {
+      return TaskItem(
+        id: _draftItemId,
+        title: displayTitle,
+        details: _draftDetailsCtrl.text.trim(),
+        isCompleted: false,
+        from: _draftFrom,
+        to: _draftTo,
+        isAllDay: _draftIsAllDay,
+        colorValue: _draftColorValue,
+        tag: _draftTag,
+        subTag: _draftSubTag,
+        importance: _draftImportance,
+        projectId: _draftProjectId,
+        projectTag: _draftProjectTag,
+        superTaskId: _draftSuperTaskId,
+        recurrenceRule: _draftRecurrenceRule,
+        notificationOffsets: _draftNotificationOffsets,
+        showInMonthView: true,
+        createdAt: topCreatedAt,
+      );
+    } else {
+      return Event(
+        id: _draftItemId,
+        title: displayTitle,
+        description: _draftDetailsCtrl.text.trim(),
+        from: _draftFrom,
+        to: _draftTo,
+        isAllDay: _draftIsAllDay,
+        colorValue: _draftColorValue,
+        tag: _draftTag,
+        subTag: _draftSubTag,
+        importance: _draftImportance,
+        projectId: _draftProjectId,
+        projectTag: _draftProjectTag,
+        isTrackingEnabled: _draftIsTrackingEnabled,
+        recurrenceRule: _draftRecurrenceRule,
+        notificationOffsets: _draftNotificationOffsets,
+        showInMonthView: true,
+        createdAt: topCreatedAt,
+      );
+    }
+  }
+
+  Widget _buildInteractiveDraftBottomPanel(
+    BuildContext context,
+    AppState appState,
+    BoxConstraints constraints,
+  ) {
+    final bool isDark = appState.isDarkMode;
+    final DateTime activeFrom =
+        (_activeHit?.occurrence.id == _draftItemId && _previewFrom != null)
+        ? _previewFrom!
+        : _draftFrom;
+    final DateTime activeTo =
+        (_activeHit?.occurrence.id == _draftItemId && _previewTo != null)
+        ? _previewTo!
+        : _draftTo;
+
+    const daysTr = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    const monthsTr = [
+      'Oca',
+      'Şub',
+      'Mar',
+      'Nis',
+      'May',
+      'Haz',
+      'Tem',
+      'Ağu',
+      'Eyl',
+      'Eki',
+      'Kas',
+      'Ara',
+    ];
+    final String dayStr =
+        '${activeFrom.day} ${monthsTr[activeFrom.month - 1]} ${daysTr[activeFrom.weekday - 1]}';
+    final String startTimeStr =
+        '${activeFrom.hour.toString().padLeft(2, '0')}:${activeFrom.minute.toString().padLeft(2, '0')}';
+    final String endTimeStr =
+        '${activeTo.hour.toString().padLeft(2, '0')}:${activeTo.minute.toString().padLeft(2, '0')}';
+
+    final int durMinutes = activeTo.difference(activeFrom).inMinutes;
+    final String durLabel = durMinutes >= 60
+        ? (durMinutes % 60 == 0
+              ? '${durMinutes ~/ 60} sa'
+              : '${durMinutes ~/ 60} sa ${durMinutes % 60} dk')
+        : '$durMinutes dk';
+
+    final double minHeight = 172.0;
+    final double maxHeight = math.max(
+      260.0,
+      math.min(constraints.maxHeight * 0.76, 540.0),
+    );
+    final double currentHeight = _draftSheetExpanded
+        ? _draftSheetHeight.clamp(280.0, maxHeight)
+        : minHeight;
+
+    final Color accentColor = Color(_draftColorValue);
+    final List<String> availableTags = _draftIsTask
+        ? appState.taskTags
+        : appState.eventTags;
+    final List<String> availableSubTags = _draftIsTask
+        ? (appState.taskSubTags[_draftTag] ?? const [])
+        : (appState.eventSubTags[_draftTag] ?? const []);
+    final List<Project> activeProjects = appState.projects;
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        height: currentHeight,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border(
+            top: BorderSide(color: accentColor, width: 2.5),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.55 : 0.18),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // ── Yukarı Kaydırma / Tutamaç Barı ──
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                setState(() {
+                  _draftSheetExpanded = !_draftSheetExpanded;
+                  _draftSheetHeight = _draftSheetExpanded ? maxHeight : minHeight;
+                });
+              },
+              onVerticalDragUpdate: (details) {
+                setState(() {
+                  final double nextH = (_draftSheetHeight - details.delta.dy)
+                      .clamp(minHeight, maxHeight);
+                  _draftSheetHeight = nextH;
+                  _draftSheetExpanded = nextH > minHeight + 35.0;
+                });
+              },
+              onVerticalDragEnd: (details) {
+                final double vel = details.primaryVelocity ?? 0.0;
+                setState(() {
+                  if (vel < -250) {
+                    _draftSheetExpanded = true;
+                    _draftSheetHeight = maxHeight;
+                  } else if (vel > 250) {
+                    _draftSheetExpanded = false;
+                    _draftSheetHeight = minHeight;
+                  } else {
+                    if (_draftSheetHeight > minHeight + 65.0) {
+                      _draftSheetExpanded = true;
+                      if (_draftSheetHeight < 300.0) {
+                        _draftSheetHeight = maxHeight;
+                      }
+                    } else {
+                      _draftSheetExpanded = false;
+                      _draftSheetHeight = minHeight;
+                    }
+                  }
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 10, 4),
+                child: Column(
+                  children: [
+                    // Küçük Sürükleme Çubuğu
+                    Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.grey.shade600
+                            : Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  );
-                },
+                    const SizedBox(height: 6),
+                    // 1. SATIR: Tür Seçici (Etkinlik / Görev Toggle) + Detaylar + Kaydet / Kapat
+                    Row(
+                      children: [
+                        // Etkinlik / Görev Seçici
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () {
+                                  if (_draftIsTask) {
+                                    final nextTag =
+                                        appState.eventTags.contains('Genel')
+                                        ? 'Genel'
+                                        : (appState.eventTags.isNotEmpty
+                                              ? appState.eventTags.first
+                                              : 'Genel');
+                                    setState(() {
+                                      _draftIsTask = false;
+                                      _draftTag = nextTag;
+                                      _draftSubTag = null;
+                                      _draftColorValue =
+                                          appState.getEventTagColor(nextTag) ??
+                                          0xFF2196F3;
+                                    });
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: !_draftIsTask
+                                        ? Colors.blue
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.event,
+                                        size: 14,
+                                        color: !_draftIsTask
+                                            ? Colors.white
+                                            : (isDark
+                                                  ? Colors.white70
+                                                  : Colors.black54),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Etkinlik',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: !_draftIsTask
+                                              ? Colors.white
+                                              : (isDark
+                                                    ? Colors.white70
+                                                    : Colors.black54),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () {
+                                  if (!_draftIsTask) {
+                                    final nextTag =
+                                        appState.taskTags.contains(
+                                          'Yapılacaklar',
+                                        )
+                                        ? 'Yapılacaklar'
+                                        : (appState.taskTags.isNotEmpty
+                                              ? appState.taskTags.first
+                                              : 'Yapılacaklar');
+                                    setState(() {
+                                      _draftIsTask = true;
+                                      _draftTag = nextTag;
+                                      _draftSubTag = null;
+                                      _draftColorValue =
+                                          appState.getTaskTagColor(nextTag) ??
+                                          0xFF4CAF50;
+                                    });
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _draftIsTask
+                                        ? Colors.green.shade600
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.task_alt,
+                                        size: 14,
+                                        color: _draftIsTask
+                                            ? Colors.white
+                                            : (isDark
+                                                  ? Colors.white70
+                                                  : Colors.black54),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Görev',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: _draftIsTask
+                                              ? Colors.white
+                                              : (isDark
+                                                    ? Colors.white70
+                                                    : Colors.black54),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Detayları Yukarı Kaydır / Aç Butonu
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () {
+                            setState(() {
+                              _draftSheetExpanded = !_draftSheetExpanded;
+                              _draftSheetHeight = _draftSheetExpanded
+                                  ? maxHeight
+                                  : minHeight;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: accentColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _draftSheetExpanded
+                                      ? Icons.keyboard_arrow_down
+                                      : Icons.keyboard_arrow_up,
+                                  size: 16,
+                                  color: accentColor,
+                                ),
+                                Text(
+                                  _draftSheetExpanded ? 'Küçült' : 'Detaylar',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: accentColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        // Kaydet Butonu
+                        ElevatedButton.icon(
+                          onPressed: () => _saveInteractiveDraft(appState),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _draftIsTask
+                                ? Colors.green.shade600
+                                : Colors.blue,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.check, size: 16),
+                          label: const Text(
+                            'Kaydet',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        // Kapat / İptal (İçine bir şey yazmadan kapatılırsa oluşmaz)
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          tooltip: 'Kapat / Vazgeç (Esc)',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 30,
+                            minHeight: 30,
+                          ),
+                          onPressed: _cancelInteractiveDraft,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              ListTile(
-                leading: const Icon(Icons.task_alt, color: Colors.green),
-                title: const Text('Görev Ekle'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _pushRouteWithSnapshotUndo(
-                    appState: appState,
-                    actionLabel: 'Yeni görev eklendi',
-                    builder: (context) =>
-                        TaskFormScreen(initialDate: initialDate),
-                  );
-                },
+            ),
+
+            // ── 2. SATIR: Başlık Adı Alanı ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: SizedBox(
+                height: 40,
+                child: TextField(
+                  controller: _draftTitleCtrl,
+                  focusNode: _draftTitleFocusNode,
+                  textInputAction: TextInputAction.done,
+                  onChanged: (val) {
+                    final rule = appState.findWeeklyKeywordRule(val.trim());
+                    setState(() {
+                      if (rule != null) {
+                        _draftColorValue = appState.resolveKeywordRuleColor(
+                          rule,
+                        );
+                        if (rule.linkedTag != null &&
+                            rule.linkedTag!.isNotEmpty) {
+                          _draftTag = rule.linkedTag!;
+                        }
+                        if (rule.linkedProjectId != null) {
+                          _draftProjectId = rule.linkedProjectId;
+                        }
+                      }
+                    });
+                  },
+                  onSubmitted: (_) => _saveInteractiveDraft(appState),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: _draftIsTask
+                        ? 'Görev başlığı yazın... (Takvimden tutup saatini ayarlayın)'
+                        : 'Etkinlik başlığı yazın... (Takvimden tutup saatini ayarlayın)',
+                    hintStyle: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.normal,
+                      color: isDark ? Colors.white38 : Colors.black38,
+                    ),
+                    prefixIcon: Icon(
+                      _draftIsTask ? Icons.check_circle_outline : Icons.edit_calendar,
+                      size: 18,
+                      color: accentColor,
+                    ),
+                    suffixIcon: _draftTitleCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            onPressed: () {
+                              setState(() {
+                                _draftTitleCtrl.clear();
+                              });
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.grey.shade100,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: accentColor, width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            // ── 3. SATIR: Tek Satırda Başlangıç - Bitiş Saatleri ve Tarih ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    // Tarih Seçici Chip
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: activeFrom,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2035),
+                        );
+                        if (picked != null) {
+                          final dur = _draftTo.difference(_draftFrom);
+                          setState(() {
+                            _draftFrom = DateTime(
+                              picked.year,
+                              picked.month,
+                              picked.day,
+                              _draftFrom.hour,
+                              _draftFrom.minute,
+                            );
+                            _draftTo = _draftFrom.add(dur);
+                          });
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white24
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: 13,
+                              color: accentColor,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              dayStr,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Başlangıç - Bitiş Saatleri Tek Satırda
+                    if (!_draftIsAllDay) ...[
+                      InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(activeFrom),
+                          );
+                          if (picked != null) {
+                            final dur = _draftTo.difference(_draftFrom);
+                            setState(() {
+                              _draftFrom = DateTime(
+                                _draftFrom.year,
+                                _draftFrom.month,
+                                _draftFrom.day,
+                                picked.hour,
+                                picked.minute,
+                              );
+                              _draftTo = _draftFrom.add(dur);
+                            });
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: accentColor.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 14,
+                                color: accentColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                startTimeStr,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: accentColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          '—',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white54 : Colors.black54,
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(activeTo),
+                          );
+                          if (picked != null) {
+                            var nextTo = DateTime(
+                              _draftFrom.year,
+                              _draftFrom.month,
+                              _draftFrom.day,
+                              picked.hour,
+                              picked.minute,
+                            );
+                            if (!nextTo.isAfter(_draftFrom)) {
+                              nextTo = _draftFrom.add(
+                                const Duration(minutes: 30),
+                              );
+                            }
+                            setState(() {
+                              _draftTo = nextTo;
+                            });
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: accentColor.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Text(
+                            endTimeStr,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: accentColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white10
+                              : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          durLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 6),
+                    // Tüm Gün Seçeneği
+                    FilterChip(
+                      label: const Text(
+                        'Tüm Gün',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      selected: _draftIsAllDay,
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onSelected: (val) {
+                        setState(() {
+                          _draftIsAllDay = val;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── YUKARI KAYDIRINCA AÇILAN DETAYLAR (Etkinlik veya Görev'e Göre Değişen Bölüm) ──
+            if (_draftSheetExpanded) ...[
+              const SizedBox(height: 6),
+              const Divider(height: 1),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. Renk Seçimi
+                      Text(
+                        _draftIsTask ? 'Görev Rengi' : 'Etkinlik Rengi',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 30,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _draftColorPalette.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
+                          itemBuilder: (context, idx) {
+                            final cVal = _draftColorPalette[idx];
+                            final isSel = _draftColorValue == cVal;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _draftColorValue = cVal;
+                                });
+                              },
+                              child: Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: Color(cVal),
+                                  shape: BoxShape.circle,
+                                  border: isSel
+                                      ? Border.all(
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black87,
+                                          width: 2.5,
+                                        )
+                                      : null,
+                                ),
+                                child: isSel
+                                    ? const Icon(
+                                        Icons.check,
+                                        size: 15,
+                                        color: Colors.white,
+                                      )
+                                    : null,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // 2. Kategori (Etkinlik vs Görev'e göre farklı liste)
+                      Text(
+                        _draftIsTask ? 'Görev Kategorisi' : 'Etkinlik Kategorisi',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: availableTags.map((tag) {
+                          final isSelected = _draftTag == tag;
+                          final tagColor = _draftIsTask
+                              ? appState.getTaskTagColor(tag)
+                              : appState.getEventTagColor(tag);
+                          return ChoiceChip(
+                            label: Text(
+                              tag,
+                              style: const TextStyle(fontSize: 11.5),
+                            ),
+                            selected: isSelected,
+                            visualDensity: VisualDensity.compact,
+                            selectedColor: tagColor != null
+                                ? Color(tagColor).withValues(alpha: 0.25)
+                                : accentColor.withValues(alpha: 0.22),
+                            onSelected: (sel) {
+                              if (sel) {
+                                setState(() {
+                                  _draftTag = tag;
+                                  _draftSubTag = null;
+                                  if (tagColor != null) {
+                                    _draftColorValue = tagColor;
+                                  }
+                                });
+                              }
+                            },
+                          );
+                        }).toList(),
+                      ),
+
+                      if (availableSubTags.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Alt Kategori:',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            ChoiceChip(
+                              label: const Text(
+                                'Yok',
+                                style: TextStyle(fontSize: 11),
+                              ),
+                              selected: _draftSubTag == null,
+                              visualDensity: VisualDensity.compact,
+                              onSelected: (_) =>
+                                  setState(() => _draftSubTag = null),
+                            ),
+                            ...availableSubTags.map((sub) {
+                              return ChoiceChip(
+                                label: Text(
+                                  sub,
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                selected: _draftSubTag == sub,
+                                visualDensity: VisualDensity.compact,
+                                onSelected: (sel) {
+                                  setState(
+                                    () => _draftSubTag = sel ? sub : null,
+                                  );
+                                },
+                              );
+                            }),
+                          ],
+                        ),
+                      ],
+
+                      const SizedBox(height: 12),
+
+                      // 3. Önem Derecesi & Proje Bağlantısı
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Önem Derecesi',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 4,
+                                  children: [
+                                    ChoiceChip(
+                                      label: const Text(
+                                        'Normal',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                      selected: _draftImportance == 0,
+                                      visualDensity: VisualDensity.compact,
+                                      onSelected: (_) => setState(
+                                        () => _draftImportance = 0,
+                                      ),
+                                    ),
+                                    ChoiceChip(
+                                      label: const Text(
+                                        'Önemli !',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                      selected: _draftImportance == 1,
+                                      visualDensity: VisualDensity.compact,
+                                      onSelected: (_) => setState(
+                                        () => _draftImportance = 1,
+                                      ),
+                                    ),
+                                    ChoiceChip(
+                                      label: const Text(
+                                        'Kritik !!',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                      selected: _draftImportance == 2,
+                                      visualDensity: VisualDensity.compact,
+                                      onSelected: (_) => setState(
+                                        () => _draftImportance = 2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Proje Bağlantısı',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String?>(
+                                  value: activeProjects.any(
+                                        (p) => p.id == _draftProjectId,
+                                      )
+                                      ? _draftProjectId
+                                      : null,
+                                  isDense: true,
+                                  decoration: InputDecoration(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text(
+                                        'Proje Yok',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                    ...activeProjects.map(
+                                      (p) => DropdownMenuItem<String?>(
+                                        value: p.id,
+                                        child: Text(
+                                          p.title,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _draftProjectId = val;
+                                      _draftProjectTag = null;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // 4. Tekrarlama & Bildirim Ayarları
+                      const Text(
+                        'Tekrarlama:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          ChoiceChip(
+                            label: const Text(
+                              'Tekrarlanmaz',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            selected: _draftRecurrenceRule == null,
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (_) =>
+                                setState(() => _draftRecurrenceRule = null),
+                          ),
+                          ChoiceChip(
+                            label: const Text(
+                              'Her Gün',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            selected: _draftRecurrenceRule == 'FREQ=DAILY',
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (_) => setState(
+                              () => _draftRecurrenceRule = 'FREQ=DAILY',
+                            ),
+                          ),
+                          ChoiceChip(
+                            label: const Text(
+                              'Haftalık',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            selected:
+                                _draftRecurrenceRule != null &&
+                                _draftRecurrenceRule!.startsWith('FREQ=WEEKLY'),
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (_) => setState(
+                              () => _draftRecurrenceRule = 'FREQ=WEEKLY',
+                            ),
+                          ),
+                          ChoiceChip(
+                            label: const Text(
+                              'Aylık',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            selected:
+                                _draftRecurrenceRule != null &&
+                                _draftRecurrenceRule!.startsWith(
+                                  'FREQ=MONTHLY',
+                                ),
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (_) => setState(
+                              () => _draftRecurrenceRule = 'FREQ=MONTHLY',
+                            ),
+                          ),
+                          ActionChip(
+                            avatar: const Icon(Icons.tune, size: 14),
+                            label: Text(
+                              _draftRecurrenceRule != null &&
+                                      _draftRecurrenceRule != 'FREQ=DAILY' &&
+                                      _draftRecurrenceRule != 'FREQ=WEEKLY' &&
+                                      _draftRecurrenceRule != 'FREQ=MONTHLY'
+                                  ? RRuleTranslator.translate(
+                                      _draftRecurrenceRule,
+                                    )
+                                  : 'Özel Tekrar...',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () async {
+                              final customRule = await showDialog<String>(
+                                context: context,
+                                builder: (_) => CustomRecurrenceDialog(
+                                  eventDate: activeFrom,
+                                  initialRRule: _draftRecurrenceRule,
+                                ),
+                              );
+                              if (customRule != null) {
+                                setState(() {
+                                  _draftRecurrenceRule = customRule.isEmpty
+                                      ? null
+                                      : customRule;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      const Text(
+                        'Hatırlatıcı Bildirim:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          for (final entry in const [
+                            MapEntry<int, String>(0, 'Zamanında'),
+                            MapEntry<int, String>(10, '10 dk önce'),
+                            MapEntry<int, String>(30, '30 dk önce'),
+                            MapEntry<int, String>(60, '1 saat önce'),
+                            MapEntry<int, String>(1440, '1 gün önce'),
+                          ])
+                            FilterChip(
+                              label: Text(
+                                entry.value,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              selected: _draftNotificationOffsets.contains(
+                                entry.key,
+                              ),
+                              visualDensity: VisualDensity.compact,
+                              onSelected: (sel) {
+                                setState(() {
+                                  if (sel) {
+                                    _draftNotificationOffsets.add(entry.key);
+                                  } else {
+                                    _draftNotificationOffsets.remove(entry.key);
+                                  }
+                                });
+                              },
+                            ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // 5. Tür'e Özel Ayarlar (Etkinlik vs Görev)
+                      if (!_draftIsTask) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.insights,
+                                size: 18,
+                                color: Colors.blue,
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Etkinlik İstatistik / Süre Takibi Etkin',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Switch(
+                                value: _draftIsTrackingEnabled,
+                                onChanged: (val) {
+                                  setState(() => _draftIsTrackingEnabled = val);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        // Görev seçiliyse Üst Görev (Super Task) bağlama seçeneği
+                        const Text(
+                          'Üst Görev (Super Task) Bağlantısı:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        DropdownButtonFormField<String?>(
+                          value: appState.tasks.any(
+                                (t) => t.id == _draftSuperTaskId,
+                              )
+                              ? _draftSuperTaskId
+                              : null,
+                          isDense: true,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text(
+                                'Bağımsız Görev (Üst Görev Yok)',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            ...appState.tasks
+                                .where((t) => !t.isCompleted)
+                                .take(40)
+                                .map(
+                                  (t) => DropdownMenuItem<String?>(
+                                    value: t.id,
+                                    child: Text(
+                                      t.title,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ),
+                          ],
+                          onChanged: (val) {
+                            setState(() => _draftSuperTaskId = val);
+                          },
+                        ),
+                      ],
+
+                      const SizedBox(height: 10),
+
+                      // 6. Açıklama / Not Alanı
+                      TextField(
+                        controller: _draftDetailsCtrl,
+                        maxLines: 2,
+                        style: const TextStyle(fontSize: 12.5),
+                        decoration: InputDecoration(
+                          labelText: _draftIsTask
+                              ? 'Görev Detayı / Notlar'
+                              : 'Etkinlik Açıklaması / Notlar',
+                          labelStyle: const TextStyle(fontSize: 12),
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // 7. Gelişmiş Tam Ekran Form / Proje Ekle Kısayolları
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () {
+                              final curFrom = activeFrom;
+                              final curTo = activeTo;
+                              final curTag = _draftTag;
+                              final curSub = _draftSubTag;
+                              final isT = _draftIsTask;
+                              _cancelInteractiveDraft();
+                              if (isT) {
+                                _pushRouteWithSnapshotUndo(
+                                  appState: appState,
+                                  actionLabel: 'Yeni görev eklendi',
+                                  builder: (context) => TaskFormScreen(
+                                    initialDate: curFrom,
+                                    initialTag: curTag,
+                                    initialSubTag: curSub,
+                                  ),
+                                );
+                              } else {
+                                _pushRouteWithSnapshotUndo(
+                                  appState: appState,
+                                  actionLabel: 'Yeni etkinlik eklendi',
+                                  builder: (context) => EventFormScreen(
+                                    initialDate: curFrom,
+                                    initialTo: curTo,
+                                    initialTag: curTag,
+                                    initialSubTag: curSub,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.open_in_full, size: 15),
+                            label: Text(
+                              _draftIsTask
+                                  ? 'Tam Ekran Görev Formu'
+                                  : 'Tam Ekran Etkinlik Formu',
+                              style: const TextStyle(fontSize: 11.5),
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () {
+                              _cancelInteractiveDraft();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const ProjectFormScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.rocket_launch,
+                              size: 15,
+                              color: Colors.purple,
+                            ),
+                            label: const Text(
+                              'Yeni Proje Oluştur',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Colors.purple,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 
@@ -7921,6 +9559,24 @@ class _CalendarScreenState extends State<CalendarScreen>
                     }
                   },
                   child: const Text('Düzenle'),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    final DateTime slotStart =
+                        tappedDate ??
+                        (item is Event
+                            ? item.from
+                            : (item is TaskItem
+                                  ? (item.from ?? DateTime.now())
+                                  : DateTime.now()));
+                    _startInteractiveDraft(
+                      initialDate: slotStart,
+                      forceNewReset: true,
+                    );
+                  },
+                  icon: const Icon(Icons.add_circle_outline, size: 16),
+                  label: const Text('Bu Saate Yeni Ekle'),
                 ),
                 TextButton(
                   onPressed: () {

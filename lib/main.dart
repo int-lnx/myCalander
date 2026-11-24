@@ -206,6 +206,87 @@ class _MainScreenState extends State<MainScreen> {
     ];
   }
 
+  Widget _buildQuickAddTopButton(
+    BuildContext context,
+    AppState appState, {
+    required bool isCompact,
+  }) {
+    void onQuickAdd() {
+      if (appState.showPlanView ||
+          appState.showSeritView ||
+          appState.showRecentView ||
+          appState.showDailyNotesView ||
+          appState.showWeekly2View) {
+        appState.setShowPlanView(false);
+        appState.setShowSeritView(false);
+        appState.setShowRecentView(false);
+        appState.setShowDailyNotesView(false);
+        appState.setShowWeekly2View(false);
+      }
+      appState.triggerQuickCalendarDraft();
+    }
+
+    if (isCompact) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+        child: Tooltip(
+          message: 'Hızlı Etkinlik / Görev Ekle',
+          child: Material(
+            color: Colors.blue,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              onTap: onQuickAdd,
+              borderRadius: BorderRadius.circular(10),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, color: Colors.white, size: 18),
+                    SizedBox(width: 2),
+                    Text(
+                      'Ekle',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Tooltip(
+        message:
+            'Hızlı Etkinlik / Görev Ekle (Mevcut etkinlikleri etkilemeden yeni taslak başlatır)',
+        child: ElevatedButton.icon(
+          onPressed: onQuickAdd,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          icon: const Icon(Icons.add_circle_outline, size: 18),
+          label: const Text(
+            'Hızlı Ekle',
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProfileButton(BuildContext context, AppState appState) {
     final user = appState.firebaseUser;
     if (user != null) {
@@ -729,6 +810,11 @@ class _MainScreenState extends State<MainScreen> {
                             ? _buildSearchActions(appState)
                             : [
                                 if (_currentIndex == 0) ...[
+                                  _buildQuickAddTopButton(
+                                    context,
+                                    appState,
+                                    isCompact: false,
+                                  ),
                                   IconButton(
                                     icon: const Icon(Icons.tune),
                                     tooltip: 'Kayıt Yöneticisi (Toplu İşlemler)',
@@ -792,6 +878,11 @@ class _MainScreenState extends State<MainScreen> {
               ? _buildSearchActions(appState)
               : [
                   if (_currentIndex == 0) ...[
+                    _buildQuickAddTopButton(
+                      context,
+                      appState,
+                      isCompact: true,
+                    ),
                     IconButton(
                       icon: const Icon(Icons.tune),
                       tooltip: 'Kayıt Yöneticisi (Toplu İşlemler)',
