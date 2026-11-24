@@ -94,6 +94,7 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   // Drag & Drop, Edge Resize & Copy-Paste State
   RenderBox? _timeGridRenderBox;
+  RenderBox? _timeGridViewportRenderBox;
   final GlobalKey _calendarStackKey = GlobalKey();
   double _lastCalendarWidth = 400.0;
   double _lastActiveIntervalHeight = 60.0;
@@ -343,15 +344,25 @@ class _CalendarScreenState extends State<CalendarScreen>
     void tryResolve() {
       if (!mounted || !cardContext.mounted) return;
       final List<ScrollPosition> positions = [];
+      RenderBox? verticalViewportBox;
       cardContext.visitAncestorElements((element) {
         if (element is StatefulElement && element.state is ScrollableState) {
           final ScrollableState s = element.state as ScrollableState;
           positions.add(s.position);
+          if (verticalViewportBox == null && s.position.axis == Axis.vertical) {
+            final ro = element.findRenderObject();
+            if (ro is RenderBox && ro.hasSize) {
+              verticalViewportBox = ro;
+            }
+          }
         }
         return true;
       });
       if (positions.isNotEmpty) {
         _timeGridScrollPositions = positions;
+      }
+      if (verticalViewportBox != null) {
+        _timeGridViewportRenderBox = verticalViewportBox;
       }
       final double expectedHeight =
           (_lastEndHour - _lastStartHour) * _lastActiveIntervalHeight;
@@ -372,6 +383,32 @@ class _CalendarScreenState extends State<CalendarScreen>
     if (_timeGridRenderBox == null || !_timeGridRenderBox!.attached) {
       WidgetsBinding.instance.addPostFrameCallback((_) => tryResolve());
     }
+  }
+
+  double _getVerticalTimeGridScrollOffset() {
+    for (final pos in _timeGridScrollPositions) {
+      if (pos.hasPixels && pos.axis == Axis.vertical) {
+        return pos.pixels;
+      }
+    }
+    return 0.0;
+  }
+
+  bool _isPointInsideTimeGridViewport(Offset globalPos, Offset gridPos) {
+    if (_timeGridViewportRenderBox != null &&
+        _timeGridViewportRenderBox!.attached &&
+        _timeGridViewportRenderBox!.hasSize) {
+      final Offset vpPos = _timeGridViewportRenderBox!.globalToLocal(globalPos);
+      if (vpPos.dy < 0.0 ||
+          vpPos.dy > _timeGridViewportRenderBox!.size.height) {
+        return false;
+      }
+    }
+    final double scrollOffset = _getVerticalTimeGridScrollOffset();
+    if (gridPos.dy < scrollOffset) {
+      return false;
+    }
+    return true;
   }
 
   _CardHitResult? _hitTestDayWeekCard(
@@ -396,14 +433,29 @@ class _CalendarScreenState extends State<CalendarScreen>
       if (localInListener.dy < 0) return null;
       final calDetails = appState.calendarController.getCalendarDetailsAtOffset
           ?.call(localInListener);
-      if (calDetails != null &&
-          (calDetails.targetElement == CalendarElement.allDayPanel ||
-              calDetails.targetElement == CalendarElement.viewHeader)) {
-        return null;
+      if (calDetails != null) {
+        if (calDetails.targetElement == CalendarElement.allDayPanel ||
+            calDetails.targetElement == CalendarElement.viewHeader) {
+          return null;
+        }
+        if (calDetails.targetElement == CalendarElement.appointment &&
+            calDetails.appointments != null &&
+            calDetails.appointments!.isNotEmpty) {
+          for (final raw in calDetails.appointments!) {
+            if (raw is Appointment && raw.isAllDay) return null;
+            final orig = _getOriginalItem(raw, appState);
+            if (orig is Event && orig.isAllDay) return null;
+            if (orig is TaskItem && orig.isAllDay) return null;
+            if (orig is ProjectEvaluation || orig is DayNote) return null;
+          }
+        }
       }
     }
 
     final Offset gridPos = _timeGridRenderBox!.globalToLocal(globalPos);
+    if (!_isPointInsideTimeGridViewport(globalPos, gridPos)) {
+      return null;
+    }
     const double timeRulerWidth = 40.0;
     final double totalGridHeight =
         (_lastEndHour - _lastStartHour) * _lastActiveIntervalHeight;
@@ -522,6 +574,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       if (gridPos.dx >= timeRulerWidth &&
           gridPos.dx <= _lastCalendarWidth &&
           gridPos.dy >= 0 &&
+          _isPointInsideTimeGridViewport(event.position, gridPos) &&
           columnWidth > 0) {
         final int dayIndex = numDays == 1
             ? 0
@@ -911,20 +964,9 @@ class _CalendarScreenState extends State<CalendarScreen>
     setState(() {
       _copiedItem = item;
       _copiedOccurrenceFrom = occurrenceFrom;
+      _lastHoveredDateTime = null;
     });
-    final String title = item is Event ? item.title : (item as TaskItem).title;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '📋 "$title" kopyalandı. Yapıştırmak istediğiniz güne/saate tıklayın veya Ctrl+V basın.',
-        ),
-        duration: const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
   }
 
   void _pasteCopiedItemAt(
@@ -1464,7 +1506,7 @@ class _CalendarScreenState extends State<CalendarScreen>
         content: Text(message),
         duration: const Duration(seconds: 10),
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        margin: EdgeInsets.fromLTRB(16, 0, 16, _copiedItem != null ? 74 : 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         showCloseIcon: true,
         closeIconColor: Colors.white70,
@@ -3864,7 +3906,7 @@ class _CalendarScreenState extends State<CalendarScreen>
 
                                   if (_copiedItem != null) {
                                     _pasteCopiedItemAt(
-                                      _lastHoveredDateTime ?? tappedTime,
+                                      tappedTime,
                                       appState,
                                       isMonthOrDateOnly: _pasteUseOriginalTime,
                                     );
@@ -6849,7 +6891,8 @@ class _CalendarScreenState extends State<CalendarScreen>
             (_lastCalendarWidth - timeRulerWidth) / numDays;
         if (gridPos.dx >= timeRulerWidth &&
             columnWidth > 0 &&
-            gridPos.dy >= 0) {
+            gridPos.dy >= 0 &&
+            _isPointInsideTimeGridViewport(_lastPointerGlobalPos!, gridPos)) {
           final int dayIndex = numDays == 1
               ? 0
               : (((gridPos.dx - timeRulerWidth) / columnWidth).floor()).clamp(
@@ -6860,22 +6903,16 @@ class _CalendarScreenState extends State<CalendarScreen>
           final int rawMinutes =
               ((_lastStartHour * 60.0) +
                       (gridPos.dy / _lastActiveIntervalHeight) * 60.0)
-                  .round();
-          final int snappedMinutes = ((rawMinutes / 15.0).floor() * 15).clamp(
-            0,
-            23 * 60 + 45,
-          );
+                  .floor();
+          final int snappedHour = (rawMinutes ~/ 60).clamp(0, 23);
           return DateTime(
             day.year,
             day.month,
             day.day,
-            snappedMinutes ~/ 60,
-            snappedMinutes % 60,
+            snappedHour,
+            0,
           );
         }
-      }
-      if (_lastHoveredDateTime != null) {
-        return _lastHoveredDateTime;
       }
     }
 

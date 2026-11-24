@@ -419,7 +419,7 @@ class _RecordManagerDialogState extends State<RecordManagerDialog>
                                 borderRadius: BorderRadius.all(Radius.circular(6)),
                               ),
                               child: const Text(
-                                'v3.17',
+                                'v3.18',
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,

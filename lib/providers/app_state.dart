@@ -46,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.17';
+  static const String appVersion = '3.18';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
