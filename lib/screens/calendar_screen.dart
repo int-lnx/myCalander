@@ -407,8 +407,8 @@ class _CalendarScreenState extends State<CalendarScreen>
         (_lastEndHour - _lastStartHour) * _lastActiveIntervalHeight;
     if (gridPos.dx < timeRulerWidth ||
         gridPos.dx > _lastCalendarWidth ||
-        gridPos.dy < 0 ||
-        gridPos.dy > totalGridHeight) {
+        gridPos.dy < -10.0 ||
+        gridPos.dy > totalGridHeight + 14.0) {
       return null;
     }
 
@@ -465,8 +465,8 @@ class _CalendarScreenState extends State<CalendarScreen>
 
       if (gridPos.dx >= cardLeft - 1.0 &&
           gridPos.dx <= cardLeft + cardWidth + 1.0 &&
-          gridPos.dy >= cardTop &&
-          gridPos.dy <= cardBottom) {
+          gridPos.dy >= cardTop - 5.0 &&
+          gridPos.dy <= cardBottom + 8.0) {
         final bool isCardManip = _isCardManipulated(occ.id, occ.fullFrom);
         final double edgeMargin = occ.id == _draftItemId
             ? (visualHeight * 0.30).clamp(6.0, 14.0)
@@ -605,6 +605,40 @@ class _CalendarScreenState extends State<CalendarScreen>
       return;
     }
     final appState = Provider.of<AppState>(context, listen: false);
+
+    // Ekranın üst veya alt sınırına (alt panelin üst kenarına) yaklaşıldığında otomatik kaydır
+    final RenderBox? stackBox =
+        _calendarStackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox != null && stackBox.hasSize && !appState.fitToScreen) {
+      final Offset stackPos = stackBox.globalToLocal(currentGlobalPos);
+      const double topEdgeLimit = 55.0 + 36.0;
+      final double bottomReserved = _isDraftActive ? 182.0 : 0.0;
+      final double bottomEdgeLimit =
+          stackBox.size.height - bottomReserved - 36.0;
+      double scrollDelta = 0.0;
+      if (stackPos.dy > bottomEdgeLimit) {
+        scrollDelta = 12.0;
+      } else if (stackPos.dy < topEdgeLimit) {
+        scrollDelta = -12.0;
+      }
+      if (scrollDelta != 0.0) {
+        for (final pos in _timeGridScrollPositions) {
+          if (pos.hasPixels &&
+              pos.hasContentDimensions &&
+              pos.axis == Axis.vertical) {
+            final double nextPx = (pos.pixels + scrollDelta).clamp(
+              pos.minScrollExtent,
+              pos.maxScrollExtent,
+            );
+            if ((nextPx - pos.pixels).abs() > 0.1) {
+              _lockedScrollOffsets[pos] = nextPx;
+              pos.jumpTo(nextPx);
+            }
+          }
+        }
+      }
+    }
+
     final Offset gridPos = _timeGridRenderBox!.globalToLocal(currentGlobalPos);
     const double timeRulerWidth = 40.0;
     final int numDays = appState.calendarView == CalendarView.week ? 7 : 1;
@@ -3289,10 +3323,12 @@ class _CalendarScreenState extends State<CalendarScreen>
       body: LayoutBuilder(
         builder: (context, constraints) {
           double activeIntervalHeight = _timeIntervalHeight;
+          final double draftBottomReserved = _isDraftActive ? 182.0 : 0.0;
           if (appState.fitToScreen) {
             final double totalHours = endHour - startHour;
             final double headerEst =
                 105.0 +
+                draftBottomReserved +
                 ((appState.calendarView == CalendarView.day ||
                         appState.calendarView == CalendarView.week)
                     ? 38.0
@@ -3300,7 +3336,7 @@ class _CalendarScreenState extends State<CalendarScreen>
             final double availableHeight = constraints.maxHeight - headerEst;
             if (totalHours > 0) {
               activeIntervalHeight = (availableHeight / totalHours).clamp(
-                15.0,
+                12.0,
                 500.0,
               );
             }
@@ -3324,6 +3360,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                 appState.calendarView == CalendarView.week)
                             ? 55.0
                             : 0.0,
+                        bottom: draftBottomReserved,
                       ),
                       child: MouseRegion(
                         cursor: _calendarMouseCursor,
@@ -5797,7 +5834,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                         left: 0,
                         top: 55.0,
                         width: 40.0,
-                        bottom: 0,
+                        bottom: draftBottomReserved,
                         child: GestureDetector(
                           behavior: HitTestBehavior.translucent,
                           onTap: () {
@@ -6660,6 +6697,48 @@ class _CalendarScreenState extends State<CalendarScreen>
       _manipulatedCardFrom = _draftFrom;
     });
     HapticFeedback.selectionClick();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isDraftActive) {
+        _ensureDraftVisibleInScroll();
+      }
+    });
+  }
+
+  void _ensureDraftVisibleInScroll() {
+    if (!mounted || !_isDraftActive || _draftIsAllDay) return;
+    final double startHours =
+        ((_draftFrom.hour + _draftFrom.minute / 60.0) - _lastStartHour).clamp(
+          0.0,
+          24.0,
+        );
+    final double durHours = (_draftTo.difference(_draftFrom).inMinutes / 60.0)
+        .clamp(0.25, 24.0);
+    final double draftTopPx = startHours * _lastActiveIntervalHeight;
+    final double draftBottomPx =
+        draftTopPx + durHours * _lastActiveIntervalHeight;
+
+    for (final pos in _timeGridScrollPositions) {
+      if (pos.hasPixels &&
+          pos.hasContentDimensions &&
+          pos.axis == Axis.vertical) {
+        final double viewTop = pos.pixels;
+        final double viewBottom = pos.pixels + pos.viewportDimension;
+        if (draftBottomPx + 24.0 > viewBottom) {
+          final double target =
+              (draftBottomPx + 28.0 - pos.viewportDimension).clamp(
+                pos.minScrollExtent,
+                pos.maxScrollExtent,
+              );
+          pos.jumpTo(target);
+        } else if (draftTopPx - 16.0 < viewTop) {
+          final double target = (draftTopPx - 20.0).clamp(
+            pos.minScrollExtent,
+            pos.maxScrollExtent,
+          );
+          pos.jumpTo(target);
+        }
+      }
+    }
   }
 
   void _cancelInteractiveDraft() {
