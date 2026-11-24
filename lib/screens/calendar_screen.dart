@@ -381,6 +381,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     if (!mounted) return null;
     final appState = Provider.of<AppState>(context, listen: false);
     if (appState.isBulkMode) return null;
+    // Yer seçim modunda (+ butonuna basıldıktan sonraki 2. tıklama beklenirken) mevcut hiçbir kart tutulmaz
+    if (appState.isAwaitingDraftPlacement) return null;
     if (appState.calendarView != CalendarView.day &&
         appState.calendarView != CalendarView.week) {
       return null;
@@ -443,6 +445,10 @@ class _CalendarScreenState extends State<CalendarScreen>
 
     for (int i = occurrences.length - 1; i >= 0; i--) {
       final occ = occurrences[i];
+      // Yeni etkinlik taslağı aktifken diğer hiçbir etkinlik/görev tıklanamaz ve sürüklenemez
+      if (_isDraftActive && occ.id != _draftItemId) {
+        continue;
+      }
       final layout = layouts[i];
       final double cardLeft = colStart + layout['leftRatio']! * columnWidth;
       double cardWidth = columnWidth * layout['widthRatio']!;
@@ -553,7 +559,9 @@ class _CalendarScreenState extends State<CalendarScreen>
       listenerLocalPos: event.localPosition,
     );
     SystemMouseCursor desiredCursor = SystemMouseCursors.basic;
-    if (hit != null) {
+    if (appState.isAwaitingDraftPlacement) {
+      desiredCursor = SystemMouseCursors.precise;
+    } else if (hit != null) {
       if (_isCardManipulated(hit.occurrence.id, hit.occurrence.fullFrom)) {
         if (hit.zone == _CardHitZone.topResize ||
             hit.zone == _CardHitZone.bottomResize) {
@@ -1135,9 +1143,11 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   bool _handleKeyEvent(KeyEvent event) {
     if (!mounted || event is! KeyDownEvent) return false;
-    if (_isDraftActive &&
+    final appState = Provider.of<AppState>(context, listen: false);
+    if ((_isDraftActive || appState.isAwaitingDraftPlacement) &&
         event.logicalKey == LogicalKeyboardKey.escape &&
         ModalRoute.of(context)?.isCurrent == true) {
+      appState.setAwaitingDraftPlacement(false);
       _cancelInteractiveDraft();
       return true;
     }
@@ -2657,6 +2667,10 @@ class _CalendarScreenState extends State<CalendarScreen>
     // Search from top of Z-order (last) to bottom of Z-order (0)
     for (int i = occurrences.length - 1; i >= 0; i--) {
       final occ = occurrences[i];
+      // Yeni etkinlik taslağı aktifken diğer hiçbir etkinlik/görev tıklanamaz ve sürüklenemez
+      if (_isDraftActive && occ.id != _draftItemId) {
+        continue;
+      }
       final layout = layouts[i];
       final double left = layout['leftRatio']!;
       final double right = left + layout['widthRatio']!;
@@ -2823,8 +2837,16 @@ class _CalendarScreenState extends State<CalendarScreen>
     if (_lastHandledQuickAddTrigger != appState.quickAddDraftTrigger) {
       _lastHandledQuickAddTrigger = appState.quickAddDraftTrigger;
       final DateTime? requestedInit = appState.quickAddDraftInitialDate;
+      final bool awaiting = appState.isAwaitingDraftPlacement;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (!mounted) return;
+        if (awaiting) {
+          if (_isDraftActive) {
+            _cancelInteractiveDraft(keepAwaitingPlacement: true);
+          } else {
+            setState(() {});
+          }
+        } else if (requestedInit != null) {
           _startInteractiveDraft(
             initialDate: requestedInit,
             forceNewReset: true,
@@ -2837,9 +2859,13 @@ class _CalendarScreenState extends State<CalendarScreen>
         appState.showRecentView ||
         appState.showDailyNotesView ||
         appState.showWeekly2View) {
-      if (_copiedItem != null || _manipulatedCardId != null || _isDraftActive) {
+      if (_copiedItem != null ||
+          _manipulatedCardId != null ||
+          _isDraftActive ||
+          appState.isAwaitingDraftPlacement) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
+            appState.setAwaitingDraftPlacement(false);
             setState(() {
               _copiedItem = null;
               _copiedOccurrenceFrom = null;
@@ -3527,6 +3553,54 @@ class _CalendarScreenState extends State<CalendarScreen>
                                 final bool isDayOrWeek =
                                     appState.calendarView == CalendarView.day ||
                                     appState.calendarView == CalendarView.week;
+
+                                // 1. + Butonuna basıldıktan sonraki 2. tıklama (Yer Seçim Modu):
+                                // Tıklanan yerde mevcut bir etkinlik olsa bile onu yoksayar ve o saat diliminde yeni taslak oluşturur.
+                                if (appState.isAwaitingDraftPlacement) {
+                                  if (details.targetElement ==
+                                      CalendarElement.viewHeader) {
+                                    return;
+                                  }
+                                  final DateTime? targetSlot =
+                                      _resolveClickedSlotDateTime(
+                                        details,
+                                        appState,
+                                      );
+                                  if (targetSlot != null) {
+                                    appState.setAwaitingDraftPlacement(false);
+                                    _startInteractiveDraft(
+                                      initialDate: targetSlot,
+                                      forceNewReset: true,
+                                    );
+                                  }
+                                  return;
+                                }
+
+                                // 2. Yeni etkinlik taslağı aktifken diğer hiçbir etkinlik/görev/not açılamaz ve tıklanamaz:
+                                if (_isDraftActive) {
+                                  if (details.targetElement ==
+                                      CalendarElement.viewHeader) {
+                                    return;
+                                  }
+                                  final DateTime? targetSlot =
+                                      _resolveClickedSlotDateTime(
+                                        details,
+                                        appState,
+                                      );
+                                  if (targetSlot != null) {
+                                    final bool clickedInsideDraft =
+                                        !targetSlot.isBefore(_draftFrom) &&
+                                        targetSlot.isBefore(_draftTo);
+                                    if (clickedInsideDraft) {
+                                      _draftTitleFocusNode.requestFocus();
+                                    } else {
+                                      _startInteractiveDraft(
+                                        initialDate: targetSlot,
+                                      );
+                                    }
+                                  }
+                                  return;
+                                }
 
                                 if (appState.isBulkMode) {
                                   if (isDayOrWeek &&
@@ -4936,6 +5010,17 @@ class _CalendarScreenState extends State<CalendarScreen>
                                                     child: decoratedCard,
                                                   );
                                                 }
+                                                if ((appState
+                                                            .isAwaitingDraftPlacement ||
+                                                        _isDraftActive) &&
+                                                    itemId != _draftItemId) {
+                                                  return IgnorePointer(
+                                                    child: Opacity(
+                                                      opacity: 0.55,
+                                                      child: decoratedCard,
+                                                    ),
+                                                  );
+                                                }
                                                 return decoratedCard;
                                               })(),
                                               isSelected: isSelected,
@@ -5848,6 +5933,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                       _buildWeekStripsPanel(context, appState, constraints),
                     _buildInteractionPreviewOverlay(appState),
                     if (_copiedItem != null) _buildCopyPasteBanner(appState),
+                    if (appState.isAwaitingDraftPlacement)
+                      _buildAwaitingPlacementBanner(appState),
                     if (_isDraftActive)
                       _buildInteractiveDraftBottomPanel(
                         context,
@@ -6741,7 +6828,119 @@ class _CalendarScreenState extends State<CalendarScreen>
     }
   }
 
-  void _cancelInteractiveDraft() {
+  DateTime? _resolveClickedSlotDateTime(
+    CalendarTapDetails details,
+    AppState appState,
+  ) {
+    final bool isDayOrWeek =
+        appState.calendarView == CalendarView.day ||
+        appState.calendarView == CalendarView.week;
+
+    if (isDayOrWeek) {
+      if (_timeGridRenderBox != null &&
+          _timeGridRenderBox!.attached &&
+          _lastPointerGlobalPos != null) {
+        final Offset gridPos = _timeGridRenderBox!.globalToLocal(
+          _lastPointerGlobalPos!,
+        );
+        const double timeRulerWidth = 40.0;
+        final int numDays = appState.calendarView == CalendarView.week ? 7 : 1;
+        final double columnWidth =
+            (_lastCalendarWidth - timeRulerWidth) / numDays;
+        if (gridPos.dx >= timeRulerWidth &&
+            columnWidth > 0 &&
+            gridPos.dy >= 0) {
+          final int dayIndex = numDays == 1
+              ? 0
+              : (((gridPos.dx - timeRulerWidth) / columnWidth).floor()).clamp(
+                  0,
+                  numDays - 1,
+                );
+          final DateTime day = _getDayForColumnIndex(dayIndex, appState);
+          final int rawMinutes =
+              ((_lastStartHour * 60.0) +
+                      (gridPos.dy / _lastActiveIntervalHeight) * 60.0)
+                  .round();
+          final int snappedMinutes = ((rawMinutes / 15.0).floor() * 15).clamp(
+            0,
+            23 * 60 + 45,
+          );
+          return DateTime(
+            day.year,
+            day.month,
+            day.day,
+            snappedMinutes ~/ 60,
+            snappedMinutes % 60,
+          );
+        }
+      }
+      if (_lastHoveredDateTime != null) {
+        return _lastHoveredDateTime;
+      }
+    }
+
+    if (details.date != null) {
+      return details.date;
+    }
+    if (details.appointments != null && details.appointments!.isNotEmpty) {
+      final raw = details.appointments!.last;
+      if (raw is Appointment) return raw.startTime;
+      if (raw is Event) return raw.from;
+      if (raw is TaskItem) return raw.from;
+      if (raw is ProjectEvaluation) return raw.sessionDate;
+      if (raw is DayNote) return raw.date;
+    }
+    return _lastHoveredDateTime;
+  }
+
+  Widget _buildAwaitingPlacementBanner(AppState appState) {
+    return Positioned(
+      left: 12,
+      right: 12,
+      bottom: 14,
+      child: Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.orange.shade800,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.touch_app, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Yeni etkinliği eklemek istediğiniz gün ve saate tıklayın (mevcut etkinliklerin üzerine de tıklayabilirsiniz)',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                tooltip: 'İptal (Esc)',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                onPressed: () {
+                  appState.setAwaitingDraftPlacement(false);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _cancelInteractiveDraft({bool keepAwaitingPlacement = false}) {
+    final appState = Provider.of<AppState>(context, listen: false);
+    if (!keepAwaitingPlacement && appState.isAwaitingDraftPlacement) {
+      appState.setAwaitingDraftPlacement(false);
+    }
     if (!_isDraftActive) return;
     FocusScope.of(context).unfocus();
     setState(() {
@@ -9759,6 +9958,17 @@ class _CalendarScreenState extends State<CalendarScreen>
 
     if (sourceDate == null || (item is! Event && item is! TaskItem)) {
       return lineContent;
+    }
+
+    final appState = Provider.of<AppState>(context, listen: false);
+    final String itemId = item is Event
+        ? item.id
+        : (item is TaskItem ? item.id : '');
+    if ((appState.isAwaitingDraftPlacement || _isDraftActive) &&
+        itemId != _draftItemId) {
+      return IgnorePointer(
+        child: Opacity(opacity: 0.55, child: lineContent),
+      );
     }
 
     return LongPressDraggable<Map<String, dynamic>>(

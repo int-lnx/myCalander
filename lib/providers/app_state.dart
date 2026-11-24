@@ -46,7 +46,7 @@ String? _sanitizeRRule(String? rule, DateTime startDate) {
 }
 
 class AppState extends ChangeNotifier {
-  static const String appVersion = '3.15';
+  static const String appVersion = '3.16';
   bool _showSeritOverlay = true;
   bool get showSeritOverlay => _showSeritOverlay;
   void toggleSeritOverlay() {
@@ -5179,11 +5179,25 @@ class AppState extends ChangeNotifier {
 
   int _quickAddDraftTrigger = 0;
   DateTime? _quickAddDraftInitialDate;
+  bool _isAwaitingDraftPlacement = false;
   int get quickAddDraftTrigger => _quickAddDraftTrigger;
   DateTime? get quickAddDraftInitialDate => _quickAddDraftInitialDate;
+  bool get isAwaitingDraftPlacement => _isAwaitingDraftPlacement;
+
+  void setAwaitingDraftPlacement(bool value) {
+    if (_isAwaitingDraftPlacement != value) {
+      _isAwaitingDraftPlacement = value;
+      notifyListeners();
+    }
+  }
 
   void triggerQuickCalendarDraft({DateTime? initialDate}) {
     _quickAddDraftInitialDate = initialDate;
+    if (initialDate == null) {
+      _isAwaitingDraftPlacement = !_isAwaitingDraftPlacement;
+    } else {
+      _isAwaitingDraftPlacement = false;
+    }
     _quickAddDraftTrigger++;
     notifyListeners();
   }

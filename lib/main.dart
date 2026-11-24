@@ -226,20 +226,28 @@ class _MainScreenState extends State<MainScreen> {
       appState.triggerQuickCalendarDraft();
     }
 
+    final bool isAwaiting = appState.isAwaitingDraftPlacement;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
       child: Tooltip(
-        message: 'Hızlı Etkinlik / Görev Ekle',
+        message: isAwaiting
+            ? 'Yer Seçim Modunu İptal Et'
+            : 'Yeni Ekle (Önce + butonuna, sonra takvimde istediğiniz saate tıklayın)',
         child: Material(
-          color: Colors.blue,
+          color: isAwaiting ? Colors.orange.shade700 : Colors.blue,
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
             onTap: onQuickAdd,
             borderRadius: BorderRadius.circular(8),
-            child: const SizedBox(
+            child: SizedBox(
               width: 32,
               height: 32,
-              child: Icon(Icons.add, color: Colors.white, size: 20),
+              child: Icon(
+                isAwaiting ? Icons.touch_app : Icons.add,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
         ),
@@ -496,6 +504,11 @@ class _MainScreenState extends State<MainScreen> {
     ];
     final fullMonthStr = fullMonths[dateToShow.month - 1];
 
+    final bool isMobile =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        MediaQuery.of(context).size.width < 600;
+    final bool isDesktop = !isMobile;
     final bool isNavigableCalendarView = !appState.showPlanView &&
         !appState.showSeritView &&
         !appState.showRecentView &&
@@ -539,9 +552,12 @@ class _MainScreenState extends State<MainScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          todayBox,
+          Tooltip(
+            message: 'Bugüne Git',
+            child: todayBox,
+          ),
           if (_currentIndex == 0) ...[
-            if (isNavigableCalendarView) ...[
+            if (isDesktop && isNavigableCalendarView) ...[
               const SizedBox(width: 6),
               Container(
                 decoration: BoxDecoration(
