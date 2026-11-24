@@ -209,7 +209,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildQuickAddTopButton(
     BuildContext context,
     AppState appState, {
-    required bool isCompact,
+    bool isCompact = true,
   }) {
     void onQuickAdd() {
       if (appState.showPlanView ||
@@ -226,61 +226,21 @@ class _MainScreenState extends State<MainScreen> {
       appState.triggerQuickCalendarDraft();
     }
 
-    if (isCompact) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-        child: Tooltip(
-          message: 'Hızlı Etkinlik / Görev Ekle',
-          child: Material(
-            color: Colors.blue,
-            borderRadius: BorderRadius.circular(10),
-            child: InkWell(
-              onTap: onQuickAdd,
-              borderRadius: BorderRadius.circular(10),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add, color: Colors.white, size: 18),
-                    SizedBox(width: 2),
-                    Text(
-                      'Ekle',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
       child: Tooltip(
-        message:
-            'Hızlı Etkinlik / Görev Ekle (Mevcut etkinlikleri etkilemeden yeni taslak başlatır)',
-        child: ElevatedButton.icon(
-          onPressed: onQuickAdd,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+        message: 'Hızlı Etkinlik / Görev Ekle',
+        child: Material(
+          color: Colors.blue,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            onTap: onQuickAdd,
+            borderRadius: BorderRadius.circular(8),
+            child: const SizedBox(
+              width: 32,
+              height: 32,
+              child: Icon(Icons.add, color: Colors.white, size: 20),
             ),
-          ),
-          icon: const Icon(Icons.add_circle_outline, size: 18),
-          label: const Text(
-            'Hızlı Ekle',
-            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
           ),
         ),
       ),
@@ -536,7 +496,6 @@ class _MainScreenState extends State<MainScreen> {
     ];
     final fullMonthStr = fullMonths[dateToShow.month - 1];
 
-    final bool isDesktop = MediaQuery.of(context).size.width >= 700;
     final bool isNavigableCalendarView = !appState.showPlanView &&
         !appState.showSeritView &&
         !appState.showRecentView &&
@@ -573,92 +532,90 @@ class _MainScreenState extends State<MainScreen> {
       nextTooltip = 'Sonraki Ay';
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        todayBox,
-        if (_currentIndex == 0) ...[
-          if (isDesktop && isNavigableCalendarView) ...[
-            const SizedBox(width: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: appState.isDarkMode
-                    ? Colors.white10
-                    : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          todayBox,
+          if (_currentIndex == 0) ...[
+            if (isNavigableCalendarView) ...[
+              const SizedBox(width: 6),
+              Container(
+                decoration: BoxDecoration(
                   color: appState.isDarkMode
-                      ? Colors.white24
-                      : Colors.grey.shade300,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, size: 20),
-                    tooltip: prevTooltip,
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => appState.navigateCalendarBackward(),
+                      ? Colors.white10
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: appState.isDarkMode
+                        ? Colors.white24
+                        : Colors.grey.shade300,
                   ),
-                  InkWell(
-                    onTap: () => appState.jumpToToday(),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left, size: 18),
+                      tooltip: prevTooltip,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 30,
                       ),
-                      child: Text(
-                        'Bugün',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue.shade700,
+                      padding: EdgeInsets.zero,
+                      onPressed: () => appState.navigateCalendarBackward(),
+                    ),
+                    InkWell(
+                      onTap: () => appState.jumpToToday(),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          'Bugün',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue.shade700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right, size: 20),
-                    tooltip: nextTooltip,
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right, size: 18),
+                      tooltip: nextTooltip,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 30,
+                      ),
+                      padding: EdgeInsets.zero,
+                      onPressed: () => appState.navigateCalendarForward(),
                     ),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => appState.navigateCalendarForward(),
-                  ),
-                ],
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(width: 8),
+            Text(
+              dateTitle,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.bold,
+                color: appState.isDarkMode
+                    ? Colors.white
+                    : Colors.grey.shade800,
               ),
             ),
           ],
-          const SizedBox(width: 10),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                dateTitle,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: appState.isDarkMode
-                      ? Colors.white
-                      : Colors.grey.shade800,
-                ),
-              ),
-            ),
-          ),
         ],
-      ],
+      ),
     );
   }
 
@@ -801,6 +758,7 @@ class _MainScreenState extends State<MainScreen> {
               child: Scaffold(
                 appBar: (_currentIndex == 0 || _currentIndex == 1)
                     ? AppBar(
+                        titleSpacing: 8,
                         title: _isSearching
                             ? _buildSearchField(appState)
                             : (_currentIndex == 0
@@ -810,13 +768,17 @@ class _MainScreenState extends State<MainScreen> {
                             ? _buildSearchActions(appState)
                             : [
                                 if (_currentIndex == 0) ...[
-                                  _buildQuickAddTopButton(
-                                    context,
-                                    appState,
-                                    isCompact: false,
-                                  ),
+                                  _buildQuickAddTopButton(context, appState),
                                   IconButton(
-                                    icon: const Icon(Icons.tune),
+                                    icon: const Icon(Icons.tune, size: 20),
+                                    visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 34,
+                                      minHeight: 34,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
                                     tooltip: 'Kayıt Yöneticisi (Toplu İşlemler)',
                                     onPressed: () => RecordManagerDialog.show(context),
                                   ),
@@ -825,16 +787,33 @@ class _MainScreenState extends State<MainScreen> {
                                       appState.fitToScreen
                                           ? Icons.fullscreen_exit
                                           : Icons.fullscreen,
+                                      size: 20,
                                       color: appState.fitToScreen
                                           ? Colors.blue
                                           : null,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 34,
+                                      minHeight: 34,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
                                     ),
                                     tooltip: 'Dikey Ekrana Sığdır',
                                     onPressed: () => appState.toggleFitToScreen(),
                                   ),
                                 ],
                                 IconButton(
-                                  icon: const Icon(Icons.search),
+                                  icon: const Icon(Icons.search, size: 20),
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 34,
+                                    minHeight: 34,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
                                   tooltip: 'Ara',
                                   onPressed: () {
                                     setState(() => _isSearching = true);
@@ -845,6 +824,15 @@ class _MainScreenState extends State<MainScreen> {
                                     appState.isDarkMode
                                         ? Icons.light_mode
                                         : Icons.dark_mode,
+                                    size: 20,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 34,
+                                    minHeight: 34,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
                                   ),
                                   onPressed: () => appState.toggleDarkMode(),
                                 ),
@@ -861,6 +849,7 @@ class _MainScreenState extends State<MainScreen> {
     } else {
       return Scaffold(
         appBar: AppBar(
+          titleSpacing: 6,
           title: _isSearching
               ? _buildSearchField(appState)
               : (_currentIndex == 0
@@ -878,13 +867,15 @@ class _MainScreenState extends State<MainScreen> {
               ? _buildSearchActions(appState)
               : [
                   if (_currentIndex == 0) ...[
-                    _buildQuickAddTopButton(
-                      context,
-                      appState,
-                      isCompact: true,
-                    ),
+                    _buildQuickAddTopButton(context, appState),
                     IconButton(
-                      icon: const Icon(Icons.tune),
+                      icon: const Icon(Icons.tune, size: 20),
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
                       tooltip: 'Kayıt Yöneticisi (Toplu İşlemler)',
                       onPressed: () => RecordManagerDialog.show(context),
                     ),
@@ -893,15 +884,28 @@ class _MainScreenState extends State<MainScreen> {
                         appState.fitToScreen
                             ? Icons.fullscreen_exit
                             : Icons.fullscreen,
+                        size: 20,
                         color: appState.fitToScreen ? Colors.blue : null,
                       ),
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
                       tooltip: 'Dikey Ekrana Sığdır',
                       onPressed: () => appState.toggleFitToScreen(),
                     ),
                   ],
                   if (_currentIndex == 0 || _currentIndex == 1)
                     IconButton(
-                      icon: const Icon(Icons.search),
+                      icon: const Icon(Icons.search, size: 20),
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
                       tooltip: 'Ara',
                       onPressed: () {
                         setState(() => _isSearching = true);
@@ -910,7 +914,14 @@ class _MainScreenState extends State<MainScreen> {
                   IconButton(
                     icon: Icon(
                       appState.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                      size: 20,
                     ),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
                     onPressed: () => appState.toggleDarkMode(),
                   ),
                   _buildProfileButton(context, appState),
